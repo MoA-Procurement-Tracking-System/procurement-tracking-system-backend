@@ -1,16 +1,25 @@
-(async () => {
-  try {
-    const { default: app } = await import("./app.js");
-    const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-    app.listen(port, () => {
-      // eslint-disable-next-line no-console
-      console.log(`Server running on port ${port}`);
-    });
-  } catch (err) {
-    // Print full error with stack and exit so we can diagnose module load failures
-    // eslint-disable-next-line no-console
-    console.error(err);
-    // ensure non-zero exit
-    process.exit(1);
-  }
-})();
+import app from './app.js';
+import { createServer } from 'http';
+
+const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+
+const server = createServer(app);
+
+server.on('error', (err) => {
+  console.error('Server error:', err);
+  process.exit(1);
+});
+
+server.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
+  process.exit(1);
+});

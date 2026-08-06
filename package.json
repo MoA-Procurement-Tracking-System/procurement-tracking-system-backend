@@ -5,11 +5,18 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "node --loader ts-node/esm src/server.ts",
+    "dev": "nodemon --watch src --ext ts --delay 1 --exec \"node --loader ts-node/esm src/server.ts\"",
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint .",
-"format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   },
   "repository": {
     "type": "git",
@@ -47,6 +54,7 @@
     "eslint-plugin-import": "^2.32.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
+    "nodemon": "^3.1.14",
     "prettier": "^3.9.6",
     "prisma": "^7.9.1",
     "ts-node-dev": "^2.0.0",
