@@ -5,11 +5,20 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --watch src --ext ts --delay 1 --exec \"node --loader ts-node/esm src/server.ts\"",
+    "postinstall": "prisma generate",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "dev": "tsx watch src/server.ts",
+    "prebuild": "npm run clean && prisma generate",
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "bootstrap:admin": "tsx src/scripts/bootstrap-admin.ts",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -30,6 +39,7 @@
   },
   "homepage": "https://github.com/MoA-Procurement-Tracking-System/procurement-tracking-system-backend#readme",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -54,10 +64,9 @@
     "eslint-plugin-import": "^2.32.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
-    "nodemon": "^3.1.14",
     "prettier": "^3.9.6",
     "prisma": "^7.9.1",
-    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.23.11",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.66.0",
     "vitest": "^4.1.10"

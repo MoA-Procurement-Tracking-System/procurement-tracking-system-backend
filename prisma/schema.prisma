@@ -11,3 +11,86 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum UserRole {
+  OFFICER
+  DIRECTOR
+  ENDORSING_COMMITTEE
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SessionKind {
+  PASSWORD_CHANGE
+  AUTHENTICATED
+}
+
+model User {
+  id                    String               @id @default(uuid())
+  email                 String               @unique
+  username              String?              @unique
+  displayName           String
+  role                  UserRole
+  status                UserStatus           @default(ACTIVE)
+  passwordHash          String
+  mustChangePassword    Boolean              @default(true)
+  tempPasswordExpiresAt DateTime?
+  passwordChangedAt     DateTime?
+  failedLoginAttempts   Int                  @default(0)
+  lockedUntil           DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  sessions              Session[]
+  passwordResetTokens   PasswordResetToken[]
+  auditLogs             AuthAuditLog[]
+
+  @@index([role, status])
+}
+
+model Session {
+  id         String      @id @default(uuid())
+  tokenHash  String      @unique
+  kind       SessionKind
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime    @default(now())
+  createdAt  DateTime    @default(now())
+  ipAddress  String?
+  userAgent  String?
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuthAuditLog {
+  id        String   @id @default(uuid())
+  event     String
+  success   Boolean
+  email     String?
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([event, createdAt])
+}
