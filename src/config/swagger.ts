@@ -1,20 +1,25 @@
-import swaggerJsdoc from "swagger-jsdoc";
+import swaggerJsdoc from 'swagger-jsdoc';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const options = {
   definition: {
-    openapi: "3.0.0",
+    openapi: '3.0.0',
     info: {
-      title: "Procurement Tracking System API",
-      version: "1.0.0",
-      description: "API documentation for the procurement tracking system",
+      title: 'Procurement Tracking System API',
+      version: '1.0.0',
+      description: 'API documentation for the procurement tracking system',
     },
     servers: [
       {
-        url: "http://localhost:5000",
+        url: `http://localhost:${process.env.PORT ?? 3000}`,
       },
     ],
   },
-  apis: ["./src/modules/**/*.routes.ts"],
+  apis: [join(__dirname, '../modules') + '/**/*.routes.ts'],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);
