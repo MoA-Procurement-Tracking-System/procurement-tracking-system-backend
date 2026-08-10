@@ -163,4 +163,40 @@ router.patch(
   authController.changePassword.bind(authController),
 );
 
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout and revoke refresh token
+ *     tags: [Authentication]
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refreshToken: { type: string }
+ *     responses:
+ *       200: { description: Logged out successfully }
+ */
+router.post(
+  '/logout',
+  authenticate,
+  authController.logout.bind(authController),
+);
+
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current authenticated user
+ *     tags: [Authentication]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Current user }
+ *       401: { description: Authentication required }
+ */
+router.get('/me', authenticate, authController.me.bind(authController));
+
 export default router;

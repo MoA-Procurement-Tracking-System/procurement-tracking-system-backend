@@ -1,39 +1,36 @@
 import app from './app.js';
 import { createServer } from 'http';
-
-const requestedPort = process.env.PORT ? Number(process.env.PORT) : 3000;
-const initialPort =
-  Number.isInteger(requestedPort) && requestedPort > 0 ? requestedPort : 3000;
+import { env } from './config/env.js';
+import { logger } from './config/logger.js';
 
 const server = createServer(app);
 
 function startServer(port: number) {
   server.once('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
-      const fallbackPort = port === 3000 ? 3001 : port + 1;
-      console.warn(`Port ${port} is busy, retrying on ${fallbackPort}`);
+      const fallback = port + 1;
+      logger.warn(`Port ${port} is busy, retrying on ${fallback}`);
       server.removeAllListeners('error');
-      startServer(fallbackPort);
+      startServer(fallback);
       return;
     }
-
-    console.error('Server error:', err);
+    logger.error({ err }, 'Server error');
     process.exit(1);
   });
 
   server.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+    logger.info(`Server running on port ${port} [${env.NODE_ENV}]`);
   });
 }
 
-startServer(initialPort);
+startServer(env.PORT);
 
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
+  logger.error({ err }, 'Uncaught exception');
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection:', reason);
+  logger.error({ reason }, 'Unhandled rejection');
   process.exit(1);
 });

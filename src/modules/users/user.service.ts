@@ -1,3 +1,4 @@
+import { prisma } from '../../config/database.js';
 import { hashPassword } from '../../utils/password.js';
 import { ApiError } from '../../utils/errors.js';
 import type {
@@ -7,53 +8,102 @@ import type {
   SafeUser,
 } from './user.types.js';
 
+const safeSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 export async function listUsers(query: ListUsersQuery) {
-  const { page, pageSize } = query;
+  const { page, pageSize, search, role, isActive } = query;
+  const skip = (page - 1) * pageSize;
+
+  const where = {
+    ...(search && {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+      ],
+    }),
+    ...(role && { role }),
+    ...(isActive !== undefined && { isActive }),
+  };
+
+  const [data, total] = await prisma.$transaction([
+    prisma.user.findMany({
+      where,
+      select: safeSelect,
+      skip,
+      take: pageSize,
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.user.count({ where }),
+  ]);
 
   return {
-    data: [] as SafeUser[],
-    meta: {
-      page,
-      pageSize,
-      total: 0,
-      totalPages: 1,
-    },
+    data,
+    meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
   };
 }
 
 export async function getUserById(id: string): Promise<SafeUser> {
-  if (!id) throw ApiError.notFound('User not found');
-  throw ApiError.notFound('User not found');
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: safeSelect,
+  });
+  if (!user) throw ApiError.notFound('User not found');
+  return user;
 }
 
 export async function createUser(input: CreateUserInput): Promise<SafeUser> {
-  const passwordHash = await hashPassword(input.password);
+  const existing = await prisma.user.findUnique({
+    where: { email: input.email.toLowerCase() },
+  });
+  if (existing)
+    throw ApiError.conflict('Email already in use', [
+      { field: 'email', message: 'already in use' },
+    ]);
 
-  return {
-    id: 'placeholder-user',
-    name: input.name,
-    email: input.email.toLowerCase(),
-    role: input.role,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    passwordHash,
-  } as SafeUser & { passwordHash?: string } as SafeUser;
+  const passwordHash = await hashPassword(input.password);
+  return prisma.user.create({
+    data: {
+      name: input.name,
+      email: input.email.toLowerCase(),
+      passwordHash,
+      role: input.role,
+      mustChangePassword: true,
+    },
+    select: safeSelect,
+  });
 }
 
 export async function updateUser(
   id: string,
   input: UpdateUserInput,
 ): Promise<SafeUser> {
-  if (!id) throw ApiError.notFound('User not found');
+  const existing = await prisma.user.findUnique({ where: { id } });
+  if (!existing) throw ApiError.notFound('User not found');
 
-  return {
-    id,
-    name: input.name ?? 'Updated User',
-    email: input.email?.toLowerCase() ?? 'updated@example.com',
-    role: input.role ?? 'ProcurementOfficer',
-    isActive: input.isActive ?? true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  if (input.email) {
+    const conflict = await prisma.user.findFirst({
+      where: { email: input.email.toLowerCase(), NOT: { id } },
+    });
+    if (conflict)
+      throw ApiError.conflict('Email already in use', [
+        { field: 'email', message: 'already in use' },
+      ]);
+  }
+
+  return prisma.user.update({
+    where: { id },
+    data: {
+      ...input,
+      ...(input.email && { email: input.email.toLowerCase() }),
+    },
+    select: safeSelect,
+  });
 }
