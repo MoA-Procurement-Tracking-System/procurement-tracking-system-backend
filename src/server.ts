@@ -6,17 +6,28 @@ import { logger } from './config/logger.js';
 
 const server = createServer(app);
 
-server.on('error', (err) => {
-  logger.fatal({ err }, 'Server error');
-  process.exit(1);
-});
+function startServer(port: number) {
+  server.once('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      const fallback = port + 1;
+      logger.warn(`Port ${port} is busy, retrying on ${fallback}`);
+      server.removeAllListeners('error');
+      startServer(fallback);
+      return;
+    }
+    logger.error({ err }, 'Server error');
+    process.exit(1);
+  });
 
-server.listen(env.PORT, () => {
-  logger.info({ port: env.PORT }, 'Procurement Tracking System API is running');
-});
+  server.listen(port, () => {
+    logger.info(`Server running on port ${port} [${env.NODE_ENV}]`);
+  });
+}
+
+startServer(env.PORT);
 
 process.on('uncaughtException', (err) => {
-  logger.fatal({ err }, 'Uncaught exception');
+  logger.error({ err }, 'Uncaught exception');
   process.exit(1);
 });
 
