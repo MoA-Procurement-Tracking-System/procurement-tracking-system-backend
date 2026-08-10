@@ -9,11 +9,12 @@ datasource db {
 }
 
 enum Role {
-  ProcurementOfficer
-  ProcurementDirector
-  Administrator
-  ManagementTeam
-  ProjectManager
+  OFFICER
+  DIRECTOR
+  ADMIN
+  ENDORSING_COMMITTEE
+  MANAGEMENT_TEAM
+  PROJECT_MANAGER
 }
 
 enum PlanStatus {
@@ -38,23 +39,42 @@ enum ImportStatus {
   CompletedWithErrors
   Failed
 }
+enum UserStatus{
+ INVITED
+ ACTIVE
+ INACTIVE
+ }
+ enum SessionKind{
+  PASSWORD_CHANGE
+  AUTHENTICATED
+  }
+  
+
 
 model User {
   id                   String   @id @default(uuid())
-  name                 String
+  username             String?  @unique
+  displayname          String
   email                String   @unique
   passwordHash         String
   role                 Role
+  status               UserStatus
   isActive             Boolean  @default(true)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
-
+  sessions             Sessions[]
+  
+  mustChangePassword   Boolean
+  tempPasswordExpiresAt DateTime?
+  passwordChangedAt    DateTime?
   activities           Activity[]           @relation("ActivityOfficer")
   reviewedActivities   Activity[]           @relation("ActivityReviewer")
   auditLogs            AuditLog[]
   projectLinks         UserProject[]
   refreshTokens        RefreshToken[]
   passwordResetTokens  PasswordResetToken[]
+  failedLoginAttempts  Int                   @default(0)
+  lockedUntil          DataTime?
   comments             Comment[]
   createdPlans         Plan[]               @relation("PlanCreator")
   approvedPlans        Plan[]               @relation("PlanApprover")
@@ -65,10 +85,26 @@ model User {
   contractAmendments   ContractAmendment[]
   resolvedAlerts       Alert[]
   importBatches        ImportBatch[]
+  invitationTokens     UserInvitationTokens[]
 
   @@index([role])
   @@index([isActive])
   mustChangePassword   Boolean  @default(false)
+}
+model Session {
+  id         String      @id @default(uuid())
+  tokenHash  String      @unique
+  kind       SessionKind
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime    @default(now())
+  createdAt  DateTime    @default(now())
+  ipAddress  String?
+  userAgent  String?
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }
 
 model RefreshToken {
@@ -96,6 +132,18 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
 }
+model UserInvitationToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
 
 model Project {
   id        String   @id @default(uuid())
@@ -595,24 +643,22 @@ model Alert {
   @@index([dueDate])
 }
 
-model AuditLog {
-  id         String   @id @default(uuid())
+model AuthAuditLog {
+  id        String   @id @default(uuid())
+  event     String
+  success   Boolean
+  email     String?
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id])
-
-  action     String
-  entityType String?
-  entityId   String?
-  changes    Json?
-
-  createdAt  DateTime @default(now())
-
-  @@index([entityType, entityId])
-  @@index([userId])
-  @@index([action])
-  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([event, createdAt])
 }
+
 
 model ImportBatch {
   id           String       @id @default(uuid())

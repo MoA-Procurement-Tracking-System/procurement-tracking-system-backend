@@ -1,5 +1,6 @@
 import app from './app.js';
 import { createServer } from 'http';
+import { prisma } from './config/database.js';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 
@@ -31,6 +32,17 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason) => {
-  logger.error({ reason }, 'Unhandled rejection');
+  logger.fatal({ reason }, 'Unhandled rejection');
   process.exit(1);
 });
+
+const shutdown = async (signal: string) => {
+  logger.info({ signal }, 'Shutting down');
+  server.close(async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));

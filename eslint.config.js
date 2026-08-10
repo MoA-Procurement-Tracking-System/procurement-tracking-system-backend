@@ -1,19 +1,15 @@
-import js from "@eslint/js";
-import tseslint from "typescript-eslint";
-import prettier from "eslint-config-prettier";
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
+  { ignores: ['node_modules/**', 'dist/**', 'src/generated/prisma/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   prettier,
   {
-    ignores: [
-      "node_modules",
-      "dist",
-    ],
-
     rules: {
-      "@typescript-eslint/no-unused-vars": "warn",
+      '@typescript-eslint/no-unused-vars': 'warn',
     },
-  }
+  },
 );

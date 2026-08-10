@@ -5,11 +5,21 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "postinstall": "prisma generate",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "dev": "tsx watch src/server.ts",
+    "prebuild": "npm run clean && prisma generate",
     "dev": "nodemon --watch src --ext ts --delay 1 --exec \"tsx src/server.ts\"",
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint src",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "bootstrap:admin": "tsx src/scripts/bootstrap-admin.ts",
     "prepare": "husky"
   },
   "lint-staged": {

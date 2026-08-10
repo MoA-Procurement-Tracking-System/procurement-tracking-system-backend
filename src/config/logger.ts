@@ -5,10 +5,23 @@ import { env } from './env.js';
 
 export const logger = pino({
   level: env.LOG_LEVEL,
-  ...(env.NODE_ENV !== 'production' && {
-    transport: { target: 'pino-pretty', options: { colorize: true } },
+  redact: [
+    "req.headers.authorization",
+    "req.headers.cookie",
+    "password",
+    "currentPassword",
+    "newPassword",
+    "confirmPassword",
+    "token",
+  ],
+  ...(env.NODE_ENV !== "production" && {
+    transport: {
+      target: "pino-pretty",
+      options: { colorize: true },
+    },
   }),
 });
+
 
 const httpOptions: Options = {
   logger,
