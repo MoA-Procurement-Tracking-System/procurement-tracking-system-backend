@@ -18,6 +18,7 @@ describe('authentication security helpers', () => {
     await expect(verifyPassword('Wrong-Password1!', encoded)).resolves.toBe(
       false,
     );
+    await expect(verifyPassword('Any-Password1!', null)).resolves.toBe(false);
   });
 
   it('rejects weak and identifier-derived passwords', () => {

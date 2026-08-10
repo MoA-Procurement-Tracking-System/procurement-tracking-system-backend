@@ -53,7 +53,7 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(
   password: string,
-  encodedHash?: string,
+  encodedHash?: string | null,
 ): Promise<boolean> {
   const value = encodedHash ?? DUMMY_HASH;
   const parts = value.split('$');

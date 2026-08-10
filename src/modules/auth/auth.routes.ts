@@ -16,16 +16,23 @@ import {
 } from '../../generated/prisma/enums.js';
 import {
   generateOpaqueToken,
-  generateTemporaryPassword,
   hashPassword,
   hashToken,
   validatePassword,
   verifyPassword,
 } from './auth.security.js';
+import {
+  isMailerSendConfigured,
+  sendEmail,
+} from '../../services/email.service.js';
 
 const INVALID_LOGIN_MESSAGE = 'Unable to sign in with those credentials.';
 const GENERIC_RESET_MESSAGE =
   'If an active account matches that address, password reset instructions will be sent.';
+
+class InvitationNoLongerValidError extends Error {
+  override name = 'InvitationNoLongerValidError';
+}
 
 type PublicUser = {
   id: string;
@@ -39,7 +46,7 @@ type RequestAuth = {
   sessionId: string;
   sessionKind: SessionKind;
   sessionExpiresAt: Date;
-  user: PublicUser & { status: UserStatus; passwordHash: string };
+  user: PublicUser & { status: UserStatus; passwordHash: string | null };
 };
 
 declare global {
@@ -81,9 +88,19 @@ const resetPasswordSchema = z
     path: ['confirmPassword'],
   });
 
+const createPasswordSchema = z
+  .object({
+    token: z.string().min(32).max(256),
+    newPassword: z.string().min(1).max(128),
+    confirmPassword: z.string().min(1).max(128),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'The password confirmation does not match.',
+    path: ['confirmPassword'],
+  });
+
 const createUserSchema = z.object({
   email: z.email().max(254),
-  username: z.string().trim().min(3).max(80).optional(),
   displayName: z.string().trim().min(2).max(120),
   role: z.enum([
     UserRole.OFFICER,
@@ -172,6 +189,65 @@ async function audit(
 
 function expiresFromNow(milliseconds: number): Date {
   return new Date(Date.now() + milliseconds);
+}
+
+async function deliverUserInvitation(values: {
+  email: string;
+  displayName: string;
+  role: UserRole;
+  invitationUrl: string;
+}) {
+  if (isMailerSendConfigured()) {
+    await sendEmail({
+      to: values.email,
+      subject: 'Create your MoA Procurement Tracking System account',
+      text: [
+        `Hello ${values.displayName},`,
+        '',
+        `You have been invited to join the MoA Procurement Tracking System as ${values.role.replaceAll('_', ' ').toLowerCase()}.`,
+        '',
+        'Create your password using this secure link:',
+        values.invitationUrl,
+        '',
+        `This invitation expires in ${env.USER_INVITATION_HOURS} hours.`,
+        'If you were not expecting this invitation, you can ignore this email.',
+      ].join('\n'),
+    });
+    return;
+  }
+
+  // Future Ministry email-server integration. Disable the MailerSend block
+  // above before uncommenting this block so invitations are not sent twice.
+  /*
+  if (env.USER_INVITATION_WEBHOOK_URL) {
+    const delivery = await fetch(env.USER_INVITATION_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        to: values.email,
+        displayName: values.displayName,
+        role: values.role,
+        invitationUrl: values.invitationUrl,
+      }),
+    });
+    if (!delivery.ok) {
+      throw new Error(`User invitation webhook returned ${delivery.status}`);
+    }
+    return;
+  }
+  */
+
+  if (env.NODE_ENV !== 'production') {
+    logger.warn(
+      { email: values.email, invitationUrl: values.invitationUrl },
+      'Development user invitation link',
+    );
+    return;
+  }
+
+  throw new Error(
+    'MailerSend email delivery is required to deliver invitations in production',
+  );
 }
 
 async function createSession(
@@ -484,6 +560,10 @@ authRouter.post('/forgot-password', async (req, res) => {
       },
     });
     const resetUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token.raw)}`;
+
+    // Future Ministry email-server integration. Disable the MailerSend block
+    // below before uncommenting this block so reset emails are not sent twice.
+    /*
     if (env.PASSWORD_RESET_WEBHOOK_URL) {
       try {
         const delivery = await fetch(env.PASSWORD_RESET_WEBHOOK_URL, {
@@ -499,6 +579,30 @@ authRouter.post('/forgot-password', async (req, res) => {
           'Password reset delivery failed',
         );
       }
+    }
+    */
+
+    if (isMailerSendConfigured()) {
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Reset your MoA Procurement Tracking System password',
+          text: [
+            'A password reset was requested for your MoA Procurement Tracking System account.',
+            '',
+            'Reset your password using this secure link:',
+            resetUrl,
+            '',
+            `This link expires in ${env.PASSWORD_RESET_MINUTES} minutes.`,
+            'If you did not request a password reset, you can ignore this email.',
+          ].join('\n'),
+        });
+      } catch (error) {
+        logger.error(
+          { error, userId: user.id },
+          'Password reset delivery failed',
+        );
+      }
     } else if (env.NODE_ENV !== 'production') {
       logger.warn(
         { email: user.email, resetUrl },
@@ -506,7 +610,7 @@ authRouter.post('/forgot-password', async (req, res) => {
       );
     } else {
       logger.error(
-        'PASSWORD_RESET_WEBHOOK_URL is required to deliver reset links in production',
+        'MailerSend email delivery is required to deliver reset links in production',
       );
     }
     await audit('PASSWORD_RESET_REQUESTED', true, req, {
@@ -519,6 +623,101 @@ authRouter.post('/forgot-password', async (req, res) => {
   }
 
   res.json({ message: GENERIC_RESET_MESSAGE });
+});
+
+authRouter.post('/create-password', async (req, res) => {
+  const parsed = createPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      message:
+        parsed.error.issues[0]?.message ?? 'The account invitation is invalid.',
+    });
+    return;
+  }
+
+  const invitation = await prisma.userInvitationToken.findUnique({
+    where: { tokenHash: hashToken(parsed.data.token) },
+    include: { user: true },
+  });
+  const now = new Date();
+  if (
+    !invitation ||
+    invitation.usedAt ||
+    invitation.expiresAt <= now ||
+    invitation.user.status !== UserStatus.INVITED ||
+    invitation.user.passwordHash !== null
+  ) {
+    res.status(400).json({
+      message: 'This account invitation link is invalid or has expired.',
+    });
+    return;
+  }
+
+  const identifiers = [
+    invitation.user.email.split('@')[0] ?? '',
+    ...invitation.user.displayName.split(/\s+/),
+  ];
+  const policyErrors = validatePassword(parsed.data.newPassword, identifiers);
+  if (policyErrors.length > 0) {
+    res.status(400).json({ message: policyErrors.join(' ') });
+    return;
+  }
+
+  const passwordHash = await hashPassword(parsed.data.newPassword);
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const consumed = await transaction.userInvitationToken.updateMany({
+        where: {
+          id: invitation.id,
+          usedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { usedAt: now },
+      });
+      if (consumed.count !== 1) throw new InvitationNoLongerValidError();
+
+      const activated = await transaction.user.updateMany({
+        where: {
+          id: invitation.userId,
+          status: UserStatus.INVITED,
+          passwordHash: null,
+        },
+        data: {
+          passwordHash,
+          status: UserStatus.ACTIVE,
+          mustChangePassword: false,
+          tempPasswordExpiresAt: null,
+          passwordChangedAt: now,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        },
+      });
+      if (activated.count !== 1) throw new InvitationNoLongerValidError();
+
+      await transaction.userInvitationToken.updateMany({
+        where: { userId: invitation.userId, usedAt: null },
+        data: { usedAt: now },
+      });
+      await transaction.session.updateMany({
+        where: { userId: invitation.userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+    });
+  } catch (error) {
+    if (error instanceof InvitationNoLongerValidError) {
+      res.status(400).json({
+        message: 'This account invitation link is invalid or has expired.',
+      });
+      return;
+    }
+    throw error;
+  }
+
+  await audit('ACCOUNT_ACTIVATED', true, req, {
+    userId: invitation.userId,
+    email: invitation.user.email,
+  });
+  res.json({ message: 'Password created. You can now sign in.' });
 });
 
 authRouter.post('/reset-password', async (req, res) => {
@@ -595,39 +794,90 @@ adminRouter.post('/users', async (req, res) => {
     return;
   }
   const email = parsed.data.email.toLowerCase();
-  const temporaryPassword = generateTemporaryPassword();
-  const passwordHash = await hashPassword(temporaryPassword);
+
+  // Future Ministry email-server integration. Disable the MailerSend guard
+  // below before uncommenting this block.
+  /*
+  if (env.NODE_ENV === 'production' && !env.USER_INVITATION_WEBHOOK_URL) {
+    res.status(503).json({
+      message: 'User invitation email delivery is not configured.',
+    });
+    return;
+  }
+  */
+
+  if (env.NODE_ENV === 'production' && !isMailerSendConfigured()) {
+    res.status(503).json({
+      message: 'User invitation email delivery is not configured.',
+    });
+    return;
+  }
+
+  const invitation = generateOpaqueToken();
+  const invitationExpiresAt = expiresFromNow(
+    env.USER_INVITATION_HOURS * 3_600_000,
+  );
   try {
     const user = await prisma.user.create({
       data: {
         email,
-        username: parsed.data.username?.toLowerCase() ?? null,
+        username: null,
         displayName: parsed.data.displayName,
         role: parsed.data.role,
-        passwordHash,
-        mustChangePassword: true,
-        tempPasswordExpiresAt: expiresFromNow(
-          env.TEMP_PASSWORD_HOURS * 3_600_000,
-        ),
+        status: UserStatus.INVITED,
+        passwordHash: null,
+        mustChangePassword: false,
+        tempPasswordExpiresAt: null,
+        invitationTokens: {
+          create: {
+            tokenHash: invitation.hash,
+            expiresAt: invitationExpiresAt,
+          },
+        },
       },
     });
-    await audit('USER_PROVISIONED', true, req, {
+    const invitationUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/create-password?token=${encodeURIComponent(invitation.raw)}`;
+
+    try {
+      await deliverUserInvitation({
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        invitationUrl,
+      });
+    } catch (error) {
+      logger.error(
+        { error, userId: user.id },
+        'User invitation delivery failed',
+      );
+      await prisma.user.delete({ where: { id: user.id } });
+      await audit('USER_INVITATION_DELIVERY_FAILED', false, req, {
+        email,
+        metadata: { role: user.role, invitedBy: req.auth!.user.id },
+      });
+      res.status(502).json({
+        message: 'The invitation could not be sent. The user was not created.',
+      });
+      return;
+    }
+
+    await audit('USER_INVITED', true, req, {
       userId: user.id,
       email,
-      metadata: { role: user.role, provisionedBy: req.auth!.user.id },
+      metadata: { role: user.role, invitedBy: req.auth!.user.id },
     });
     res.status(201).json({
       user: publicUser(user),
-      temporaryPassword,
-      temporaryPasswordExpiresAt: user.tempPasswordExpiresAt,
-      message:
-        'Share this one-time password securely. It will not be shown again.',
+      invitationExpiresAt,
+      message: isMailerSendConfigured()
+        ? `Invitation sent to ${user.email}.`
+        : 'User created. The development invitation link was written to the backend log.',
     });
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === 'P2002') {
       res.status(409).json({
-        message: 'A user with that email or username already exists.',
+        message: 'A user with that email already exists.',
       });
       return;
     }

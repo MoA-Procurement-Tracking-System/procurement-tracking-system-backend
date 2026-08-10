@@ -6,6 +6,16 @@ const optionalUrl = z.preprocess(
   z.url().optional(),
 );
 
+const optionalString = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().trim().min(1).optional(),
+);
+
+const optionalEmail = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.email().optional(),
+);
+
 const schema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -29,10 +39,15 @@ const schema = z.object({
     .positive()
     .default(15),
   PASSWORD_RESET_MINUTES: z.coerce.number().int().positive().default(30),
+  USER_INVITATION_HOURS: z.coerce.number().int().positive().default(72),
   TEMP_PASSWORD_HOURS: z.coerce.number().int().positive().default(72),
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().positive().default(15),
   PASSWORD_RESET_WEBHOOK_URL: optionalUrl,
+  USER_INVITATION_WEBHOOK_URL: optionalUrl,
+  MAILERSEND_API_TOKEN: optionalString,
+  MAILERSEND_FROM_EMAIL: optionalEmail,
+  MAILERSEND_FROM_NAME: optionalString,
   BOOTSTRAP_ADMIN_EMAIL: z.email().default('admin@moa.gov.et'),
   BOOTSTRAP_ADMIN_NAME: z.string().min(1).default('System Administrator'),
   BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),

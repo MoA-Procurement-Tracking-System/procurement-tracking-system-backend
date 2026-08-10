@@ -7,8 +7,9 @@ planning, tracking, and reporting system.
 
 - Secure credential-based authentication.
 - Server-side sessions backed by opaque session cookies.
-- Mandatory first-login password replacement.
-- Administrator-controlled user provisioning.
+- Email-based account invitations for Administrator-created users.
+- Password creation from single-use invitation links.
+- Mandatory temporary-password replacement for the bootstrap Administrator.
 - Password-reset token creation and delivery integration.
 - Role and session authorization middleware.
 - Authentication audit records and account lockout.
@@ -38,18 +39,19 @@ Administrator already exists.
 
 ## Authentication flow
 
-1. An Administrator provisions an authorized user.
-2. The backend generates a cryptographically random, unique temporary password,
-   stores only its password hash, and returns the password once.
-3. The user signs in before the temporary password expires.
-4. The backend creates a restricted `PASSWORD_CHANGE` session.
-5. The user replaces the temporary password with a password that satisfies the
-   policy.
-6. The restricted session is revoked and replaced with an authenticated session.
+1. An Administrator enters a user's name and email and selects Officer,
+   Director, or Endorsing Committee.
+2. The backend creates an `INVITED` account with no password and stores only the
+   hash of a cryptographically random, single-use invitation token.
+3. MailerSend emails the user a link to `/create-password`.
+4. The user opens the link and creates a password that satisfies the policy.
+5. The backend consumes the invitation token and activates the account.
+6. The user signs in and receives an authenticated server-side session.
 7. Protected endpoints verify the session, account status, and required role.
 8. Signing out revokes the server-side session and clears the browser cookie.
 
-Temporary passwords must never be shared between users.
+The bootstrap Administrator is the only account that uses a generated
+temporary password and the restricted `PASSWORD_CHANGE` session.
 
 ## Prerequisites
 
@@ -128,22 +130,25 @@ use the frontend's same-origin authentication proxy.
 | `POST` | `/api/auth/login`           | Validate credentials and create a session |
 | `GET`  | `/api/auth/session`         | Return the current session and user       |
 | `POST` | `/api/auth/change-password` | Replace a temporary or current password   |
+| `POST` | `/api/auth/create-password` | Activate an invited account               |
 | `POST` | `/api/auth/logout`          | Revoke the current session                |
 | `POST` | `/api/auth/forgot-password` | Request password-reset delivery           |
 | `POST` | `/api/auth/reset-password`  | Complete a password reset                 |
 | `POST` | `/api/admin/users`          | Provision a non-Administrator user        |
 | `GET`  | `/api/me`                   | Return the authenticated user             |
 
-`POST /api/admin/users` requires an authenticated Administrator. Its response
-contains the new user's temporary password and expiry. The temporary password is
-not retrievable afterward.
+`POST /api/admin/users` requires an authenticated Administrator and accepts only
+`displayName`, `email`, and a non-Administrator `role`. It sends an invitation
+through MailerSend. The API response never exposes the invitation token or a
+password.
 
 ## Security controls
 
 - Passwords are salted and hashed with `scrypt`.
-- Temporary passwords and reset/session tokens use cryptographically secure
-  random bytes.
-- Only hashes of session and password-reset tokens are stored in PostgreSQL.
+- Bootstrap temporary passwords and invitation/reset/session tokens use
+  cryptographically secure random bytes.
+- Only hashes of invitation, session, and password-reset tokens are stored in
+  PostgreSQL.
 - Session cookies are `HttpOnly`, `SameSite=Strict`, and `Secure` in production.
 - Invalid credentials, inactive accounts, locked accounts, and expired temporary
   passwords receive the same generic sign-in error.
@@ -152,10 +157,37 @@ not retrievable afterward.
 - Password changes and resets revoke existing sessions.
 - Authentication events are written to `AuthAuditLog`.
 
+## User-invitation delivery
+
+Set `MAILERSEND_API_TOKEN`, `MAILERSEND_FROM_EMAIL`, and
+`MAILERSEND_FROM_NAME` on the backend. The sender address must belong to a
+domain verified in MailerSend. The backend sends the invitation link directly
+through MailerSend's transactional email API.
+
+The previous Ministry delivery webhook remains commented in
+`src/modules/auth/auth.routes.ts` for a future cutover. Before enabling it,
+disable the MailerSend delivery block to prevent duplicate email. The future
+webhook payload is:
+
+```json
+{
+  "to": "user@moa.gov.et",
+  "displayName": "Example User",
+  "role": "OFFICER",
+  "invitationUrl": "https://frontend.example/create-password?token=..."
+}
+```
+
+In development, the invitation URL is written to the backend log when
+MailerSend is not configured. Production requires MailerSend and never returns
+or logs the invitation token. If delivery fails, the account is removed so the
+Administrator can retry safely.
+
 ## Password-reset delivery
 
-Set `PASSWORD_RESET_WEBHOOK_URL` to the Ministry email service endpoint. The API
-sends this payload:
+Password reset links use the same MailerSend configuration. The previous
+Ministry password-reset webhook is also retained as commented code for the
+future cutover. Its payload is:
 
 ```json
 {
@@ -165,8 +197,8 @@ sends this payload:
 ```
 
 Reset requests always return the same generic response. In development, the
-reset URL is logged when no webhook is configured. Production does not return or
-log the reset URL and requires a configured delivery service.
+reset URL is logged when MailerSend is not configured. Production does not
+return or log the reset URL and requires a configured delivery service.
 
 ## Important environment variables
 
@@ -180,10 +212,15 @@ log the reset URL and requires a configured delivery service.
 | `REMEMBER_SESSION_DAYS`           | Remember-me session lifetime                      | `30`                             |
 | `PASSWORD_CHANGE_SESSION_MINUTES` | Restricted first-login session lifetime           | `15`                             |
 | `PASSWORD_RESET_MINUTES`          | Password-reset token lifetime                     | `30`                             |
+| `USER_INVITATION_HOURS`           | Account-invitation link lifetime                  | `72`                             |
 | `TEMP_PASSWORD_HOURS`             | Temporary-password lifetime                       | `72`                             |
 | `LOGIN_MAX_ATTEMPTS`              | Failed attempts before account lock               | `5`                              |
 | `LOGIN_LOCK_MINUTES`              | Account-lock duration                             | `15`                             |
-| `PASSWORD_RESET_WEBHOOK_URL`      | Reset email delivery webhook                      | Empty in development             |
+| `MAILERSEND_API_TOKEN`            | Server-only MailerSend API credential             | Required for email delivery      |
+| `MAILERSEND_FROM_EMAIL`           | Sender on a MailerSend-verified domain            | Required for email delivery      |
+| `MAILERSEND_FROM_NAME`            | Transactional email sender name                   | Required for email delivery      |
+| `PASSWORD_RESET_WEBHOOK_URL`      | Reserved future reset email webhook               | Inactive while commented         |
+| `USER_INVITATION_WEBHOOK_URL`     | Reserved future account-invitation webhook        | Inactive while commented         |
 | `BOOTSTRAP_ADMIN_EMAIL`           | Initial Administrator email                       | `admin@moa.gov.et`               |
 | `BOOTSTRAP_ADMIN_PASSWORD`        | Optional initial one-time password                | Generated when blank             |
 
@@ -218,8 +255,10 @@ npm run build
 
 - Replace all local database credentials and URLs.
 - Set `NODE_ENV=production` and serve the frontend and backend over HTTPS.
-- Configure `PASSWORD_RESET_WEBHOOK_URL` with the approved Ministry email
-  service.
+- Configure the three `MAILERSEND_*` variables in the deployment secret
+  manager and verify the sender domain before enabling production traffic.
+- When the approved Ministry email service is ready, disable MailerSend before
+  uncommenting the two webhook delivery blocks.
 - Restrict database and API network access.
 - Apply migrations with `npx prisma migrate deploy` before starting the API.
 - Store environment values in the deployment platform's secret manager.
