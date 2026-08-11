@@ -1,6 +1,8 @@
-import swaggerJsdoc from 'swagger-jsdoc';
+import swaggerJSDoc from 'swagger-jsdoc';
 
-const options = {
+const PORT = process.env.PORT || 5000;
+
+const options: swaggerJSDoc.Options = {
   definition: {
     openapi: '3.0.0',
     info: {
@@ -10,11 +12,12 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:5000',
+        url: `http://localhost:${PORT}`,
+        description: 'Development server',
       },
     ],
   },
-  apis: ['./src/modules/**/*.routes.ts'],
+  apis: ['./src/routes/*.ts', './src/modules/**/*.ts'],
 };
 
-export const swaggerSpec = swaggerJsdoc(options);
+export const swaggerSpec = swaggerJSDoc(options);
