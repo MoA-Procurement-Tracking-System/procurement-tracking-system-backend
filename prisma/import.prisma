@@ -1,0 +1,39 @@
+model ImportBatch {
+  id String @id @default(uuid())
+
+  entityType String
+  filename   String
+
+  uploadedById String
+  uploader     User   @relation(fields: [uploadedById], references: [id])
+
+  status ImportStatus @default(Processing)
+
+  totalRows    Int @default(0)
+  successCount Int @default(0)
+  errorCount   Int @default(0)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  rows ImportRow[]
+
+  @@index([status])
+  @@index([uploadedById])
+  @@index([createdAt])
+}
+
+model ImportRow {
+  id String @id @default(uuid())
+
+  batchId String
+  batch   ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  rowNumber       Int
+  success         Boolean
+  errorMessage    String?
+  createdEntityId String?
+
+  @@index([batchId])
+  @@index([success])
+}

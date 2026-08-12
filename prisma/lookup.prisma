@@ -1,0 +1,42 @@
+model LookupValue {
+  id        String   @id @default(uuid())
+  type      String
+  code      String
+  label     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  activitiesByCategory      Activity[] @relation("ActivityCategory")
+  activitiesByMethod        Activity[] @relation("ActivityMethod")
+  activitiesBySector        Activity[] @relation("ActivitySector")
+  activitiesByRegion        Activity[] @relation("ActivityRegion")
+  activitiesByFundingSource Activity[] @relation("ActivityFundingSource")
+  activitiesByCurrency      Activity[] @relation("ActivityCurrency")
+  activitiesByReviewType    Activity[] @relation("ActivityReviewType")
+  activitiesByReviewStatus  Activity[] @relation("ActivityReviewStatus")
+
+  stageTemplatesByCategory StageTemplate[] @relation("StageTemplateCategory")
+  stageTemplatesByMethod   StageTemplate[] @relation("StageTemplateMethod")
+
+  contractsByCurrency Contract[] @relation("ContractCurrency")
+  contractsByRegion   Contract[] @relation("ContractRegion")
+  contractsByStatus   Contract[] @relation("ContractStatus")
+
+  securityTypes      ContractSecurity[] @relation("SecurityType")
+  securityStatuses   ContractSecurity[] @relation("SecurityStatus")
+  securityCurrencies ContractSecurity[] @relation("SecurityCurrency")
+
+  milestoneStatuses ContractMilestone[] @relation("MilestoneStatus")
+
+  paymentTypes    Payment[] @relation("PaymentType")
+  paymentStatuses Payment[] @relation("PaymentStatus")
+
+  alertEntityTypes Alert[] @relation("AlertEntityType")
+  alertTypes       Alert[] @relation("AlertType")
+  alertSeverities  Alert[] @relation("AlertSeverity")
+  alertStatuses    Alert[] @relation("AlertStatus")
+
+  @@unique([type, code])
+  @@index([type])
+  @@index([isActive])
+}

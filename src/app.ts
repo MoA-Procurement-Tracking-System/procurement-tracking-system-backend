@@ -1,35 +1,33 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { pinoHttp } from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
+import { env } from './config/env.js';
+import { logger } from './config/logger.js';
 import { swaggerSpec } from './config/swagger.js';
-
-import authRoutes from './modules/auth/auth.routes.js';
+import {
+  adminRouter,
+  authErrorHandler,
+  authRouter,
+  protectedRouter,
+} from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/users.routes.js';
-const app = express();
 
-const allowedOrigins = new Set(
-  (process.env.CORS_ORIGIN ?? 'http://localhost:3000,http://127.0.0.1:3000')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-);
+const app = express();
+app.disable('x-powered-by');
+if (env.NODE_ENV === 'production') app.set('trust proxy', 1);
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error('Not allowed by CORS'));
-    },
+    origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
   }),
 );
 app.use(helmet());
-app.use(express.json());
+app.use(express.json({ limit: '32kb' }));
+app.use(pinoHttp({ logger }));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
@@ -38,8 +36,10 @@ app.get('/', (_req, res) => {
     message: 'Procurement Tracking System API is running',
   });
 });
-
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRouter);
+app.use('/api/admin', adminRouter);
 app.use('/api/users', userRoutes);
+app.use('/api', protectedRouter);
+app.use(authErrorHandler);
 
 export default app;
