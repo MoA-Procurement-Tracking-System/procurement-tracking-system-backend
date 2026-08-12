@@ -1,0 +1,128 @@
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  contact   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  contracts Contract[]
+
+  @@index([isActive])
+}
+
+model Contract {
+  id             String @id @default(uuid())
+  contractNumber String @unique
+
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id])
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  originalAmount Decimal @db.Decimal(14, 2)
+  currentAmount  Decimal @db.Decimal(14, 2)
+
+  currencyId String
+  currency   LookupValue @relation("ContractCurrency", fields: [currencyId], references: [id])
+
+  regionId String?
+  region   LookupValue? @relation("ContractRegion", fields: [regionId], references: [id])
+
+  statusId String
+  status   LookupValue @relation("ContractStatus", fields: [statusId], references: [id])
+
+  signingDate    DateTime?
+  startDate      DateTime?
+  completionDate DateTime?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments   Payment[]
+  documents  Document[]
+  amendments ContractAmendment[]
+  securities ContractSecurity[]
+  milestones ContractMilestone[]
+
+  @@index([activityId])
+  @@index([supplierId])
+  @@index([currencyId])
+  @@index([regionId])
+  @@index([statusId])
+  @@index([completionDate])
+}
+
+model ContractAmendment {
+  id         String   @id @default(uuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  previousAmount Decimal @db.Decimal(14, 2)
+  newAmount      Decimal @db.Decimal(14, 2)
+  reason         String
+
+  amendedById   String
+  amendedByUser User   @relation(fields: [amendedById], references: [id])
+
+  amendedAt DateTime @default(now())
+  isActive  Boolean  @default(true)
+
+  @@index([contractId])
+  @@index([amendedById])
+}
+
+model ContractSecurity {
+  id String @id @default(uuid())
+
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  typeId String
+  type   LookupValue @relation("SecurityType", fields: [typeId], references: [id])
+
+  provider String?
+
+  amount Decimal @db.Decimal(14, 2)
+
+  currencyId String
+  currency   LookupValue @relation("SecurityCurrency", fields: [currencyId], references: [id])
+
+  issueDate  DateTime?
+  expiryDate DateTime?
+
+  statusId String
+  status   LookupValue @relation("SecurityStatus", fields: [statusId], references: [id])
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([contractId])
+  @@index([typeId])
+  @@index([currencyId])
+  @@index([statusId])
+  @@index([expiryDate])
+}
+
+model ContractMilestone {
+  id String @id @default(uuid())
+
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  name          String
+  dueDate       DateTime?
+  deliveredDate DateTime?
+
+  statusId String
+  status   LookupValue @relation("MilestoneStatus", fields: [statusId], references: [id])
+
+  remarks   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([contractId])
+  @@index([statusId])
+  @@index([dueDate])
+}

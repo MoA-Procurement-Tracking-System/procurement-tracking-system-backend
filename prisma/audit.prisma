@@ -1,0 +1,38 @@
+model Revision {
+  id String @id @default(uuid())
+
+  entityType String
+  entityId   String
+  field      String
+  oldValue   String?
+  newValue   String?
+  reason     String
+
+  changedById String
+  changedBy   User   @relation(fields: [changedById], references: [id])
+
+  changedAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([changedById])
+  @@index([changedAt])
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  action     String
+  entityType String?
+  entityId   String?
+  changes    Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}

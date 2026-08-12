@@ -1,0 +1,113 @@
+model User {
+  id                    String     @id @default(uuid())
+  name                  String
+  email                 String     @unique
+  username              String?    @unique
+  displayName           String
+  passwordHash          String
+  role                  Role
+  authRole              UserRole   @default(OFFICER)
+  status                UserStatus @default(ACTIVE)
+  isActive              Boolean    @default(true)
+  mustChangePassword    Boolean    @default(false)
+  tempPasswordExpiresAt DateTime?
+  passwordChangedAt     DateTime?
+  failedLoginAttempts   Int        @default(0)
+  lockedUntil           DateTime?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  activities          Activity[]            @relation("ActivityOfficer")
+  reviewedActivities  Activity[]            @relation("ActivityReviewer")
+  auditLogs           AuditLog[]
+  projectLinks        UserProject[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  invitationTokens    UserInvitationToken[]
+  sessions            Session[]
+  authAuditLogs       AuthAuditLog[]
+  comments            Comment[]
+  createdPlans        Plan[]                @relation("PlanCreator")
+  approvedPlans       Plan[]                @relation("PlanApprover")
+  rejectedPlans       Plan[]                @relation("PlanRejector")
+  planReviews         PlanReview[]
+  revisions           Revision[]
+  uploadedDocuments   Document[]
+  contractAmendments  ContractAmendment[]
+  resolvedAlerts      Alert[]
+  importBatches       ImportBatch[]
+
+  @@index([role])
+  @@index([authRole, status])
+  @@index([isActive])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Session {
+  id         String      @id @default(uuid())
+  tokenHash  String      @unique
+  kind       SessionKind
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime    @default(now())
+  createdAt  DateTime    @default(now())
+  ipAddress  String?
+  userAgent  String?
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model UserInvitationToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuthAuditLog {
+  id        String   @id @default(uuid())
+  event     String
+  success   Boolean
+  email     String?
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([event, createdAt])
+}

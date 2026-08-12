@@ -1,0 +1,34 @@
+model Alert {
+  id String @id @default(uuid())
+
+  entityTypeId String
+  entityType   LookupValue @relation("AlertEntityType", fields: [entityTypeId], references: [id])
+
+  entityId String
+
+  typeId String
+  type   LookupValue @relation("AlertType", fields: [typeId], references: [id])
+
+  severityId String
+  severity   LookupValue @relation("AlertSeverity", fields: [severityId], references: [id])
+
+  message String
+  dueDate DateTime?
+
+  statusId String
+  status   LookupValue @relation("AlertStatus", fields: [statusId], references: [id])
+
+  resolvedById   String?
+  resolvedByUser User?     @relation(fields: [resolvedById], references: [id])
+  resolvedAt     DateTime?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([entityTypeId, entityId])
+  @@index([typeId])
+  @@index([severityId])
+  @@index([statusId])
+  @@index([resolvedById])
+  @@index([dueDate])
+}

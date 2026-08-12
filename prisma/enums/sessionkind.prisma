@@ -1,0 +1,4 @@
+enum SessionKind {
+  PASSWORD_CHANGE
+  AUTHENTICATED
+}

@@ -1,0 +1,6 @@
+enum UserRole {
+  OFFICER
+  DIRECTOR
+  ENDORSING_COMMITTEE
+  ADMIN
+}

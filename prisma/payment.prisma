@@ -1,0 +1,27 @@
+model Payment {
+  id String @id @default(uuid())
+
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  typeId String
+  type   LookupValue @relation("PaymentType", fields: [typeId], references: [id])
+
+  amount Decimal @db.Decimal(14, 2)
+
+  requestDate DateTime?
+  paymentDate DateTime?
+
+  statusId String
+  status   LookupValue @relation("PaymentStatus", fields: [statusId], references: [id])
+
+  idempotencyKey String? @unique
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([contractId])
+  @@index([typeId])
+  @@index([statusId])
+  @@index([paymentDate])
+}
