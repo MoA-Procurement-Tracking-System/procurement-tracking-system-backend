@@ -24,6 +24,8 @@ const router = Router();
  *               type: string
  *               format: binary
  */
-router.get('/contracts/csv', (req, res) => reportsController.exportContractsCsv(req, res));
+router.get('/contracts/csv', (req, res) =>
+  reportsController.exportContractsCsv(req, res),
+);
 
 export default router;

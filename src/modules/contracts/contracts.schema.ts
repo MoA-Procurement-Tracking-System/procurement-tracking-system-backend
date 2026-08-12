@@ -1,4 +1,4 @@
-import { z } from 'zod';;
+import { z } from 'zod';
 export const createContractSchema = z.object({
   contractNo: z.string().min(1, 'Contract number is required'),
   supplierId: z.string().optional(),
@@ -8,7 +8,7 @@ export const createContractSchema = z.object({
   sector: z.string().optional(),
   isDeleted: z.boolean().optional(),
 });
-export const updateContractSchema = createContractSchema.partial()
+export const updateContractSchema = createContractSchema.partial();
 export const getContractPaymentsQuerySchema = z.object({
   'filter[status]': z.enum(['PAID', 'PENDING', 'FAILED']).optional(),
 });
@@ -23,4 +23,6 @@ export const createPaymentSchema = z.object({
 export type CreateContractDto = z.infer<typeof createContractSchema>;
 export type CreatePaymentDto = z.infer<typeof createPaymentSchema>;
 export type UpdateContractDto = z.infer<typeof updateContractSchema>;
-export type GetContractPaymentsQueryDto = z.infer<typeof getContractPaymentsQuerySchema>;
+export type GetContractPaymentsQueryDto = z.infer<
+  typeof getContractPaymentsQuerySchema
+>;

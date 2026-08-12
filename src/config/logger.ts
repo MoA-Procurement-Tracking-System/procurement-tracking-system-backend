@@ -6,22 +6,21 @@ import { env } from './env.js';
 export const logger = pino({
   level: env.LOG_LEVEL,
   redact: [
-    "req.headers.authorization",
-    "req.headers.cookie",
-    "password",
-    "currentPassword",
-    "newPassword",
-    "confirmPassword",
-    "token",
+    'req.headers.authorization',
+    'req.headers.cookie',
+    'password',
+    'currentPassword',
+    'newPassword',
+    'confirmPassword',
+    'token',
   ],
-  ...(env.NODE_ENV !== "production" && {
+  ...(env.NODE_ENV !== 'production' && {
     transport: {
-      target: "pino-pretty",
+      target: 'pino-pretty',
       options: { colorize: true },
     },
   }),
 });
-
 
 const httpOptions: Options = {
   logger,

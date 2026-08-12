@@ -1,10 +1,10 @@
-import { ContractStatus, PaymentStatus } from '../../generated/prisma/enums.js';
+import { ContractStatus, PaymentStatus } from '../../generated/prisma/index.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
-import type { 
-  CreateContractDto, 
-  CreatePaymentDto, 
-  UpdateContractDto 
+import type {
+  CreateContractDto,
+  CreatePaymentDto,
+  UpdateContractDto,
 } from './contracts.schema.js';
 export class ContractsService {
   async getContracts(search?: string, status?: string) {
@@ -12,7 +12,10 @@ export class ContractsService {
       deletedAt: null,
     };
 
-    if (status && Object.values(ContractStatus).includes(status as ContractStatus)) {
+    if (
+      status &&
+      Object.values(ContractStatus).includes(status as ContractStatus)
+    ) {
       where.status = status as ContractStatus;
     }
 
@@ -29,22 +32,22 @@ export class ContractsService {
     });
   }
 
-async createContract(data: CreateContractDto) {
-  return await prisma.contract.create({
-    data: {
-      contractNo: data.contractNo,
-      totalValue: data.totalValue,
-      remainingValue: data.totalValue,
-      paidAmount: 0,
-      currency: data.currency ?? 'ETB',
-      // Conditionally include supplierId only if provided
-      ...(data.supplierId ? { supplierId: data.supplierId } : {}),
-      // Conditionally include optional nullable string fields
-      ...(data.region ? { region: data.region } : {}),
-      ...(data.sector ? { sector: data.sector } : {}),
-    },
-  });
-}
+  async createContract(data: CreateContractDto) {
+    return await prisma.contract.create({
+      data: {
+        contractNo: data.contractNo,
+        totalValue: data.totalValue,
+        remainingValue: data.totalValue,
+        paidAmount: 0,
+        currency: data.currency ?? 'ETB',
+        // Conditionally include supplierId only if provided
+        ...(data.supplierId ? { supplierId: data.supplierId } : {}),
+        // Conditionally include optional nullable string fields
+        ...(data.region ? { region: data.region } : {}),
+        ...(data.sector ? { sector: data.sector } : {}),
+      },
+    });
+  }
 
   async recordPayment(contractId: string, data: CreatePaymentDto) {
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -86,9 +89,9 @@ async createContract(data: CreateContractDto) {
 
   async getContractById(id: string) {
     return await prisma.contract.findFirst({
-      where: { 
-        id, 
-        deletedAt: null 
+      where: {
+        id,
+        deletedAt: null,
       },
       include: {
         supplier: true,
@@ -97,40 +100,49 @@ async createContract(data: CreateContractDto) {
     });
   }
 
-async updateContract(id: string, data: UpdateContractDto) {
-  const { isDeleted, ...updateData } = data;
+  async updateContract(id: string, data: UpdateContractDto) {
+    const { isDeleted, ...updateData } = data;
 
-  // Build data object without keys that evaluate to undefined
-  const formattedData: Prisma.ContractUpdateInput = {};
+    // Build data object without keys that evaluate to undefined
+    const formattedData: Prisma.ContractUpdateInput = {};
 
-  if (updateData.contractNo !== undefined) formattedData.contractNo = updateData.contractNo;
-  if (updateData.totalValue !== undefined) formattedData.totalValue = updateData.totalValue;
-  if (updateData.currency !== undefined) formattedData.currency = updateData.currency;
-  if (updateData.supplierId !== undefined) formattedData.supplier = { connect: { id: updateData.supplierId } };
-  if (updateData.region !== undefined) formattedData.region = updateData.region;
-  if (updateData.sector !== undefined) formattedData.sector = updateData.sector;
-  if (isDeleted === true) formattedData.deletedAt = new Date();
+    if (updateData.contractNo !== undefined)
+      formattedData.contractNo = updateData.contractNo;
+    if (updateData.totalValue !== undefined)
+      formattedData.totalValue = updateData.totalValue;
+    if (updateData.currency !== undefined)
+      formattedData.currency = updateData.currency;
+    if (updateData.supplierId !== undefined)
+      formattedData.supplier = { connect: { id: updateData.supplierId } };
+    if (updateData.region !== undefined)
+      formattedData.region = updateData.region;
+    if (updateData.sector !== undefined)
+      formattedData.sector = updateData.sector;
+    if (isDeleted === true) formattedData.deletedAt = new Date();
 
-  return await prisma.contract.update({
-    where: { id },
-    data: formattedData,
-  });
-}
-
-async getContractPayments(id: string, status?: string) {
-  // Define where using Prisma's PaymentWhereInput type
-  const where: Prisma.PaymentWhereInput = {
-    contractId: id,
-  };
-
-  // Safely check and cast status to the enum type
-  if (status && Object.values(PaymentStatus).includes(status as PaymentStatus)) {
-    where.status = status as PaymentStatus;
+    return await prisma.contract.update({
+      where: { id },
+      data: formattedData,
+    });
   }
 
-  return await prisma.payment.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-  });
-}
+  async getContractPayments(id: string, status?: string) {
+    // Define where using Prisma's PaymentWhereInput type
+    const where: Prisma.PaymentWhereInput = {
+      contractId: id,
+    };
+
+    // Safely check and cast status to the enum type
+    if (
+      status &&
+      Object.values(PaymentStatus).includes(status as PaymentStatus)
+    ) {
+      where.status = status as PaymentStatus;
+    }
+
+    return await prisma.payment.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

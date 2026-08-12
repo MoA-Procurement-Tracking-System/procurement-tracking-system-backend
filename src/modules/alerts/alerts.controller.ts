@@ -16,7 +16,8 @@ export class AlertsController {
         res.status(400).json({ error: error.issues });
         return;
       }
-      const message = error instanceof Error ? error.message : 'Error fetching alerts';
+      const message =
+        error instanceof Error ? error.message : 'Error fetching alerts';
       res.status(500).json({ error: message });
     }
   }

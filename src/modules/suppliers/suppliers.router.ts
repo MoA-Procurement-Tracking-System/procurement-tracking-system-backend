@@ -1,5 +1,8 @@
 import { Router } from 'express';
-import { createSupplierHandler, getSuppliersHandler } from './suppliers.controller.js';
+import {
+  createSupplierHandler,
+  getSuppliersHandler,
+} from './suppliers.controller.js';
 
 const router = Router();
 

@@ -1,6 +1,7 @@
 # Database Migrations
 
 ## Prerequisites
+
 - `DATABASE_URL` set in `.env` (local) or environment (production)
 - Prisma CLI available: `npx prisma`
 

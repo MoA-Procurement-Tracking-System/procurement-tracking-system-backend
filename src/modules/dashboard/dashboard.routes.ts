@@ -37,6 +37,8 @@ router.get('/summary', (req, res) => dashboardController.getSummary(req, res));
  *       200:
  *         description: Array of sector funding breakdowns
  */
-router.get('/by-sector', (req, res) => dashboardController.getBySector(req, res));
+router.get('/by-sector', (req, res) =>
+  dashboardController.getBySector(req, res),
+);
 
 export default router;

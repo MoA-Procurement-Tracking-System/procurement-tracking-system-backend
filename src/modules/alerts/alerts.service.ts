@@ -1,5 +1,5 @@
 import { Prisma } from '../../generated/prisma/index.js';
-import { PaymentStatus } from '../../generated/prisma/enums.js';
+import { PaymentStatus } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 
 export interface AlertItem {
@@ -42,7 +42,8 @@ export class AlertsService {
       // Alert 1: Overdue Pending Payments (payments created more than 30 days ago and still pending)
       for (const payment of contract.payments) {
         const daysPending = Math.floor(
-          (now.getTime() - new Date(payment.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+          (now.getTime() - new Date(payment.createdAt).getTime()) /
+            (1000 * 60 * 60 * 24),
         );
 
         if (daysPending > 30) {
@@ -59,7 +60,11 @@ export class AlertsService {
       }
 
       // Alert 2: High Completion (> 90% paid amount)
-      if (totalVal > 0 && paidVal / totalVal >= 0.9 && paidVal / totalVal < 1.0) {
+      if (
+        totalVal > 0 &&
+        paidVal / totalVal >= 0.9 &&
+        paidVal / totalVal < 1.0
+      ) {
         alerts.push({
           id: `alert-completion-${contract.id}`,
           type: 'HIGH_COMPLETION',

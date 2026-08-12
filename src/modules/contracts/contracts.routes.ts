@@ -108,7 +108,9 @@ router.post('/', (req, res) => contractsController.createContract(req, res));
  *         description: Contract updated successfully
  */
 router.get('/:id', (req, res) => contractsController.getContractById(req, res));
-router.patch('/:id', (req, res) => contractsController.updateContract(req, res));
+router.patch('/:id', (req, res) =>
+  contractsController.updateContract(req, res),
+);
 
 /**
  * @openapi
@@ -163,7 +165,11 @@ router.patch('/:id', (req, res) => contractsController.updateContract(req, res))
  *       200:
  *         description: Payment recorded successfully
  */
-router.get('/:id/payments', (req, res) => contractsController.getContractPayments(req, res));
-router.post('/:id/payments', (req, res) => contractsController.recordPayment(req, res));
+router.get('/:id/payments', (req, res) =>
+  contractsController.getContractPayments(req, res),
+);
+router.post('/:id/payments', (req, res) =>
+  contractsController.recordPayment(req, res),
+);
 
 export default router;

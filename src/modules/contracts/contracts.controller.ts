@@ -1,11 +1,11 @@
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { ContractsService } from './contracts.service.js';
-import { 
-  createContractSchema, 
-  createPaymentSchema, 
-  updateContractSchema, 
-  getContractPaymentsQuerySchema 
+import {
+  createContractSchema,
+  createPaymentSchema,
+  updateContractSchema,
+  getContractPaymentsQuerySchema,
 } from './contracts.schema.js';
 
 const contractsService = new ContractsService();
@@ -14,10 +14,14 @@ export class ContractsController {
   async getContracts(req: Request, res: Response): Promise<void> {
     try {
       const { search, status } = req.query;
-      const contracts = await contractsService.getContracts(search as string, status as string);
+      const contracts = await contractsService.getContracts(
+        search as string,
+        status as string,
+      );
       res.json(contracts);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'An error occurred';
+      const message =
+        error instanceof Error ? error.message : 'An error occurred';
       res.status(500).json({ error: message });
     }
   }
@@ -32,7 +36,8 @@ export class ContractsController {
         res.status(400).json({ error: error.issues });
         return;
       }
-      const message = error instanceof Error ? error.message : 'Invalid request';
+      const message =
+        error instanceof Error ? error.message : 'Invalid request';
       res.status(400).json({ error: message });
     }
   }
@@ -56,7 +61,8 @@ export class ContractsController {
         res.status(400).json({ error: error.issues });
         return;
       }
-      const message = error instanceof Error ? error.message : 'Error fetching contract';
+      const message =
+        error instanceof Error ? error.message : 'Error fetching contract';
       res.status(400).json({ error: message });
     }
   }
@@ -77,7 +83,8 @@ export class ContractsController {
         res.status(400).json({ error: error.issues });
         return;
       }
-      const message = error instanceof Error ? error.message : 'Error updating contract';
+      const message =
+        error instanceof Error ? error.message : 'Error updating contract';
       res.status(400).json({ error: message });
     }
   }
@@ -92,8 +99,8 @@ export class ContractsController {
       }
       const validatedQuery = getContractPaymentsQuerySchema.parse(req.query);
       const payments = await contractsService.getContractPayments(
-        id, 
-        validatedQuery['filter[status]']
+        id,
+        validatedQuery['filter[status]'],
       );
       res.status(200).json(payments);
     } catch (error: unknown) {
@@ -101,7 +108,8 @@ export class ContractsController {
         res.status(400).json({ error: error.issues });
         return;
       }
-      const message = error instanceof Error ? error.message : 'Error fetching payments';
+      const message =
+        error instanceof Error ? error.message : 'Error fetching payments';
       res.status(400).json({ error: message });
     }
   }
@@ -117,7 +125,8 @@ export class ContractsController {
         res.status(400).json({ error: error.issues });
         return;
       }
-      const message = error instanceof Error ? error.message : 'Invalid payment details';
+      const message =
+        error instanceof Error ? error.message : 'Invalid payment details';
       res.status(400).json({ error: message });
     }
   }
