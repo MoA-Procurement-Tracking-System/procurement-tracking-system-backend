@@ -13,6 +13,7 @@ import {
   protectedRouter,
 } from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/users.routes.js';
+import projectRoutes from './modules/projects/project.routes.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -39,6 +40,7 @@ app.get('/', (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
 app.use('/api', protectedRouter);
 app.use(authErrorHandler);
 
