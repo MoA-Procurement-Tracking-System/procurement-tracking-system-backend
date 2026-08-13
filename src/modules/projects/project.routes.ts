@@ -1,14 +1,14 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/authenticate.js';
+// import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
-import { requirePasswordChange } from '../auth/middleware/requirePasswordChange.js';
+// import { requirePasswordChange } from '../auth/middleware/requirePasswordChange.js';
 import {
   getProjects,
   getProjectById,
   createProject,
   updateProject,
   assignOfficer,
-  removeOfficer
+  removeOfficer,
 } from './project.controller.js';
 
 const router = Router();
@@ -72,7 +72,7 @@ router.get('/:id', getProjectById);
 router.post(
   '/',
   // authorize('Administrator', 'ProjectManager'),
-  createProject
+  createProject,
 );
 
 /**
@@ -102,7 +102,7 @@ router.post(
 router.patch(
   '/:id',
   // authorize('Administrator', 'ProjectManager'),
-  updateProject
+  updateProject,
 );
 
 /**
@@ -133,7 +133,7 @@ router.patch(
 router.post(
   '/:id/officers',
   // authorize('Administrator', 'ProjectManager'),
-  assignOfficer
+  assignOfficer,
 );
 
 /**
@@ -158,7 +158,7 @@ router.post(
 router.delete(
   '/:id/officers/:officerId',
   authorize('Administrator', 'ProjectManager'),
-  removeOfficer
+  removeOfficer,
 );
 
 export default router;
