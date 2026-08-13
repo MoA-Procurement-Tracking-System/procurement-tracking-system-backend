@@ -265,9 +265,9 @@ npm run build
 - Store environment values in the deployment platform's secret manager.
 - Add infrastructure-level request throttling for public authentication routes.
 - Back up PostgreSQL and define retention for authentication audit logs.
-=======
-Express, PostgreSQL, and Prisma API for the Ministry of Agriculture
-procurement tracking system.
+  \=======
+  Express, PostgreSQL, and Prisma API for the Ministry of Agriculture
+  procurement tracking system.
 
 ## Local setup
 
@@ -319,4 +319,5 @@ npm test
 npm run lint
 npm run build
 ```
->>>>>>> origin/main
+
+> > > > > > > origin/main
