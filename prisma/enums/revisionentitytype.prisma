@@ -1,0 +1,6 @@
+enum RevisionEntityType {
+  PROJECT
+  PLAN
+  ACTIVITY
+  STAGE
+}
