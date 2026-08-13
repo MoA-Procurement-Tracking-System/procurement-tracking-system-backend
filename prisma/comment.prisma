@@ -1,0 +1,17 @@
+model Comment {
+  id String @id @default(uuid())
+
+  entityType String
+  entityId   String
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  body String
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([authorId])
+}

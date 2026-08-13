@@ -52,13 +52,6 @@ const schema = z
     BOOTSTRAP_ADMIN_EMAIL: z.email().default('admin@moa.gov.et'),
     BOOTSTRAP_ADMIN_NAME: z.string().min(1).default('System Administrator'),
     BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
-    JWT_ACCESS_SECRET: z.string().default('default_access_secret'),
-    JWT_REFRESH_SECRET: z.string().default('default_refresh_secret'),
-    JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
-    JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
-    RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
-    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
-    LOG_LEVEL: z.string().default('info'),
   })
   .superRefine((values, context) => {
     const mailerSendValues = [

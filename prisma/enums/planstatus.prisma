@@ -1,0 +1,6 @@
+enum PlanStatus {
+  Draft
+  Submitted
+  Approved
+  Rejected
+}

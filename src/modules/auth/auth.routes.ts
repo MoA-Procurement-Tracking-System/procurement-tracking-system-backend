@@ -79,7 +79,7 @@ const changePasswordSchema = z
     path: ['confirmPassword'],
   });
 
-const forgotPasswordSchema = z.object({ email: z.email().max(254) });
+const forgotPasswordSchema = z.object({ email: z.string().email().max(254) });
 const resetPasswordSchema = z
   .object({
     token: z.string().min(32).max(256),
@@ -103,7 +103,7 @@ const createPasswordSchema = z
   });
 
 const createUserSchema = z.object({
-  email: z.email().max(254),
+  email: z.string().email().max(254),
   displayName: z.string().trim().min(2).max(120),
   role: z.enum([
     UserRole.OFFICER,
