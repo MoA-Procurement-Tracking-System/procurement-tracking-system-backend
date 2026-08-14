@@ -1,63 +1,86 @@
-import { Prisma } from '../../generated/prisma/index.js';
-import { ContractStatus } from '../../generated/prisma/index.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
+
+function contractWhere(region?: string): Prisma.ContractWhereInput {
+  const where: Prisma.ContractWhereInput = { isActive: true };
+
+  if (region) {
+    where.region = {
+      is: { OR: [{ id: region }, { code: region }], isActive: true },
+    };
+  }
+
+  return where;
+}
+
+function paidAmount(
+  payments: Array<{ amount: { toString(): string }; status: { code: string } }>,
+): number {
+  return payments
+    .filter((payment) => payment.status.code === 'PAID')
+    .reduce((total, payment) => total + Number(payment.amount), 0);
+}
 
 export class DashboardService {
   async getSummary(region?: string) {
-    const where: Prisma.ContractWhereInput = {
-      deletedAt: null,
-      ...(region ? { region } : {}),
-    };
-
-    const aggregate = await prisma.contract.aggregate({
-      _sum: {
-        totalValue: true,
-        paidAmount: true,
-        remainingValue: true,
-      },
-      where,
-    });
-
-    const activeContractsCount = await prisma.contract.count({
-      where: {
-        ...where,
-        status: ContractStatus.ACTIVE,
+    const contracts = await prisma.contract.findMany({
+      where: contractWhere(region),
+      include: {
+        payments: { include: { status: { select: { code: true } } } },
+        status: { select: { code: true } },
       },
     });
+
+    const totalValue = contracts.reduce(
+      (total, contract) => total + Number(contract.currentAmount),
+      0,
+    );
+    const totalPaidAmount = contracts.reduce(
+      (total, contract) => total + paidAmount(contract.payments),
+      0,
+    );
 
     return {
-      totalValue: aggregate._sum.totalValue ?? 0,
-      paidAmount: aggregate._sum.paidAmount ?? 0,
-      remainingValue: aggregate._sum.remainingValue ?? 0,
-      activeContractsCount,
+      totalValue,
+      paidAmount: totalPaidAmount,
+      remainingValue: totalValue - totalPaidAmount,
+      activeContractsCount: contracts.filter(
+        (contract) => contract.status.code === 'ACTIVE',
+      ).length,
     };
   }
 
   async getBySector(region?: string) {
-    const where: Prisma.ContractWhereInput = {
-      deletedAt: null,
-      ...(region ? { region } : {}),
-    };
-
-    const grouped = await prisma.contract.groupBy({
-      by: ['sector'],
-      _sum: {
-        totalValue: true,
-        paidAmount: true,
-        remainingValue: true,
+    const contracts = await prisma.contract.findMany({
+      where: contractWhere(region),
+      include: {
+        activity: { include: { sector: { select: { label: true } } } },
+        payments: { include: { status: { select: { code: true } } } },
       },
-      _count: {
-        id: true,
-      },
-      where,
     });
 
-    return grouped.map((item) => ({
-      sector: item.sector ?? 'Unassigned',
-      contractCount: item._count.id,
-      totalValue: item._sum.totalValue ?? 0,
-      paidAmount: item._sum.paidAmount ?? 0,
-      remainingValue: item._sum.remainingValue ?? 0,
+    const sectors = new Map<
+      string,
+      { contractCount: number; totalValue: number; paidAmount: number }
+    >();
+
+    for (const contract of contracts) {
+      const sector = contract.activity.sector.label;
+      const summary = sectors.get(sector) ?? {
+        contractCount: 0,
+        totalValue: 0,
+        paidAmount: 0,
+      };
+      summary.contractCount += 1;
+      summary.totalValue += Number(contract.currentAmount);
+      summary.paidAmount += paidAmount(contract.payments);
+      sectors.set(sector, summary);
+    }
+
+    return [...sectors].map(([sector, summary]) => ({
+      sector,
+      ...summary,
+      remainingValue: summary.totalValue - summary.paidAmount,
     }));
   }
 }

@@ -1,5 +1,4 @@
-import { Prisma } from '../../generated/prisma/index.js';
-import { PaymentStatus } from '../../generated/prisma/index.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 
 export interface AlertItem {
@@ -17,30 +16,38 @@ export class AlertsService {
     const alerts: AlertItem[] = [];
     const now = new Date();
 
-    const where: Prisma.ContractWhereInput = {
-      deletedAt: null,
-      ...(region ? { region } : {}),
-    };
+    const where: Prisma.ContractWhereInput = { isActive: true };
 
-    // 1. Fetch contracts with their pending payments
+    if (region) {
+      where.region = {
+        is: {
+          OR: [{ id: region }, { code: region }],
+          isActive: true,
+        },
+      };
+    }
+
+    // Fetch contracts with their active payments and payment statuses.
     const contracts = await prisma.contract.findMany({
       where,
       include: {
         payments: {
-          where: {
-            deletedAt: null,
-            status: PaymentStatus.PENDING,
-          },
+          where: { isActive: true },
+          include: { status: { select: { code: true } } },
         },
       },
     });
 
     for (const contract of contracts) {
-      const totalVal = Number(contract.totalValue);
-      const paidVal = Number(contract.paidAmount);
+      const totalVal = Number(contract.currentAmount);
+      const paidVal = contract.payments
+        .filter((payment) => payment.status.code === 'PAID')
+        .reduce((total, payment) => total + Number(payment.amount), 0);
 
-      // Alert 1: Overdue Pending Payments (payments created more than 30 days ago and still pending)
+      // Alert 1: Overdue pending payments (created more than 30 days ago).
       for (const payment of contract.payments) {
+        if (payment.status.code !== 'PENDING') continue;
+
         const daysPending = Math.floor(
           (now.getTime() - new Date(payment.createdAt).getTime()) /
             (1000 * 60 * 60 * 24),
@@ -52,8 +59,8 @@ export class AlertsService {
             type: 'OVERDUE_PAYMENT',
             severity: 'HIGH',
             contractId: contract.id,
-            contractNo: contract.contractNo,
-            message: `Payment ref ${payment.referenceNo ?? payment.id} has been pending for ${daysPending} days.`,
+            contractNo: contract.contractNumber,
+            message: `Payment ${payment.id} has been pending for ${daysPending} days.`,
             createdAt: payment.createdAt,
           });
         }
@@ -70,8 +77,8 @@ export class AlertsService {
           type: 'HIGH_COMPLETION',
           severity: 'INFO',
           contractId: contract.id,
-          contractNo: contract.contractNo,
-          message: `Contract ${contract.contractNo} is over 90% paid (${((paidVal / totalVal) * 100).toFixed(1)}%).`,
+          contractNo: contract.contractNumber,
+          message: `Contract ${contract.contractNumber} is over 90% paid (${((paidVal / totalVal) * 100).toFixed(1)}%).`,
           createdAt: new Date(),
         });
       }

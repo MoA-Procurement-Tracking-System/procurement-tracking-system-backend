@@ -72,6 +72,7 @@ export async function createUser(input: CreateUserInput): Promise<SafeUser> {
   return prisma.user.create({
     data: {
       name: input.name,
+      displayName: input.name,
       email: input.email.toLowerCase(),
       passwordHash,
       role: input.role,

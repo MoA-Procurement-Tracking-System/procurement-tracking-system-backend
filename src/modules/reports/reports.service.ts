@@ -1,28 +1,33 @@
-import { Prisma } from '../../generated/prisma/index.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
+
+function contractWhere(region?: string): Prisma.ContractWhereInput {
+  const where: Prisma.ContractWhereInput = { isActive: true };
+
+  if (region) {
+    where.region = {
+      is: { OR: [{ id: region }, { code: region }], isActive: true },
+    };
+  }
+
+  return where;
+}
 
 export class ReportsService {
   async generateContractsCsv(region?: string): Promise<string> {
-    const where: Prisma.ContractWhereInput = {
-      deletedAt: null,
-      ...(region ? { region } : {}),
-    };
-
     const contracts = await prisma.contract.findMany({
-      where,
+      where: contractWhere(region),
       include: {
-        supplier: {
-          select: {
-            name: true,
-          },
-        },
+        supplier: { select: { name: true } },
+        currency: { select: { code: true } },
+        region: { select: { code: true } },
+        status: { select: { code: true } },
+        activity: { include: { sector: { select: { label: true } } } },
+        payments: { include: { status: { select: { code: true } } } },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    // Define CSV headers
     const headers = [
       'Contract ID',
       'Contract No',
@@ -37,22 +42,28 @@ export class ReportsService {
       'Created At',
     ];
 
-    // Format rows escaping commas and quotes
-    const rows = contracts.map((c) => {
-      const supplierName = c.supplier?.name ?? 'N/A';
-      return [
-        `"${c.id}"`,
-        `"${c.contractNo}"`,
-        `"${supplierName.replace(/"/g, '""')}"`,
-        `"${c.totalValue}"`,
-        `"${c.paidAmount}"`,
-        `"${c.remainingValue}"`,
-        `"${c.currency}"`,
-        `"${c.region ?? ''}"`,
-        `"${c.sector ?? ''}"`,
-        `"${c.status}"`,
-        `"${c.createdAt.toISOString()}"`,
-      ].join(',');
+    const rows = contracts.map((contract) => {
+      const totalValue = Number(contract.currentAmount);
+      const paidAmount = contract.payments
+        .filter((payment) => payment.status.code === 'PAID')
+        .reduce((total, payment) => total + Number(payment.amount), 0);
+      const values = [
+        contract.id,
+        contract.contractNumber,
+        contract.supplier.name,
+        totalValue,
+        paidAmount,
+        totalValue - paidAmount,
+        contract.currency.code,
+        contract.region?.code ?? '',
+        contract.activity.sector.label,
+        contract.status.code,
+        contract.createdAt.toISOString(),
+      ];
+
+      return values
+        .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+        .join(',');
     });
 
     return [headers.join(','), ...rows].join('\n');

@@ -1,11 +1,13 @@
 import { z } from 'zod';
 export const createContractSchema = z.object({
-  contractNo: z.string().min(1, 'Contract number is required'),
-  supplierId: z.string().optional(),
-  totalValue: z.number().positive('Total value must be greater than 0'),
-  currency: z.string().optional().default('USD'),
-  region: z.string().optional(),
-  sector: z.string().optional(),
+  contractNumber: z.string().min(1, 'Contract number is required'),
+  activityId: z.string().uuid(),
+  supplierId: z.string().uuid(),
+  originalAmount: z.number().positive('Original amount must be greater than 0'),
+  currentAmount: z.number().positive('Current amount must be greater than 0'),
+  currencyId: z.string().uuid(),
+  regionId: z.string().uuid().nullable().optional(),
+  statusId: z.string().uuid(),
   isDeleted: z.boolean().optional(),
 });
 export const updateContractSchema = createContractSchema.partial();
@@ -15,8 +17,10 @@ export const getContractPaymentsQuerySchema = z.object({
 
 export const createPaymentSchema = z.object({
   amount: z.number().positive('Payment amount must be greater than 0'),
-  referenceNo: z.string().min(1, 'Reference number is required'),
+  typeId: z.string().uuid(),
+  statusId: z.string().uuid(),
   idempotencyKey: z.string().min(1, 'Idempotency key is required'),
+  requestDate: z.coerce.date().optional(),
   paymentDate: z.coerce.date().optional(),
 });
 

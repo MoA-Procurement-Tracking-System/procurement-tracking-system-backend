@@ -10,10 +10,8 @@ export class SuppliersService {
     return await prisma.supplier.create({
       data: {
         name: data.name,
-        tinNumber: data.tinNumber,
-        email: data.email ?? null,
-        phone: data.phone ?? null,
-        status: data.status ?? 'ACTIVE',
+        contact: data.phone ?? data.email ?? null,
+        isActive: (data.status ?? 'ACTIVE') === 'ACTIVE',
       },
     });
   }
@@ -26,15 +24,9 @@ export class SuppliersService {
     const statusFilter = query['filter[status]'];
     const searchTerm = query.search;
 
-    const where: Prisma.SupplierWhereInput = {
-      ...(statusFilter && { status: statusFilter }),
-      ...(searchTerm && {
-        OR: [
-          { name: { contains: searchTerm, mode: 'insensitive' } },
-          { tinNumber: { contains: searchTerm, mode: 'insensitive' } },
-        ],
-      }),
-    };
+    const where: Prisma.SupplierWhereInput = {};
+    if (statusFilter) where.isActive = statusFilter === 'ACTIVE';
+    if (searchTerm) where.name = { contains: searchTerm, mode: 'insensitive' };
 
     const [suppliers, total] = await Promise.all([
       prisma.supplier.findMany({
