@@ -1,14 +1,25 @@
 model Project {
-  id        String   @id @default(uuid())
-  code      String   @unique
-  name      String
+  id              String        @id @default(uuid())
+  code            String        @unique
+  name            String
+  fundingSourceId String
+  fundingSource   LookupValue   @relation("ProjectFundingSource", fields: [fundingSourceId], references: [id])
+  sectorId        String
+  sector          LookupValue   @relation("ProjectSector", fields: [sectorId], references: [id])
+  status          ProjectStatus @default(ACTIVE)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  plans   Plan[]
-  members UserProject[]
+  plans     Plan[]
+  members   UserProject[]
+  revisions Revision[]    @relation("RevisionProject")
 
   @@index([isActive])
+  @@index([status])
+  @@index([fundingSourceId])
+  @@index([sectorId])
 }
 
 model UserProject {

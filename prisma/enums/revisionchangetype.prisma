@@ -1,0 +1,8 @@
+enum RevisionChangeType {
+  CREATE
+  UPDATE
+  REPLAN
+  APPROVE
+  REJECT
+  SOFT_DELETE
+}

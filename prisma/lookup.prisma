@@ -6,17 +6,15 @@ model LookupValue {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  activitiesByCategory      Activity[] @relation("ActivityCategory")
-  activitiesByMethod        Activity[] @relation("ActivityMethod")
-  activitiesBySector        Activity[] @relation("ActivitySector")
-  activitiesByRegion        Activity[] @relation("ActivityRegion")
-  activitiesByFundingSource Activity[] @relation("ActivityFundingSource")
-  activitiesByCurrency      Activity[] @relation("ActivityCurrency")
-  activitiesByReviewType    Activity[] @relation("ActivityReviewType")
-  activitiesByReviewStatus  Activity[] @relation("ActivityReviewStatus")
+  activitiesByMethod Activity[] @relation("ActivityMethod")
 
-  stageTemplatesByCategory StageTemplate[] @relation("StageTemplateCategory")
-  stageTemplatesByMethod   StageTemplate[] @relation("StageTemplateMethod")
+  stageTemplatesByMethod StageTemplate[] @relation("StageTemplateMethod")
+
+  projectsByFundingSource Project[] @relation("ProjectFundingSource")
+  projectsBySector        Project[] @relation("ProjectSector")
+
+  stagesByType         Stage[]         @relation("StageType")
+  stageTemplatesByType StageTemplate[] @relation("StageTemplateStageType")
 
   contractsByCurrency Contract[] @relation("ContractCurrency")
   contractsByRegion   Contract[] @relation("ContractRegion")

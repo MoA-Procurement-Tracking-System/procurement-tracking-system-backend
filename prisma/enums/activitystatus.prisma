@@ -1,8 +1,7 @@
 enum ActivityStatus {
-  NotStarted
-  InProgress
-  Completed
-  Delayed
-  NotApplicable
-  Cancelled
+  PLANNED
+  IN_PROGRESS
+  CONTRACTED
+  COMPLETED
+  CANCELLED
 }

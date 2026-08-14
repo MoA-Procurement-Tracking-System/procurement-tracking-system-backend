@@ -1,116 +1,30 @@
 model Activity {
-  id              String @id @default(uuid())
-  referenceNumber String @unique
+  id        String @id @default(uuid())
+  reference String @unique
 
   planId String
   plan   Plan   @relation(fields: [planId], references: [id])
 
-  description String
+  procurementMethodId String
+  procurementMethod   LookupValue @relation("ActivityMethod", fields: [procurementMethodId], references: [id])
 
-  categoryId String
-  category   LookupValue @relation("ActivityCategory", fields: [categoryId], references: [id])
-
-  methodId String
-  method   LookupValue @relation("ActivityMethod", fields: [methodId], references: [id])
-
-  sectorId String
-  sector   LookupValue @relation("ActivitySector", fields: [sectorId], references: [id])
-
-  regionId String?
-  region   LookupValue? @relation("ActivityRegion", fields: [regionId], references: [id])
-
-  fundingSourceId String?
-  fundingSource   LookupValue? @relation("ActivityFundingSource", fields: [fundingSourceId], references: [id])
-
-  currencyId String
-  currency   LookupValue @relation("ActivityCurrency", fields: [currencyId], references: [id])
-
-  reviewTypeId String?
-  reviewType   LookupValue? @relation("ActivityReviewType", fields: [reviewTypeId], references: [id])
-
-  reviewStatusId String?
-  reviewStatus   LookupValue? @relation("ActivityReviewStatus", fields: [reviewStatusId], references: [id])
-
-  reviewedById   String?
-  reviewedByUser User?     @relation("ActivityReviewer", fields: [reviewedById], references: [id])
-  reviewedAt     DateTime?
-  reviewNotes    String?
-
-  estimatedAmount Decimal @db.Decimal(14, 2)
-
-  officerId String
-  officer   User   @relation("ActivityOfficer", fields: [officerId], references: [id])
-
-  status  ActivityStatus @default(NotStarted)
-  dueDate DateTime?
-  remarks String?
+  estimatedBudget Float
+  isImport        Boolean        @default(false)
+  contractId      String?
+  status          ActivityStatus @default(PLANNED)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  stages    ActivityStage[]
+
+  stages    Stage[]
   contracts Contract[]
   documents Document[]
+  revisions Revision[] @relation("RevisionActivity")
 
   @@index([planId])
   @@index([status])
-  @@index([categoryId])
-  @@index([methodId])
-  @@index([sectorId])
-  @@index([regionId])
-  @@index([fundingSourceId])
-  @@index([currencyId])
-  @@index([officerId])
-  @@index([reviewedById])
-  @@index([reviewTypeId])
-  @@index([reviewStatusId])
-  @@index([dueDate])
+  @@index([procurementMethodId])
   @@index([createdAt, id])
-}
-
-model ActivityStage {
-  id         String   @id @default(uuid())
-  activityId String
-  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-
-  name  String
-  order Int
-
-  baselineDate DateTime?
-  currentDate  DateTime?
-  actualDate   DateTime?
-
-  status  ActivityStatus @default(NotStarted)
-  remarks String?
-
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  documents Document[]
-
-  @@unique([activityId, order])
-  @@index([activityId])
-  @@index([status])
-}
-
-model StageTemplate {
-  id String @id @default(uuid())
-
-  categoryId String
-  category   LookupValue @relation("StageTemplateCategory", fields: [categoryId], references: [id])
-
-  methodId String
-  method   LookupValue @relation("StageTemplateMethod", fields: [methodId], references: [id])
-
-  stageName   String
-  order       Int
-  isMandatory Boolean  @default(true)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-
-  @@unique([categoryId, methodId, order])
-  @@index([categoryId, methodId])
-  @@index([isActive])
 }

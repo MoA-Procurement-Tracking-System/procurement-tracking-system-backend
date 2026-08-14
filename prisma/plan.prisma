@@ -1,12 +1,13 @@
 model Plan {
-  id          String     @id @default(uuid())
-  referenceNo String     @unique
-  name        String
-  budgetYear  Int
-  projectId   String?
-  project     Project?   @relation(fields: [projectId], references: [id])
-  description String?
-  status      PlanStatus @default(Draft)
+  id                    String     @id @default(uuid())
+  projectId             String
+  project               Project    @relation(fields: [projectId], references: [id])
+  title                 String
+  periodStart           DateTime
+  periodEnd             DateTime
+  status                PlanStatus @default(DRAFT)
+  committeeRound        Int        @default(0)
+  committeeVoteDeadline DateTime?
 
   createdBy String
   creator   User   @relation("PlanCreator", fields: [createdBy], references: [id])
@@ -24,12 +25,13 @@ model Plan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  activities Activity[]
-  reviews    PlanReview[]
+  activities     Activity[]
+  reviews        PlanReview[]
+  committeeVotes CommitteeVote[]
+  revisions      Revision[]      @relation("RevisionPlan")
 
-  @@index([budgetYear])
-  @@index([status])
   @@index([projectId])
+  @@index([status])
   @@index([createdBy])
   @@index([approvedById])
   @@index([rejectedById])

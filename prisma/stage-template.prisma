@@ -1,0 +1,18 @@
+model StageTemplate {
+  id String @id @default(cuid())
+
+  procurementMethodId String
+  procurementMethod   LookupValue @relation("StageTemplateMethod", fields: [procurementMethodId], references: [id])
+  stageTypeId         String
+  stageType           LookupValue @relation("StageTemplateStageType", fields: [stageTypeId], references: [id])
+
+  sequence Int
+
+  isRequired     Boolean @default(true)
+  isConditional  Boolean @default(false)
+  conditionField String?
+
+  @@unique([procurementMethodId, sequence])
+  @@index([procurementMethodId])
+  @@index([stageTypeId])
+}
