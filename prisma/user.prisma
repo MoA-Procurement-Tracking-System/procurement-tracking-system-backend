@@ -17,8 +17,7 @@ model User {
   createdAt             DateTime   @default(now())
   updatedAt             DateTime   @updatedAt
 
-  activities          Activity[]            @relation("ActivityOfficer")
-  reviewedActivities  Activity[]            @relation("ActivityReviewer")
+
   auditLogs           AuditLog[]
   projectLinks        UserProject[]
   refreshTokens       RefreshToken[]

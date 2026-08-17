@@ -1,0 +1,31 @@
+model Stage {
+  id String @id @default(cuid())
+
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  stageTypeId String
+  stageType   LookupValue @relation("StageType", fields: [stageTypeId], references: [id])
+  sequence    Int
+
+  status StageStatus @default(PENDING)
+
+  plannedStartDate DateTime?
+  plannedEndDate   DateTime?
+
+  actualStartDate DateTime?
+  actualEndDate   DateTime?
+
+  revisedStartDate DateTime?
+  revisedEndDate   DateTime?
+
+  documents Document[]
+  revisions Revision[] @relation("RevisionStage")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([activityId, sequence])
+  @@index([activityId])
+  @@index([stageTypeId])
+}

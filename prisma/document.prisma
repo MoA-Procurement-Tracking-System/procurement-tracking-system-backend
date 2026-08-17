@@ -8,7 +8,7 @@ model Document {
   activity   Activity? @relation(fields: [activityId], references: [id])
 
   stageId String?
-  stage   ActivityStage? @relation(fields: [stageId], references: [id])
+  stage   Stage?  @relation(fields: [stageId], references: [id])
 
   contractId String?
   contract   Contract? @relation(fields: [contractId], references: [id])

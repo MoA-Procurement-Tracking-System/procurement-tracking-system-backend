@@ -22,7 +22,7 @@ export class ReportsService {
         currency: { select: { code: true } },
         region: { select: { code: true } },
         status: { select: { code: true } },
-        activity: { include: { sector: { select: { label: true } } } },
+        activity: true,
         payments: { include: { status: { select: { code: true } } } },
       },
       orderBy: { createdAt: 'desc' },
@@ -37,7 +37,7 @@ export class ReportsService {
       'Remaining Value',
       'Currency',
       'Region',
-      'Sector',
+      'Activity',
       'Status',
       'Created At',
     ];
@@ -47,6 +47,7 @@ export class ReportsService {
       const paidAmount = contract.payments
         .filter((payment) => payment.status.code === 'PAID')
         .reduce((total, payment) => total + Number(payment.amount), 0);
+
       const values = [
         contract.id,
         contract.contractNumber,
@@ -56,7 +57,7 @@ export class ReportsService {
         totalValue - paidAmount,
         contract.currency.code,
         contract.region?.code ?? '',
-        contract.activity.sector.label,
+        contract.activity.id,
         contract.status.code,
         contract.createdAt.toISOString(),
       ];

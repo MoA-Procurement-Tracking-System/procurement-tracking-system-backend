@@ -23,9 +23,9 @@ router.get('/summary', (req, res) => dashboardController.getSummary(req, res));
 
 /**
  * @openapi
- * /api/dashboard/by-sector:
+ * /api/dashboard/by-activity:
  *   get:
- *     summary: Get funding metrics grouped by sector
+ *     summary: Get funding metrics grouped by activity
  *     tags: [Dashboard]
  *     parameters:
  *       - in: query
@@ -35,10 +35,10 @@ router.get('/summary', (req, res) => dashboardController.getSummary(req, res));
  *         description: Optional region filter
  *     responses:
  *       200:
- *         description: Array of sector funding breakdowns
+ *         description: Array of activity funding breakdowns
  */
-router.get('/by-sector', (req, res) =>
-  dashboardController.getBySector(req, res),
+router.get('/by-activity', (req, res) =>
+  dashboardController.getByActivity(req, res),
 );
 
 export default router;

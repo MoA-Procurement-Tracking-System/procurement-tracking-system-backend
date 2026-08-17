@@ -37,10 +37,11 @@ export class ContractsController {
         return;
       }
       const message =
-        error instanceof Error ? error.message : 'Invalid request';
-      res.status(400).json({ error: message });
+        error instanceof Error ? error.message : 'Error creating contract';
+      res.status(500).json({ error: message });
     }
   }
+  // ...existing code...
 
   async getContractById(req: Request, res: Response): Promise<void> {
     try {

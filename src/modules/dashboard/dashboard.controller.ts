@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import { DashboardService } from './dashboard.service.js';
 import {
   dashboardSummaryQuerySchema,
-  dashboardBySectorQuerySchema,
+  dashboardByActivityQuerySchema,
 } from './dashboard.schema.js';
 
 const dashboardService = new DashboardService();
@@ -27,13 +27,13 @@ export class DashboardController {
     }
   }
 
-  async getBySector(req: Request, res: Response): Promise<void> {
+  async getByActivity(req: Request, res: Response): Promise<void> {
     try {
-      const validatedQuery = dashboardBySectorQuerySchema.parse(req.query);
-      const bySector = await dashboardService.getBySector(
+      const validatedQuery = dashboardByActivityQuerySchema.parse(req.query);
+      const byActivity = await dashboardService.getByActivity(
         validatedQuery.region,
       );
-      res.status(200).json(bySector);
+      res.status(200).json(byActivity);
     } catch (error: unknown) {
       if (error instanceof ZodError) {
         res.status(400).json({ error: error.issues });
@@ -42,7 +42,7 @@ export class DashboardController {
       const message =
         error instanceof Error
           ? error.message
-          : 'Error fetching sector metrics';
+          : 'Error fetching activity metrics';
       res.status(500).json({ error: message });
     }
   }

@@ -1,6 +1,7 @@
 enum PlanStatus {
-  Draft
-  Submitted
-  Approved
-  Rejected
+  DRAFT
+  SUBMITTED
+  WITH_COMMITTEE
+  APPROVED
+  REJECTED
 }

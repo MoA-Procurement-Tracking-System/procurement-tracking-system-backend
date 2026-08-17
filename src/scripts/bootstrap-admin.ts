@@ -1,6 +1,6 @@
+import type { Role, UserRole } from '../generated/prisma/client.js';
 import { prisma } from '../config/database.js';
 import { env } from '../config/env.js';
-import { Role, UserRole } from '../generated/prisma/client.js';
 import {
   generateTemporaryPassword,
   hashPassword,
@@ -9,7 +9,7 @@ import {
 
 async function bootstrapAdministrator() {
   const existingAdministrators = await prisma.user.count({
-    where: { authRole: UserRole.ADMIN },
+    where: { authRole: 'ADMIN' },
   });
   if (existingAdministrators > 0) {
     throw new Error(
@@ -32,8 +32,8 @@ async function bootstrapAdministrator() {
       name: env.BOOTSTRAP_ADMIN_NAME,
       email: env.BOOTSTRAP_ADMIN_EMAIL.toLowerCase(),
       displayName: env.BOOTSTRAP_ADMIN_NAME,
-      role: Role.Administrator,
-      authRole: UserRole.ADMIN,
+      role: 'Administrator',
+      authRole: 'ADMIN',
       passwordHash: await hashPassword(password),
       mustChangePassword: true,
       tempPasswordExpiresAt: new Date(

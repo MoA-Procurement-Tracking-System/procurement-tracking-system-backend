@@ -1,0 +1,31 @@
+model Revision {
+  id String @id @default(cuid())
+
+  entityType RevisionEntityType
+  changeType RevisionChangeType
+
+  projectId  String?
+  planId     String?
+  activityId String?
+  stageId    String?
+
+  project  Project?  @relation("RevisionProject", fields: [projectId], references: [id], onDelete: Cascade)
+  plan     Plan?     @relation("RevisionPlan", fields: [planId], references: [id], onDelete: Cascade)
+  activity Activity? @relation("RevisionActivity", fields: [activityId], references: [id], onDelete: Cascade)
+  stage    Stage?    @relation("RevisionStage", fields: [stageId], references: [id], onDelete: Cascade)
+
+  previousValues Json?
+  newValues      Json?
+
+  changedById String
+
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+
+  @@index([projectId])
+  @@index([planId])
+  @@index([activityId])
+  @@index([stageId])
+  @@index([changedById])
+}

@@ -5,6 +5,7 @@ import type {
   CreatePaymentDto,
   UpdateContractDto,
 } from './contracts.schema.js';
+
 export class ContractsService {
   async getContracts(search?: string, status?: string) {
     const where: Prisma.ContractWhereInput = { isActive: true };
@@ -16,20 +17,18 @@ export class ContractsService {
     if (search) {
       where.OR = [
         { contractNumber: { contains: search, mode: 'insensitive' } },
-        {
-          activity: {
-            is: {
-              sector: {
-                is: { label: { contains: search, mode: 'insensitive' } },
-              },
-            },
-          },
-        },
       ];
     }
 
     return await prisma.contract.findMany({
       where,
+      include: {
+        activity: true,
+        supplier: true,
+        status: true,
+        currency: true,
+        region: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -87,7 +86,11 @@ export class ContractsService {
       },
       include: {
         supplier: true,
-        payments: true,
+        payments: { include: { status: true } },
+        activity: true,
+        status: true,
+        currency: true,
+        region: true,
       },
     });
   }
@@ -95,7 +98,6 @@ export class ContractsService {
   async updateContract(id: string, data: UpdateContractDto) {
     const { isDeleted, ...updateData } = data;
 
-    // Build data object without keys that evaluate to undefined
     const formattedData: Prisma.ContractUpdateInput = {};
 
     if (updateData.contractNumber !== undefined)
@@ -125,7 +127,6 @@ export class ContractsService {
   }
 
   async getContractPayments(id: string, status?: string) {
-    // Define where using Prisma's PaymentWhereInput type
     const where: Prisma.PaymentWhereInput = {
       contractId: id,
     };
@@ -134,6 +135,9 @@ export class ContractsService {
 
     return await prisma.payment.findMany({
       where,
+      include: {
+        status: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

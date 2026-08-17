@@ -50,23 +50,23 @@ export class DashboardService {
     };
   }
 
-  async getBySector(region?: string) {
+  async getByActivity(region?: string) {
     const contracts = await prisma.contract.findMany({
       where: contractWhere(region),
       include: {
-        activity: { include: { sector: { select: { label: true } } } },
+        activity: true,
         payments: { include: { status: { select: { code: true } } } },
       },
     });
 
-    const sectors = new Map<
+    const activities = new Map<
       string,
       { contractCount: number; totalValue: number; paidAmount: number }
     >();
 
     for (const contract of contracts) {
-      const sector = contract.activity.sector.label;
-      const summary = sectors.get(sector) ?? {
+      const activityId = contract.activity.id;
+      const summary = activities.get(activityId) ?? {
         contractCount: 0,
         totalValue: 0,
         paidAmount: 0,
@@ -74,11 +74,11 @@ export class DashboardService {
       summary.contractCount += 1;
       summary.totalValue += Number(contract.currentAmount);
       summary.paidAmount += paidAmount(contract.payments);
-      sectors.set(sector, summary);
+      activities.set(activityId, summary);
     }
 
-    return [...sectors].map(([sector, summary]) => ({
-      sector,
+    return [...activities].map(([activityId, summary]) => ({
+      activityId,
       ...summary,
       remainingValue: summary.totalValue - summary.paidAmount,
     }));
