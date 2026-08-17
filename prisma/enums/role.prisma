@@ -1,0 +1,7 @@
+enum Role {
+  ProcurementOfficer
+  ProcurementDirector
+  Administrator
+  ManagementTeam
+  ProjectManager
+}

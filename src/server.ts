@@ -15,19 +15,22 @@ function startServer(port: number) {
       startServer(fallback);
       return;
     }
-    logger.error({ err }, 'Server error');
+    logger.fatal({ err }, 'Server error');
     process.exit(1);
   });
 
   server.listen(port, () => {
-    logger.info(`Server running on port ${port} [${env.NODE_ENV}]`);
+    logger.info(
+      { port },
+      `Procurement Tracking System API running on port ${port} [${env.NODE_ENV}]`,
+    );
   });
 }
 
 startServer(env.PORT);
 
 process.on('uncaughtException', (err) => {
-  logger.error({ err }, 'Uncaught exception');
+  logger.fatal({ err }, 'Uncaught exception');
   process.exit(1);
 });
 

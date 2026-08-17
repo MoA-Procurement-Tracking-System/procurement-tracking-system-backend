@@ -1,0 +1,7 @@
+enum ActivityStatus {
+  PLANNED
+  IN_PROGRESS
+  CONTRACTED
+  COMPLETED
+  CANCELLED
+}

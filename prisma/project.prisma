@@ -1,0 +1,49 @@
+model Project {
+  id                  String        @id @default(uuid())
+  code                String        @unique
+  name                String
+  sapIdentificationNo String?
+  country             String?
+  executingAgency     String?
+  organization        String?
+  
+  fundingSourceId     String
+  fundingSource       LookupValue   @relation("ProjectFundingSource", fields: [fundingSourceId], references: [id])
+  
+  fundingType         String?
+  loanGrantNumbers    String[]
+  components          String[]
+  subcomponents       String[]
+  
+  baseCurrency        String?
+  projectStartDate    DateTime?
+  projectEndDate      DateTime?
+  
+  sectorId            String
+  sector              LookupValue   @relation("ProjectSector", fields: [sectorId], references: [id])
+  status              ProjectStatus @default(ACTIVE)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  plans     Plan[]
+  members   UserProject[]
+  revisions Revision[]    @relation("RevisionProject")
+
+  @@index([isActive])
+  @@index([status])
+  @@index([fundingSourceId])
+  @@index([sectorId])
+}
+
+model UserProject {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+}

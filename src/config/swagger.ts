@@ -1,6 +1,5 @@
 import swaggerJSDoc from 'swagger-jsdoc';
-
-const PORT = process.env.PORT || 5000;
+import { env } from './env.js';
 
 const options: swaggerJSDoc.Options = {
   definition: {
@@ -12,7 +11,7 @@ const options: swaggerJSDoc.Options = {
     },
     servers: [
       {
-        url: `http://localhost:${PORT}`,
+        url: `http://localhost:${env.PORT}`,
         description: 'Development server',
       },
     ],

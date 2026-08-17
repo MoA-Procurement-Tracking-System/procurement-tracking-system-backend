@@ -1,27 +1,25 @@
 import pino from 'pino';
-import { pinoHttp } from 'pino-http';
-import type { Options } from 'pino-http';
+import { pinoHttp, type Options } from 'pino-http';
 import { env } from './env.js';
 
 export const logger = pino({
-  level: env.LOG_LEVEL,
+  level: env.LOG_LEVEL || (env.NODE_ENV === 'production' ? 'info' : 'debug'),
   redact: [
-    "req.headers.authorization",
-    "req.headers.cookie",
-    "password",
-    "currentPassword",
-    "newPassword",
-    "confirmPassword",
-    "token",
+    'req.headers.authorization',
+    'req.headers.cookie',
+    'password',
+    'currentPassword',
+    'newPassword',
+    'confirmPassword',
+    'token',
   ],
-  ...(env.NODE_ENV !== "production" && {
+  ...(env.NODE_ENV !== 'production' && {
     transport: {
-      target: "pino-pretty",
+      target: 'pino-pretty',
       options: { colorize: true },
     },
   }),
 });
-
 
 const httpOptions: Options = {
   logger,

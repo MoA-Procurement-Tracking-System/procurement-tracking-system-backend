@@ -1,0 +1,6 @@
+enum ImportStatus {
+  Processing
+  Completed
+  CompletedWithErrors
+  Failed
+}

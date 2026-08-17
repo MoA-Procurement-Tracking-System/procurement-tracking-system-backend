@@ -1,0 +1,62 @@
+model Activity {
+  id        String @id @default(uuid())
+  reference String @unique
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  description         String?
+  
+  procurementMethodId String
+  procurementMethod   LookupValue @relation("ActivityMethod", fields: [procurementMethodId], references: [id])
+  
+  marketApproach        String?
+  qualificationApproach String?
+  reviewType            String?
+
+  estimatedBudget Float
+  currency        String?
+  
+  fundingSource    String?
+  loanGrantNumbers String[]
+  components       String[]
+  
+  lotRequired      Boolean @default(false)
+  
+  isImport        Boolean        @default(false)
+  contractId      String?
+  
+  processStatus   String?
+  status          ActivityStatus @default(PLANNED)
+  performancePct  Float?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  stages    Stage[]
+  contracts Contract[]
+  documents Document[]
+  lots      ActivityLot[]
+  revisions Revision[] @relation("RevisionActivity")
+
+  @@index([planId])
+  @@index([status])
+  @@index([procurementMethodId])
+  @@index([createdAt, id])
+}
+
+model ActivityLot {
+  id              String   @id @default(uuid())
+  activityId      String
+  activity        Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  lotNumber       String
+  description     String?
+  estimatedAmount Float?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([activityId])
+}

@@ -1,0 +1,33 @@
+model Document {
+  id String @id @default(uuid())
+
+  entityType String
+  entityId   String
+
+  activityId String?
+  activity   Activity? @relation(fields: [activityId], references: [id])
+
+  stageId String?
+  stage   Stage?  @relation(fields: [stageId], references: [id])
+
+  contractId String?
+  contract   Contract? @relation(fields: [contractId], references: [id])
+
+  title    String
+  type     String
+  filename String
+  path     String
+
+  uploadedById String
+  uploader     User   @relation(fields: [uploadedById], references: [id])
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([activityId])
+  @@index([stageId])
+  @@index([contractId])
+  @@index([type])
+  @@index([uploadedById])
+}

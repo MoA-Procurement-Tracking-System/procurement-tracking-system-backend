@@ -10,10 +10,12 @@ import { prisma } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import {
+  Prisma,
+  Role,
   SessionKind,
   UserRole,
   UserStatus,
-} from '../../generated/prisma/enums.js';
+} from '../../generated/prisma/client.js';
 import {
   generateOpaqueToken,
   hashPassword,
@@ -41,6 +43,8 @@ type PublicUser = {
   displayName: string;
   role: UserRole;
 };
+
+type PublicUserSource = Omit<PublicUser, 'role'> & { authRole: UserRole };
 
 type RequestAuth = {
   sessionId: string;
@@ -109,14 +113,27 @@ const createUserSchema = z.object({
   ]),
 });
 
-function publicUser(user: PublicUser): PublicUser {
+function publicUser(user: PublicUser | PublicUserSource): PublicUser {
   return {
     id: user.id,
     email: user.email,
     username: user.username,
     displayName: user.displayName,
-    role: user.role,
+    role: 'authRole' in user ? user.authRole : user.role,
   };
+}
+
+function procurementRole(role: UserRole): Role {
+  switch (role) {
+    case UserRole.DIRECTOR:
+      return Role.ProcurementDirector;
+    case UserRole.ENDORSING_COMMITTEE:
+      return Role.ManagementTeam;
+    case UserRole.ADMIN:
+      return Role.Administrator;
+    default:
+      return Role.ProcurementOfficer;
+  }
 }
 
 function clientDetails(req: Request) {
@@ -295,7 +312,8 @@ const loadSession: RequestHandler = async (req, res, next) => {
     !session ||
     session.revokedAt ||
     session.expiresAt <= now ||
-    session.user.status !== UserStatus.ACTIVE
+    session.user.status !== UserStatus.ACTIVE ||
+    !session.user.isActive
   ) {
     if (session && !session.revokedAt) {
       await prisma.session.update({
@@ -374,6 +392,7 @@ authRouter.post('/login', async (req, res) => {
     !user ||
     !passwordValid ||
     user.status !== UserStatus.ACTIVE ||
+    !user.isActive ||
     Boolean(user.lockedUntil && user.lockedUntil > now) ||
     Boolean(
       user.mustChangePassword &&
@@ -546,7 +565,7 @@ authRouter.post('/forgot-password', async (req, res) => {
     ? await prisma.user.findUnique({ where: { email } })
     : null;
 
-  if (user?.status === UserStatus.ACTIVE) {
+  if (user?.status === UserStatus.ACTIVE && user.isActive) {
     const token = generateOpaqueToken();
     await prisma.passwordResetToken.updateMany({
       where: { userId: user.id, usedAt: null },
@@ -644,8 +663,7 @@ authRouter.post('/create-password', async (req, res) => {
     !invitation ||
     invitation.usedAt ||
     invitation.expiresAt <= now ||
-    invitation.user.status !== UserStatus.INVITED ||
-    invitation.user.passwordHash !== null
+    invitation.user.status !== UserStatus.INVITED
   ) {
     res.status(400).json({
       message: 'This account invitation link is invalid or has expired.',
@@ -665,7 +683,7 @@ authRouter.post('/create-password', async (req, res) => {
 
   const passwordHash = await hashPassword(parsed.data.newPassword);
   try {
-    await prisma.$transaction(async (transaction) => {
+    await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
       const consumed = await transaction.userInvitationToken.updateMany({
         where: {
           id: invitation.id,
@@ -680,7 +698,6 @@ authRouter.post('/create-password', async (req, res) => {
         where: {
           id: invitation.userId,
           status: UserStatus.INVITED,
-          passwordHash: null,
         },
         data: {
           passwordHash,
@@ -818,14 +835,20 @@ adminRouter.post('/users', async (req, res) => {
     env.USER_INVITATION_HOURS * 3_600_000,
   );
   try {
+    const invitationOnlyPasswordHash = await hashPassword(
+      generateOpaqueToken().raw,
+    );
     const user = await prisma.user.create({
       data: {
+        name: parsed.data.displayName,
         email,
         username: null,
         displayName: parsed.data.displayName,
-        role: parsed.data.role,
+        role: procurementRole(parsed.data.role),
+        authRole: parsed.data.role,
         status: UserStatus.INVITED,
-        passwordHash: null,
+        isActive: true,
+        passwordHash: invitationOnlyPasswordHash,
         mustChangePassword: false,
         tempPasswordExpiresAt: null,
         invitationTokens: {
@@ -842,7 +865,7 @@ adminRouter.post('/users', async (req, res) => {
       await deliverUserInvitation({
         email: user.email,
         displayName: user.displayName,
-        role: user.role,
+        role: user.authRole,
         invitationUrl,
       });
     } catch (error) {
@@ -853,7 +876,7 @@ adminRouter.post('/users', async (req, res) => {
       await prisma.user.delete({ where: { id: user.id } });
       await audit('USER_INVITATION_DELIVERY_FAILED', false, req, {
         email,
-        metadata: { role: user.role, invitedBy: req.auth!.user.id },
+        metadata: { role: user.authRole, invitedBy: req.auth!.user.id },
       });
       res.status(502).json({
         message: 'The invitation could not be sent. The user was not created.',
@@ -864,7 +887,7 @@ adminRouter.post('/users', async (req, res) => {
     await audit('USER_INVITED', true, req, {
       userId: user.id,
       email,
-      metadata: { role: user.role, invitedBy: req.auth!.user.id },
+      metadata: { role: user.authRole, invitedBy: req.auth!.user.id },
     });
     res.status(201).json({
       user: publicUser(user),

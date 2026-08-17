@@ -1,0 +1,6 @@
+enum StageStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+}

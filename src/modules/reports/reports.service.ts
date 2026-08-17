@@ -1,4 +1,4 @@
-import { Prisma } from '../../generated/prisma/index.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 
 export class ReportsService {
@@ -42,12 +42,12 @@ export class ReportsService {
       const supplierName = c.supplier?.name ?? 'N/A';
       return [
         `"${c.id}"`,
-        `"${c.contractNo}"`,
+        `"${c.contractNo ?? c.contractNumber ?? ''}"`,
         `"${supplierName.replace(/"/g, '""')}"`,
-        `"${c.totalValue}"`,
-        `"${c.paidAmount}"`,
-        `"${c.remainingValue}"`,
-        `"${c.currency}"`,
+        `"${c.totalValue ?? c.currentAmount ?? ''}"`,
+        `"${c.paidAmount ?? 0}"`,
+        `"${c.remainingValue ?? ''}"`,
+        `"${c.currency ?? 'ETB'}"`,
         `"${c.region ?? ''}"`,
         `"${c.sector ?? ''}"`,
         `"${c.status}"`,

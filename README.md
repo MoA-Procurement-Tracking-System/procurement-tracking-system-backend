@@ -13,6 +13,7 @@ planning, tracking, and reporting system.
 - Password-reset token creation and delivery integration.
 - Role and session authorization middleware.
 - Authentication audit records and account lockout.
+- Core procurement management: Contracts, Suppliers, Dashboard analytics, Alerts, and Reports.
 - OpenAPI documentation at `/api-docs`.
 
 ## Technology
@@ -264,3 +265,4 @@ npm run build
 - Store environment values in the deployment platform's secret manager.
 - Add infrastructure-level request throttling for public authentication routes.
 - Back up PostgreSQL and define retention for authentication audit logs.
+

@@ -1,10 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
@@ -12,61 +7,3 @@ datasource db {
   provider = "postgresql"
 }
 
-enum ContractStatus {
-  DRAFT
-  ACTIVE
-  COMPLETED
-  TERMINATED
-}
-
-enum PaymentStatus {
-  PENDING
-  APPROVED
-  PAID
-  REJECTED
-}
-
-model Supplier {
-  id          String     @id @default(uuid())
-  name        String
-  tinNumber   String     @unique
-  email       String?
-  phone       String?
-  status      String     @default("ACTIVE")
-  deletedAt   DateTime?  // Soft delete requirement
-  contracts   Contract[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-}
-
-model Contract {
-  id             String         @id @default(uuid())
-  contractNo     String         @unique
-  activityId     String?        // FK to Dev 2's activity table
-  supplierId     String
-  supplier       Supplier      @relation(fields: [supplierId], references: [id])
-  totalValue     Decimal        @db.Decimal(15, 2)
-  paidAmount     Decimal        @default(0.00) @db.Decimal(15, 2)
-  remainingValue Decimal        @db.Decimal(15, 2)
-  currency       String         @default("ETB")
-  region         String?
-  sector         String?
-  status         ContractStatus @default(DRAFT)
-  deletedAt      DateTime?      // Soft delete requirement
-  payments       Payment[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model Payment {
-  id             String        @id @default(uuid())
-  contractId     String
-  contract       Contract      @relation(fields: [contractId], references: [id])
-  amount         Decimal       @db.Decimal(15, 2)
-  paymentDate    DateTime
-  referenceNo    String
-  status         PaymentStatus @default(PENDING)
-  idempotencyKey String?       @unique // Idempotency check requirement
-  deletedAt      DateTime?     // Soft delete requirement
-  createdAt      DateTime      @default(now())
-}

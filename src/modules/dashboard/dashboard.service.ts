@@ -1,4 +1,4 @@
-import { Prisma, ContractStatus } from '../../generated/prisma/index.js';
+import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 
 export class DashboardService {
@@ -25,9 +25,9 @@ export class DashboardService {
     });
 
     return {
-      totalValue: aggregate._sum.totalValue ?? 0,
-      paidAmount: aggregate._sum.paidAmount ?? 0,
-      remainingValue: aggregate._sum.remainingValue ?? 0,
+      totalValue: aggregate._sum?.totalValue ?? 0,
+      paidAmount: aggregate._sum?.paidAmount ?? 0,
+      remainingValue: aggregate._sum?.remainingValue ?? 0,
       activeContractsCount,
     };
   }
@@ -53,10 +53,10 @@ export class DashboardService {
 
     return grouped.map((item) => ({
       sector: item.sector ?? 'Unassigned',
-      contractCount: item._count.id,
-      totalValue: item._sum.totalValue ?? 0,
-      paidAmount: item._sum.paidAmount ?? 0,
-      remainingValue: item._sum.remainingValue ?? 0,
+      contractCount: item._count?.id ?? 0,
+      totalValue: item._sum?.totalValue ?? 0,
+      paidAmount: item._sum?.paidAmount ?? 0,
+      remainingValue: item._sum?.remainingValue ?? 0,
     }));
   }
 }
