@@ -148,6 +148,31 @@ export class AuthService {
     ]);
   }
 
+  async logout(userId: string, refreshToken: string): Promise<void> {
+    const tokenHash = hashToken(refreshToken);
+    await prisma.refreshToken.updateMany({
+      where: { userId, tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async getMe(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        mustChangePassword: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+    if (!user) throw ApiError.unauthorized();
+    return user;
+  }
+
   async changePassword(
     userId: string,
     currentPassword: string,

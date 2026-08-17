@@ -106,6 +106,30 @@ export class AuthController {
     }
   }
 
+  async logout(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user)
+        return res.status(401).json({ message: 'Authentication required' });
+      const refreshToken =
+        (req.body as { refreshToken?: string }).refreshToken ?? '';
+      await authService.logout(req.user.id, refreshToken);
+      return res.status(200).json({ message: 'Logged out successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async me(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user)
+        return res.status(401).json({ message: 'Authentication required' });
+      const user = await authService.getMe(req.user.id);
+      return res.status(200).json({ data: user });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async changePassword(req: Request, res: Response, next: NextFunction) {
     try {
       const result = changePasswordSchema.safeParse(req.body);
