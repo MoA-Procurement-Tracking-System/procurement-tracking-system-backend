@@ -7,6 +7,7 @@ import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { swaggerSpec } from './config/swagger.js';
+import { ApiError } from './utils/errors.js';
 import {
   adminRouter,
   authErrorHandler,
@@ -83,6 +84,7 @@ app.use('/api', protectedRouter);
 // Error handlers
 app.use(authErrorHandler);
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof ApiError) {
     res.status(err.status).json({
