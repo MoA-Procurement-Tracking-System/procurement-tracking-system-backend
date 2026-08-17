@@ -66,6 +66,17 @@ router.get('/:id', getProjectById);
  *               name: { type: string }
  *               fundingSourceId: { type: string }
  *               sectorId: { type: string }
+ *               sapIdentificationNo: { type: string }
+ *               country: { type: string }
+ *               executingAgency: { type: string }
+ *               organization: { type: string }
+ *               fundingType: { type: string }
+ *               loanGrantNumbers: { type: array, items: { type: string } }
+ *               components: { type: array, items: { type: string } }
+ *               subcomponents: { type: array, items: { type: string } }
+ *               baseCurrency: { type: string }
+ *               projectStartDate: { type: string, format: date-time }
+ *               projectEndDate: { type: string, format: date-time }
  *     responses:
  *       201: { description: Project created }
  */
@@ -96,6 +107,17 @@ router.post(
  *             properties:
  *               name: { type: string }
  *               status: { type: string, enum: [ACTIVE, CLOSED, SUSPENDED] }
+ *               sapIdentificationNo: { type: string }
+ *               country: { type: string }
+ *               executingAgency: { type: string }
+ *               organization: { type: string }
+ *               fundingType: { type: string }
+ *               loanGrantNumbers: { type: array, items: { type: string } }
+ *               components: { type: array, items: { type: string } }
+ *               subcomponents: { type: array, items: { type: string } }
+ *               baseCurrency: { type: string }
+ *               projectStartDate: { type: string, format: date-time }
+ *               projectEndDate: { type: string, format: date-time }
  *     responses:
  *       200: { description: Project updated }
  */

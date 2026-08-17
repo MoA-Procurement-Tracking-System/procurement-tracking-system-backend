@@ -1,12 +1,27 @@
 model Project {
-  id              String        @id @default(uuid())
-  code            String        @unique
-  name            String
-  fundingSourceId String
-  fundingSource   LookupValue   @relation("ProjectFundingSource", fields: [fundingSourceId], references: [id])
-  sectorId        String
-  sector          LookupValue   @relation("ProjectSector", fields: [sectorId], references: [id])
-  status          ProjectStatus @default(ACTIVE)
+  id                  String        @id @default(uuid())
+  code                String        @unique
+  name                String
+  sapIdentificationNo String?
+  country             String?
+  executingAgency     String?
+  organization        String?
+  
+  fundingSourceId     String
+  fundingSource       LookupValue   @relation("ProjectFundingSource", fields: [fundingSourceId], references: [id])
+  
+  fundingType         String?
+  loanGrantNumbers    String[]
+  components          String[]
+  subcomponents       String[]
+  
+  baseCurrency        String?
+  projectStartDate    DateTime?
+  projectEndDate      DateTime?
+  
+  sectorId            String
+  sector              LookupValue   @relation("ProjectSector", fields: [sectorId], references: [id])
+  status              ProjectStatus @default(ACTIVE)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())

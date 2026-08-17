@@ -2,9 +2,17 @@ model Plan {
   id                    String     @id @default(uuid())
   projectId             String
   project               Project    @relation(fields: [projectId], references: [id])
+  
   title                 String
+  budgetYear            String?
+  procurementCategory   String?
+  organization          String?
+  description           String?
+  
   periodStart           DateTime
   periodEnd             DateTime
+  gpnDate               DateTime?
+  
   status                PlanStatus @default(DRAFT)
   committeeRound        Int        @default(0)
   committeeVoteDeadline DateTime?
