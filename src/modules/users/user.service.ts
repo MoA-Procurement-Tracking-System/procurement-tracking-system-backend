@@ -1,6 +1,8 @@
 import { prisma } from '../../config/database.js';
 import { hashPassword } from '../../utils/password.js';
 import { ApiError } from '../../utils/errors.js';
+import { generateOpaqueToken, hashPassword } from '../auth/auth.security.js';
+import { UserRole, UserStatus, Role } from '../../generated/prisma/enums.js';
 import type {
   CreateUserInput,
   UpdateUserInput,
@@ -107,4 +109,17 @@ export async function updateUser(
     },
     select: safeSelect,
   });
+}
+
+function mapDbRoleToClientRole(role: Role | string): UserRole {
+  switch (role) {
+    case 'ProcurementDirector':
+      return UserRole.DIRECTOR;
+    case 'ManagementTeam':
+      return UserRole.ENDORSING_COMMITTEE;
+    case 'Administrator':
+      return UserRole.ADMIN;
+    default:
+      return UserRole.OFFICER;
+  }
 }

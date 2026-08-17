@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
@@ -81,5 +82,22 @@ app.use('/api', protectedRouter);
 
 // Error handlers
 app.use(authErrorHandler);
+
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof ApiError) {
+    res.status(err.status).json({
+      status: err.code,
+      message: err.message,
+      errors: err.fields,
+    });
+    return;
+  }
+
+  logger.error(err);
+  res.status(500).json({
+    status: 500,
+    message: 'Internal Server Error',
+  });
+});
 
 export default app;
