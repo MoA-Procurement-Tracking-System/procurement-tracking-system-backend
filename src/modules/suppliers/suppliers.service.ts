@@ -1,8 +1,9 @@
-import { Prisma } from '../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
-import type { CreateSupplierDto, GetSuppliersQueryDto } from './suppliers.schema.js';
-
-
+import type {
+  CreateSupplierDto,
+  GetSuppliersQueryDto,
+} from './suppliers.schema.js';
 
 export class SuppliersService {
   async createSupplier(data: CreateSupplierDto) {
