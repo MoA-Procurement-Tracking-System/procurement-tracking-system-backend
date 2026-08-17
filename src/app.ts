@@ -29,19 +29,27 @@ const app = express();
 app.disable('x-powered-by');
 if (env.NODE_ENV === 'production') app.set('trust proxy', 1);
 
-const allowedOrigins = env.CORS_ORIGIN.split(',').map((origin) =>
-  origin.trim(),
-);
-
 app.use(
   cors({
-    origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin || env.NODE_ENV !== 'production') return callback(null, true);
+      const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 );
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }),
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(pinoHttp({ logger }));

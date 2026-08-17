@@ -42,12 +42,12 @@ export class ReportsService {
       const supplierName = c.supplier?.name ?? 'N/A';
       return [
         `"${c.id}"`,
-        `"${c.contractNo ?? c.contractNumber ?? ''}"`,
+        `"${c.contractNo}"`,
         `"${supplierName.replace(/"/g, '""')}"`,
-        `"${c.totalValue ?? c.currentAmount ?? ''}"`,
-        `"${c.paidAmount ?? 0}"`,
-        `"${c.remainingValue ?? ''}"`,
-        `"${c.currency ?? 'ETB'}"`,
+        `"${c.totalValue}"`,
+        `"${c.paidAmount}"`,
+        `"${c.remainingValue}"`,
+        `"${c.currency}"`,
         `"${c.region ?? ''}"`,
         `"${c.sector ?? ''}"`,
         `"${c.status}"`,

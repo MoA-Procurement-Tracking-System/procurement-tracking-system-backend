@@ -16,19 +16,6 @@ model LookupValue {
   stagesByType         Stage[]         @relation("StageType")
   stageTemplatesByType StageTemplate[] @relation("StageTemplateStageType")
 
-  contractsByCurrency Contract[] @relation("ContractCurrency")
-  contractsByRegion   Contract[] @relation("ContractRegion")
-  contractsByStatus   Contract[] @relation("ContractStatus")
-
-  securityTypes      ContractSecurity[] @relation("SecurityType")
-  securityStatuses   ContractSecurity[] @relation("SecurityStatus")
-  securityCurrencies ContractSecurity[] @relation("SecurityCurrency")
-
-  milestoneStatuses ContractMilestone[] @relation("MilestoneStatus")
-
-  paymentTypes    Payment[] @relation("PaymentType")
-  paymentStatuses Payment[] @relation("PaymentStatus")
-
   alertEntityTypes Alert[] @relation("AlertEntityType")
   alertTypes       Alert[] @relation("AlertType")
   alertSeverities  Alert[] @relation("AlertSeverity")

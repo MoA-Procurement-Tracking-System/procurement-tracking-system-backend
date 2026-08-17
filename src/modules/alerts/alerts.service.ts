@@ -51,7 +51,7 @@ export class AlertsService {
             type: 'OVERDUE_PAYMENT',
             severity: 'HIGH',
             contractId: contract.id,
-            contractNo: contract.contractNo ?? contract.contractNumber ?? 'N/A',
+            contractNo: contract.contractNo,
             message: `Payment ref ${payment.referenceNo ?? payment.id} has been pending for ${daysPending} days.`,
             createdAt: payment.createdAt,
           });
@@ -69,8 +69,8 @@ export class AlertsService {
           type: 'HIGH_COMPLETION',
           severity: 'INFO',
           contractId: contract.id,
-          contractNo: contract.contractNo ?? contract.contractNumber ?? 'N/A',
-          message: `Contract ${contract.contractNo ?? contract.contractNumber ?? 'N/A'} is over 90% paid (${((paidVal / totalVal) * 100).toFixed(1)}%).`,
+          contractNo: contract.contractNo,
+          message: `Contract ${contract.contractNo} is over 90% paid (${((paidVal / totalVal) * 100).toFixed(1)}%).`,
           createdAt: new Date(),
         });
       }
