@@ -27,7 +27,7 @@ export const createPlanService = async (
   data: Prisma.PlanUncheckedCreateInput,
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const plan = await tx.plan.create({
       data: {
         ...data,
@@ -55,7 +55,7 @@ export const updatePlanService = async (
   data: Prisma.PlanUpdateInput,
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const oldPlan = await tx.plan.findUniqueOrThrow({ where: { id } });
 
     // Fetch user to check role
@@ -99,7 +99,7 @@ export const updatePlanService = async (
 };
 
 export const submitPlanService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const oldPlan = await tx.plan.findUniqueOrThrow({
       where: { id },
       include: { activities: true },
@@ -144,7 +144,7 @@ export const submitPlanService = async (id: string, userId: string) => {
 };
 
 export const sendToCommitteeService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (
       user &&
@@ -185,7 +185,7 @@ export const rejectPlanService = async (
   reason: string,
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (
       user &&
@@ -229,7 +229,7 @@ export const submitCommitteeVoteService = async (
   comment: string,
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (
       user &&
@@ -269,10 +269,10 @@ export const submitCommitteeVoteService = async (
     });
 
     const approveCount = votes.filter(
-      (v) => v.decision === VoteDecision.APPROVE,
+      (v: { decision: VoteDecision }) => v.decision === VoteDecision.APPROVE,
     ).length;
     const rejectCount = votes.filter(
-      (v) => v.decision === VoteDecision.REJECT,
+      (v: { decision: VoteDecision }) => v.decision === VoteDecision.REJECT,
     ).length;
 
     let plan = oldPlan;
@@ -320,7 +320,7 @@ export const submitCommitteeVoteService = async (
 };
 
 export const requestPlanUpdateService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const oldPlan = await tx.plan.findUniqueOrThrow({ where: { id } });
 
     const user = await tx.user.findUnique({ where: { id: userId } });
@@ -359,7 +359,7 @@ export const requestPlanUpdateService = async (id: string, userId: string) => {
 };
 
 export const approvePlanUpdateService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
 
     if (

@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 const optionalUrl = z.preprocess(
   (value) => (value === '' ? undefined : value),
-  z.url().optional(),
+  z.string().url().optional(),
 );
 
 const optionalString = z.preprocess(
@@ -13,7 +13,7 @@ const optionalString = z.preprocess(
 
 const optionalEmail = z.preprocess(
   (value) => (value === '' ? undefined : value),
-  z.email().optional(),
+  z.string().email().optional(),
 );
 
 const schema = z
@@ -26,11 +26,24 @@ const schema = z
       .string()
       .min(1)
       .default(
-        'postgresql://postgres:postgres@localhost:5433/procurement?schema=public',
+        'postgresql://postgres:postgres@localhost:5433/procurement_tracking?schema=public',
       ),
     REDIS_URL: z.string().default('redis://localhost:6379'),
-    FRONTEND_URL: z.url().default('http://localhost:3000'),
-    CORS_ORIGIN: z.string().default('http://localhost:3000'),
+    FRONTEND_URL: z.string().default('http://localhost:3000'),
+    CORS_ORIGIN: z
+      .string()
+      .default('http://localhost:3000,http://localhost:3001'),
+    RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
+    LOG_LEVEL: z.string().default('info'),
+    JWT_ACCESS_SECRET: z
+      .string()
+      .default('default_access_secret_change_in_production'),
+    JWT_REFRESH_SECRET: z
+      .string()
+      .default('default_refresh_secret_change_in_production'),
+    JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+    JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
     SESSION_COOKIE_NAME: z.string().min(1).default('moa_session'),
     SESSION_HOURS: z.coerce.number().int().positive().default(8),
     REMEMBER_SESSION_DAYS: z.coerce.number().int().positive().default(30),
@@ -49,7 +62,7 @@ const schema = z
     MAILERSEND_API_TOKEN: optionalString,
     MAILERSEND_FROM_EMAIL: optionalEmail,
     MAILERSEND_FROM_NAME: optionalString,
-    BOOTSTRAP_ADMIN_EMAIL: z.email().default('admin@moa.gov.et'),
+    BOOTSTRAP_ADMIN_EMAIL: z.string().email().default('admin@moa.gov.et'),
     BOOTSTRAP_ADMIN_NAME: z.string().min(1).default('System Administrator'),
     BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
     BOOTSTRAP_DIRECTOR_EMAIL: optionalEmail,

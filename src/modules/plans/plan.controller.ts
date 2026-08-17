@@ -6,11 +6,9 @@ export const getPlans = async (req: Request, res: Response) => {
     const plans = await planService.getPlansService();
     res.status(200).json(plans);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -22,11 +20,9 @@ export const getPlanById = async (req: Request, res: Response) => {
     }
     res.status(200).json(plan);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -59,11 +55,9 @@ export const updatePlan = async (
     );
     res.status(200).json(plan);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -78,11 +72,9 @@ export const requestPlanUpdate = async (
     );
     res.status(200).json(plan);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -97,11 +89,9 @@ export const approvePlanUpdate = async (
     );
     res.status(200).json(plan);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -116,11 +106,9 @@ export const submitPlan = async (
     );
     res.status(200).json(plan);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -135,11 +123,9 @@ export const sendToCommittee = async (
     );
     res.status(200).json(plan);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -155,11 +141,9 @@ export const rejectPlan = async (
     );
     res.status(200).json(plan);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -176,10 +160,8 @@ export const submitCommitteeVote = async (
     );
     res.status(200).json(plan);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };

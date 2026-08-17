@@ -32,7 +32,6 @@ model User {
   planReviews         PlanReview[]
   revisions           Revision[]
   uploadedDocuments   Document[]
-  contractAmendments  ContractAmendment[]
   resolvedAlerts      Alert[]
   importBatches       ImportBatch[]
 

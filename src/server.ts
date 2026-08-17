@@ -6,13 +6,23 @@ import { logger } from './config/logger.js';
 
 const server = createServer(app);
 
-server.on('error', (err) => {
-  logger.fatal({ err }, 'Server error');
+server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    logger.fatal(
+      { port: env.PORT },
+      `Port ${env.PORT} is already in use. Please stop the process using port ${env.PORT} or change PORT in .env.`,
+    );
+  } else {
+    logger.fatal({ err }, 'Server error');
+  }
   process.exit(1);
 });
 
 server.listen(env.PORT, () => {
-  logger.info({ port: env.PORT }, 'Procurement Tracking System API is running');
+  logger.info(
+    { port: env.PORT },
+    `Procurement Tracking System API running on http://localhost:${env.PORT} [${env.NODE_ENV}]`,
+  );
 });
 
 process.on('uncaughtException', (err) => {

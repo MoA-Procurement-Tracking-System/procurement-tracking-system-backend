@@ -1,12 +1,7 @@
-import swaggerJsdoc from 'swagger-jsdoc';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import swaggerJSDoc from 'swagger-jsdoc';
 import { env } from './env.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const options = {
+const options: swaggerJSDoc.Options = {
   definition: {
     openapi: '3.0.0',
     info: {
@@ -17,10 +12,11 @@ const options = {
     servers: [
       {
         url: `http://localhost:${env.PORT}`,
+        description: 'Development server',
       },
     ],
   },
-  apis: [join(__dirname, '../modules') + '/**/*.routes.ts'],
+  apis: ['./src/routes/*.ts', './src/modules/**/*.ts'],
 };
 
-export const swaggerSpec = swaggerJsdoc(options);
+export const swaggerSpec = swaggerJSDoc(options);
