@@ -98,12 +98,10 @@ router.post(
   validate(createLookupSchema, 'body'),
   async (req, res, next) => {
     try {
-      res
-        .status(201)
-        .json({
-          message: 'Lookup created',
-          data: await svc.createLookup(req.body),
-        });
+      res.status(201).json({
+        message: 'Lookup created',
+        data: await svc.createLookup(req.body),
+      });
     } catch (e) {
       next(e);
     }

@@ -8,11 +8,9 @@ export const getActivities = async (req: Request, res: Response) => {
     );
     res.status(200).json(activities);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -26,11 +24,9 @@ export const getActivityById = async (req: Request, res: Response) => {
     }
     res.status(200).json(activity);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -51,11 +47,9 @@ export const createActivity = async (
     );
     res.status(201).json(activity);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -71,10 +65,8 @@ export const updateActivity = async (
     );
     res.status(200).json(activity);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };

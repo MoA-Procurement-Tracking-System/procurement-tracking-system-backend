@@ -265,4 +265,3 @@ npm run build
 - Store environment values in the deployment platform's secret manager.
 - Add infrastructure-level request throttling for public authentication routes.
 - Back up PostgreSQL and define retention for authentication audit logs.
-

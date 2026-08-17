@@ -6,11 +6,9 @@ export const getProjects = async (req: Request, res: Response) => {
     const projects = await projectService.getProjectsService();
     res.status(200).json(projects);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -24,11 +22,9 @@ export const getProjectById = async (req: Request, res: Response) => {
     }
     res.status(200).json(project);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -43,11 +39,9 @@ export const createProject = async (
     );
     res.status(201).json(project);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -63,11 +57,9 @@ export const updateProject = async (
     );
     res.status(200).json(project);
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -92,11 +84,9 @@ export const assignOfficer = async (
         .status(409)
         .json({ error: 'Officer is already assigned to this project.' });
     }
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -111,10 +101,8 @@ export const removeOfficer = async (
     );
     res.status(204).send();
   } catch (error: unknown) {
-    res
-      .status(500)
-      .json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
