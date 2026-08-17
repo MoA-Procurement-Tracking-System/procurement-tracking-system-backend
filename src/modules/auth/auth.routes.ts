@@ -17,6 +17,7 @@ import {
 } from '../../generated/prisma/enums.js';
 import {
   generateOpaqueToken,
+  generateTemporaryPassword,
   hashPassword,
   hashToken,
   validatePassword,
@@ -938,7 +939,7 @@ adminRouter.use(loadSession, requireAuthenticated, requireRole(UserRole.ADMIN));
  * @swagger
  * /api/admin/users:
  *   post:
- *     summary: Create a new user and send an invitation
+ *     summary: Create a new user with a temporary password
  *     tags: [Admin]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
@@ -956,7 +957,7 @@ adminRouter.use(loadSession, requireAuthenticated, requireRole(UserRole.ADMIN));
  *                 enum: [OFFICER, DIRECTOR, ENDORSING_COMMITTEE]
  *     responses:
  *       201:
- *         description: User created and invitation sent
+ *         description: User created successfully
  *       400:
  *         description: Bad request
  */
@@ -970,32 +971,13 @@ adminRouter.post('/users', async (req, res) => {
   }
   const email = parsed.data.email.toLowerCase();
 
-  // Future Ministry email-server integration. Disable the MailerSend guard
-  // below before uncommenting this block.
-  /*
-  if (env.NODE_ENV === 'production' && !env.USER_INVITATION_WEBHOOK_URL) {
-    res.status(503).json({
-      message: 'User invitation email delivery is not configured.',
-    });
-    return;
-  }
-  */
-
-  if (env.NODE_ENV === 'production' && !isMailerSendConfigured()) {
-    res.status(503).json({
-      message: 'User invitation email delivery is not configured.',
-    });
-    return;
-  }
-
-  const invitation = generateOpaqueToken();
-  const invitationExpiresAt = expiresFromNow(
-    env.USER_INVITATION_HOURS * 3_600_000,
-  );
   try {
-    const invitationOnlyPasswordHash = await hashPassword(
-      generateOpaqueToken().raw,
-    );
+    const temporaryPassword =
+      env.NODE_ENV !== 'production'
+        ? 'Password123!'
+        : generateTemporaryPassword();
+    const passwordHash = await hashPassword(temporaryPassword);
+
     const user = await prisma.user.create({
       data: {
         name: parsed.data.displayName,
@@ -1004,55 +986,24 @@ adminRouter.post('/users', async (req, res) => {
         displayName: parsed.data.displayName,
         role: procurementRole(parsed.data.role),
         authRole: parsed.data.role,
-        status: UserStatus.INVITED,
+        status: UserStatus.ACTIVE,
         isActive: true,
-        passwordHash: invitationOnlyPasswordHash,
+        passwordHash,
         mustChangePassword: false,
         tempPasswordExpiresAt: null,
-        invitationTokens: {
-          create: {
-            tokenHash: invitation.hash,
-            expiresAt: invitationExpiresAt,
-          },
-        },
       },
     });
-    const invitationUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/create-password?token=${encodeURIComponent(invitation.raw)}`;
 
-    try {
-      await deliverUserInvitation({
-        email: user.email,
-        displayName: user.displayName,
-        role: user.authRole,
-        invitationUrl,
-      });
-    } catch (error) {
-      logger.error(
-        { error, userId: user.id },
-        'User invitation delivery failed',
-      );
-      await prisma.user.delete({ where: { id: user.id } });
-      await audit('USER_INVITATION_DELIVERY_FAILED', false, req, {
-        email,
-        metadata: { role: user.authRole, invitedBy: req.auth!.user.id },
-      });
-      res.status(502).json({
-        message: 'The invitation could not be sent. The user was not created.',
-      });
-      return;
-    }
-
-    await audit('USER_INVITED', true, req, {
+    await audit('USER_CREATED', true, req, {
       userId: user.id,
       email,
-      metadata: { role: user.authRole, invitedBy: req.auth!.user.id },
+      metadata: { role: user.authRole, createdBy: req.auth!.user.id },
     });
+
     res.status(201).json({
+      message: 'User created successfully.',
       user: publicUser(user),
-      invitationExpiresAt,
-      message: isMailerSendConfigured()
-        ? `Invitation sent to ${user.email}.`
-        : 'User created. The development invitation link was written to the backend log.',
+      temporaryPassword,
     });
   } catch (error) {
     const code = (error as { code?: string }).code;
@@ -1062,7 +1013,8 @@ adminRouter.post('/users', async (req, res) => {
       });
       return;
     }
-    throw error;
+    logger.error({ error, email }, 'Could not create user');
+    res.status(500).json({ message: 'The user could not be created.' });
   }
 });
 
