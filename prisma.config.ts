@@ -7,6 +7,7 @@ export default defineConfig({
   schema: 'prisma',
   migrations: {
     path: 'prisma/migrations',
+    seed: 'tsx src/scripts/bootstrap-admin.ts',
   },
   datasource: {
     url: process.env['DATABASE_URL'],

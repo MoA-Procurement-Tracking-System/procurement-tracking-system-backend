@@ -10,11 +10,12 @@ import { prisma } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import {
+  Prisma,
   Role,
   SessionKind,
   UserRole,
   UserStatus,
-} from '../../generated/prisma/enums.js';
+} from '../../generated/prisma/client.js';
 import {
   generateOpaqueToken,
   generateTemporaryPassword,
@@ -793,7 +794,7 @@ authRouter.post('/create-password', async (req, res) => {
 
   const passwordHash = await hashPassword(parsed.data.newPassword);
   try {
-    await prisma.$transaction(async (transaction) => {
+    await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
       const consumed = await transaction.userInvitationToken.updateMany({
         where: {
           id: invitation.id,

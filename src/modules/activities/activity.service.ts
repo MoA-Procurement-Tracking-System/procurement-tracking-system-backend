@@ -31,7 +31,7 @@ export const createActivityService = async (
   lotsData: Prisma.ActivityLotCreateWithoutActivityInput[],
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const plan = await tx.plan.findUniqueOrThrow({ where: { id: planId } });
     const user = await tx.user.findUnique({ where: { id: userId } });
 
@@ -96,7 +96,7 @@ export const updateActivityService = async (
   data: Prisma.ActivityUncheckedUpdateInput,
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const oldActivity = await tx.activity.findUniqueOrThrow({
       where: { id },
       include: { plan: true },
