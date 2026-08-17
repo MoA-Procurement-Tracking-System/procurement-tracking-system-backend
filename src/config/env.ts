@@ -52,6 +52,9 @@ const schema = z
     BOOTSTRAP_ADMIN_EMAIL: z.email().default('admin@moa.gov.et'),
     BOOTSTRAP_ADMIN_NAME: z.string().min(1).default('System Administrator'),
     BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
+    BOOTSTRAP_DIRECTOR_EMAIL: optionalEmail,
+    BOOTSTRAP_DIRECTOR_NAME: optionalString,
+    BOOTSTRAP_DIRECTOR_PASSWORD: z.string().optional(),
   })
   .superRefine((values, context) => {
     const mailerSendValues = [

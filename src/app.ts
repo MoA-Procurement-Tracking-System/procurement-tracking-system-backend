@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
@@ -14,6 +15,7 @@ import {
 } from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/users.routes.js';
 import projectRoutes from './modules/projects/project.routes.js';
+import { ApiError } from './utils/errors.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -43,5 +45,22 @@ app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api', protectedRouter);
 app.use(authErrorHandler);
+
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof ApiError) {
+    res.status(err.status).json({
+      status: err.code,
+      message: err.message,
+      errors: err.fields,
+    });
+    return;
+  }
+
+  logger.error(err);
+  res.status(500).json({
+    status: 500,
+    message: 'Internal Server Error',
+  });
+});
 
 export default app;
