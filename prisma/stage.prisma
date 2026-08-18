@@ -8,19 +8,27 @@ model Stage {
   stageType   LookupValue @relation("StageType", fields: [stageTypeId], references: [id])
   sequence    Int
 
-  status StageStatus @default(PENDING)
+  status StageStatus @default(NOT_STARTED)
 
+  // Baseline — never overwritten after planning
   plannedStartDate DateTime?
   plannedEndDate   DateTime?
+  plannedDays      Int?
 
+  // Actual execution
   actualStartDate DateTime?
   actualEndDate   DateTime?
 
-  revisedStartDate DateTime?
-  revisedEndDate   DateTime?
+  // Current effective target = latest revision if any, else baseline
+  currentTargetStartDate DateTime?
+  currentTargetEndDate   DateTime?
 
+  isNotApplicable Boolean @default(false)
+  remarks         String?
+
+  revisions StageRevision[]
   documents Document[]
-  revisions Revision[] @relation("RevisionStage")
+  auditRevisions Revision[] @relation("RevisionStage")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -28,4 +36,23 @@ model Stage {
   @@unique([activityId, sequence])
   @@index([activityId])
   @@index([stageTypeId])
+}
+
+model StageRevision {
+  id      String @id @default(cuid())
+  stageId String
+  stage   Stage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  revisionNo         Int
+  revisedStartDate   DateTime
+  revisedEndDate     DateTime?
+  reason             String
+
+  revisedById String
+  revisedBy   User   @relation(fields: [revisedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([stageId, revisionNo])
+  @@index([stageId])
 }

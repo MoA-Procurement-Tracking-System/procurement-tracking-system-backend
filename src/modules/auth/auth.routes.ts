@@ -209,6 +209,7 @@ function expiresFromNow(milliseconds: number): Date {
   return new Date(Date.now() + milliseconds);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function deliverUserInvitation(values: {
   email: string;
   displayName: string;
@@ -294,7 +295,7 @@ async function createSession(
   return { id: session.id, raw, expiresAt };
 }
 
-const loadSession: RequestHandler = async (req, res, next) => {
+export const loadSession: RequestHandler = async (req, res, next) => {
   const raw = cookieValue(req.headers.cookie, env.SESSION_COOKIE_NAME);
   if (!raw) {
     clearSessionCookie(res);
@@ -347,7 +348,7 @@ const loadSession: RequestHandler = async (req, res, next) => {
   next();
 };
 
-const requireAuthenticated: RequestHandler = (req, res, next) => {
+export const requireAuthenticated: RequestHandler = (req, res, next) => {
   if (!req.auth || req.auth.sessionKind !== SessionKind.AUTHENTICATED) {
     res.status(403).json({
       code: 'PASSWORD_CHANGE_REQUIRED',

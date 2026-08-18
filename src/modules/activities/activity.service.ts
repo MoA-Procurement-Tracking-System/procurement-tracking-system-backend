@@ -9,30 +9,77 @@ import {
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
 import { generateStagesForActivity } from './stage-generator.js';
+import type {
+  CreateActivityInput,
+  UpdateActivityInput,
+  ReplanStageInput,
+  UpdateStageInput,
+  UpdateStageActualInput,
+} from './activity.schema.js';
+
+// ─── Reference ID Generation ─────────────────────────────────────────────────
+
+async function generateActivityReference(
+  procurementMethodId: string,
+): Promise<string> {
+  const method = await prisma.lookupValue.findUnique({
+    where: { id: procurementMethodId },
+  });
+  const methodCode = (method?.code ?? 'UNK').toUpperCase().replace(/\s+/g, '_');
+
+  const count = await prisma.activity.count({
+    where: { procurementMethodId },
+  });
+  const seq = String(count + 1).padStart(6, '0');
+
+  return `MOA-${methodCode}-${seq}`;
+}
+
+// ─── Get Activities ───────────────────────────────────────────────────────────
 
 export const getActivitiesService = async (planId?: string) => {
   const where = planId ? { planId, isActive: true } : { isActive: true };
   return prisma.activity.findMany({
     where,
-    include: { plan: true, lots: true, procurementMethod: true },
+    include: {
+      plan: true,
+      lots: true,
+      fundings: true,
+      components: true,
+      procurementMethod: true,
+    },
   });
 };
+
+// ─── Get Activity By ID ───────────────────────────────────────────────────────
 
 export const getActivityByIdService = async (id: string) => {
   return prisma.activity.findUnique({
     where: { id },
-    include: { plan: true, lots: true, procurementMethod: true },
+    include: {
+      plan: true,
+      lots: true,
+      fundings: true,
+      components: true,
+      procurementMethod: true,
+      stages: {
+        include: { stageType: true, revisions: true },
+        orderBy: { sequence: 'asc' },
+      },
+    },
   });
 };
 
+// ─── Create Activity ──────────────────────────────────────────────────────────
+
 export const createActivityService = async (
-  planId: string,
-  data: Prisma.ActivityUncheckedCreateInput,
-  lotsData: Prisma.ActivityLotCreateWithoutActivityInput[],
+  data: CreateActivityInput,
   userId: string,
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const plan = await tx.plan.findUniqueOrThrow({ where: { id: planId } });
+    const plan = await tx.plan.findUniqueOrThrow({
+      where: { id: data.planId },
+    });
     const user = await tx.user.findUnique({ where: { id: userId } });
 
     // Officers must be assigned to the project and can only add activities to DRAFT or REJECTED plans
@@ -53,24 +100,42 @@ export const createActivityService = async (
       }
     }
 
-    const activityCreateData: Prisma.ActivityUncheckedCreateInput = {
-      ...data,
-      planId,
+    const reference = await generateActivityReference(data.procurementMethodId);
+
+    const { lots, fundings, components, planId, ...activityData } = data;
+
+    const createData: Prisma.ActivityCreateInput = {
+      ...(activityData as unknown as Prisma.ActivityCreateInput),
+      reference,
+      plan: { connect: { id: planId } },
       status: ActivityStatus.PLANNED,
     };
 
-    if (lotsData && lotsData.length > 0) {
-      activityCreateData.lots = {
-        create: lotsData,
+    if (lots && lots.length > 0) {
+      createData.lots = {
+        create: lots as Prisma.ActivityLotCreateWithoutActivityInput[],
+      };
+    }
+
+    if (fundings && fundings.length > 0) {
+      createData.fundings = {
+        create: fundings as Prisma.ActivityFundingCreateWithoutActivityInput[],
+      };
+    }
+
+    if (components && components.length > 0) {
+      createData.components = {
+        create:
+          components as Prisma.ActivityComponentCreateWithoutActivityInput[],
       };
     }
 
     const activity = await tx.activity.create({
-      data: activityCreateData,
-      include: { lots: true },
+      data: createData,
+      include: { lots: true, fundings: true, components: true },
     });
 
-    // Trigger stage generation immediately based on the selected procurement method
+    // Auto-generate roadmap stages based on procurement method
     await generateStagesForActivity(
       tx,
       activity.id,
@@ -91,9 +156,11 @@ export const createActivityService = async (
   });
 };
 
+// ─── Update Activity ──────────────────────────────────────────────────────────
+
 export const updateActivityService = async (
   id: string,
-  data: Prisma.ActivityUncheckedUpdateInput,
+  data: UpdateActivityInput,
   userId: string,
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -103,16 +170,13 @@ export const updateActivityService = async (
     });
     const user = await tx.user.findUnique({ where: { id: userId } });
 
-    // Ensure plan is editable by officer and officer is assigned to the project
     if (user && user.role === Role.ProcurementOfficer) {
       const assignment = await tx.userProject.findUnique({
         where: {
           userId_projectId: { userId, projectId: oldActivity.plan.projectId },
         },
       });
-      if (!assignment) {
-        throw new Error('You are not assigned to this project.');
-      }
+      if (!assignment) throw new Error('You are not assigned to this project.');
       if (
         oldActivity.plan.status !== PlanStatus.DRAFT &&
         oldActivity.plan.status !== PlanStatus.REJECTED
@@ -123,9 +187,46 @@ export const updateActivityService = async (
       }
     }
 
+    const { lots, fundings, components, ...scalarData } = data;
+
+    // Replace child records if provided
+    if (fundings !== undefined) {
+      await tx.activityFunding.deleteMany({ where: { activityId: id } });
+    }
+    if (components !== undefined) {
+      await tx.activityComponent.deleteMany({ where: { activityId: id } });
+    }
+    if (lots !== undefined) {
+      await tx.activityLot.deleteMany({ where: { activityId: id } });
+    }
+
+    const updateData: Prisma.ActivityUpdateInput = {
+      ...(scalarData as unknown as Prisma.ActivityUpdateInput),
+    };
+
+    if (fundings !== undefined && fundings.length > 0) {
+      updateData.fundings = {
+        create: fundings as Prisma.ActivityFundingCreateWithoutActivityInput[],
+      };
+    }
+
+    if (components !== undefined && components.length > 0) {
+      updateData.components = {
+        create:
+          components as Prisma.ActivityComponentCreateWithoutActivityInput[],
+      };
+    }
+
+    if (lots !== undefined && lots.length > 0) {
+      updateData.lots = {
+        create: lots as Prisma.ActivityLotCreateWithoutActivityInput[],
+      };
+    }
+
     const activity = await tx.activity.update({
       where: { id },
-      data,
+      data: updateData,
+      include: { lots: true, fundings: true, components: true },
     });
 
     await logRevision(
@@ -139,5 +240,99 @@ export const updateActivityService = async (
     );
 
     return activity;
+  });
+};
+
+// ─── Stage: Update Planning Dates ────────────────────────────────────────────
+
+export const updateStageService = async (
+  stageId: string,
+  data: UpdateStageInput,
+) => {
+  const updateData: Prisma.StageUpdateInput = {};
+  if (data.plannedStartDate !== undefined) {
+    updateData.plannedStartDate = data.plannedStartDate;
+    updateData.currentTargetStartDate = data.plannedStartDate;
+  }
+  if (data.plannedEndDate !== undefined) {
+    updateData.plannedEndDate = data.plannedEndDate;
+    updateData.currentTargetEndDate = data.plannedEndDate;
+  }
+  if (data.plannedDays !== undefined) updateData.plannedDays = data.plannedDays;
+  if (data.isNotApplicable !== undefined)
+    updateData.isNotApplicable = data.isNotApplicable;
+  if (data.remarks !== undefined) updateData.remarks = data.remarks;
+
+  return prisma.stage.update({
+    where: { id: stageId },
+    data: updateData,
+  });
+};
+
+// ─── Stage: Record Actual Date ────────────────────────────────────────────────
+
+export const updateStageActualService = async (
+  stageId: string,
+  data: UpdateStageActualInput,
+) => {
+  const updateData: Prisma.StageUpdateInput = {};
+  if (data.actualStartDate !== undefined)
+    updateData.actualStartDate = data.actualStartDate;
+  if (data.actualEndDate !== undefined)
+    updateData.actualEndDate = data.actualEndDate;
+  if (data.remarks !== undefined) updateData.remarks = data.remarks;
+
+  return prisma.stage.update({
+    where: { id: stageId },
+    data: updateData,
+  });
+};
+
+// ─── Stage: Replan (create revision record) ───────────────────────────────────
+
+export const replanStageService = async (
+  stageId: string,
+  data: ReplanStageInput,
+  userId: string,
+) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const stage = await tx.stage.findUniqueOrThrow({ where: { id: stageId } });
+
+    // Get next revision number
+    const lastRevision = await tx.stageRevision.findFirst({
+      where: { stageId },
+      orderBy: { revisionNo: 'desc' },
+    });
+    const nextRevisionNo = (lastRevision?.revisionNo ?? 0) + 1;
+
+    // Create revision record (preserves history)
+    const revisionData: Prisma.StageRevisionUncheckedCreateInput = {
+      stageId,
+      revisionNo: nextRevisionNo,
+      revisedStartDate: data.revisedStartDate,
+      reason: data.reason,
+      revisedById: userId,
+    };
+    if (data.revisedEndDate !== undefined) {
+      revisionData.revisedEndDate = data.revisedEndDate;
+    }
+
+    await tx.stageRevision.create({
+      data: revisionData,
+    });
+
+    // Update the effective current target on stage
+    const stageUpdateData: Prisma.StageUpdateInput = {
+      currentTargetStartDate: data.revisedStartDate,
+    };
+    if (data.revisedEndDate !== undefined) {
+      stageUpdateData.currentTargetEndDate = data.revisedEndDate;
+    }
+
+    return tx.stage.update({
+      where: { id: stage.id },
+      data: stageUpdateData,
+      include: { revisions: { orderBy: { revisionNo: 'asc' } } },
+    });
   });
 };

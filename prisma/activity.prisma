@@ -5,40 +5,56 @@ model Activity {
   planId String
   plan   Plan   @relation(fields: [planId], references: [id])
 
-  description         String?
-  
-  procurementMethodId String
-  procurementMethod   LookupValue @relation("ActivityMethod", fields: [procurementMethodId], references: [id])
-  
-  marketApproach        String?
-  qualificationApproach String?
-  reviewType            String?
+  // Step 1 — Key Details
+  procurementMethodId       String
+  procurementMethod         LookupValue @relation("ActivityMethod", fields: [procurementMethodId], references: [id])
+  specificMethod            String?
+  marketApproach            String?
+  qualificationApproach     String?
+  domesticPreference        String?
+  reviewType                String?
+  oversightClassification   String?
+  procurementProcess        String?
+  evaluationOptions         String[]
+  highSeaShRisk             Boolean?
+  procurementDocumentType   String?
+  contractType              String?
+  requiresUnAgencyContracting Boolean?
+  isImport                  Boolean     @default(false)
 
-  estimatedBudget Float
-  currency        String?
-  
-  fundingSource    String?
-  loanGrantNumbers String[]
-  components       String[]
-  
-  lotRequired      Boolean @default(false)
-  
-  isImport        Boolean        @default(false)
-  contractId      String?
-  
-  processStatus   String?
-  status          ActivityStatus @default(PLANNED)
-  performancePct  Float?
+  // Step 2 — Related Information
+  description               String?
+  estimatedBudget           Float
+  currency                  String?
+  bidReferenceNo            String?
+  pricingBasis              String?
+  scopeNotes                String?
+  remarks                   String?
+  lotRequired               Boolean     @default(false)
+
+  // Step 3 — Additional Details
+  procurementClassificationCode String?
+  procurementClassificationDesc String?
+  location                  String?
+  latitude                  Float?
+  longitude                 Float?
+
+  // Status & tracking
+  contractId                String?
+  processStatus             String?
+  status                    ActivityStatus @default(PLANNED)
+  performancePct            Float?
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   stages    Stage[]
   contracts Contract[]
   documents Document[]
   lots      ActivityLot[]
+  fundings  ActivityFunding[]
+  components ActivityComponent[]
   revisions Revision[] @relation("RevisionActivity")
 
   @@index([planId])
@@ -54,9 +70,37 @@ model ActivityLot {
   lotNumber       String
   description     String?
   estimatedAmount Float?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activityId])
+}
+
+model ActivityFunding {
+  id              String   @id @default(uuid())
+  activityId      String
+  activity        Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  fundingSource   String
+  loanGrantNumber String?
+  allocationPct   Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activityId])
+}
+
+model ActivityComponent {
+  id            String   @id @default(uuid())
+  activityId    String
+  activity      Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  component     String
+  subcomponent  String?
+  allocationPct Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([activityId])
 }
