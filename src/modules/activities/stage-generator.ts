@@ -22,7 +22,7 @@ export async function generateStagesForActivity(
     activityId,
     stageTypeId: template.stageTypeId,
     sequence: template.sequence,
-    status: StageStatus.PENDING,
+    status: StageStatus.NOT_STARTED,
   }));
 
   await tx.stage.createMany({

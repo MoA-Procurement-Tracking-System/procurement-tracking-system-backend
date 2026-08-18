@@ -1,13 +1,17 @@
 import { Router } from 'express';
-// import { authorize } from '../../middleware/authorize.js';
 import {
   getActivities,
   getActivityById,
   createActivity,
   updateActivity,
+  updateStage,
+  updateStageActual,
+  replanStage,
 } from './activity.controller.js';
+import { loadSession, requireAuthenticated } from '../auth/auth.routes.js';
 
 const router = Router();
+router.use(loadSession, requireAuthenticated);
 
 /**
  * @swagger
@@ -15,7 +19,7 @@ const router = Router();
  *   get:
  *     summary: List all active procurement activities
  *     tags: [Activities]
- *     security: [{ bearerAuth: [] }]
+ *     security: [{ cookieAuth: [] }]
  *     parameters:
  *       - in: query
  *         name: planId
@@ -23,6 +27,7 @@ const router = Router();
  *         description: Filter activities by plan ID
  *     responses:
  *       200: { description: List of activities }
+ *       401: { description: Unauthorized }
  */
 router.get('/', getActivities);
 
@@ -32,7 +37,7 @@ router.get('/', getActivities);
  *   get:
  *     summary: Get a procurement activity by ID
  *     tags: [Activities]
- *     security: [{ bearerAuth: [] }]
+ *     security: [{ cookieAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
@@ -48,50 +53,39 @@ router.get('/:id', getActivityById);
  * @swagger
  * /api/activities:
  *   post:
- *     summary: Create a new procurement activity in a plan
+ *     summary: Create a new procurement activity
  *     tags: [Activities]
- *     security: [{ bearerAuth: [] }]
+ *     security: [{ cookieAuth: [] }]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [planId, reference, procurementMethodId, estimatedBudget]
+ *             required: [planId, procurementMethodId, description, estimatedBudget, currency, fundings]
  *             properties:
  *               planId: { type: string }
- *               reference: { type: string }
- *               description: { type: string }
  *               procurementMethodId: { type: string }
- *               marketApproach: { type: string }
- *               qualificationApproach: { type: string }
- *               reviewType: { type: string }
+ *               description: { type: string }
  *               estimatedBudget: { type: number }
  *               currency: { type: string }
- *               fundingSource: { type: string }
- *               loanGrantNumbers:
- *                 type: array
- *                 items: { type: string }
- *               components:
- *                 type: array
- *                 items: { type: string }
+ *               marketApproach: { type: string, enum: [OPEN_INTERNATIONAL, OPEN_NATIONAL, LIMITED, DIRECT] }
+ *               reviewType: { type: string, enum: [PRIOR, POST] }
+ *               contractType: { type: string, enum: [LUMP_SUM, TIME_BASED] }
  *               lotRequired: { type: boolean }
- *               lots:
+ *               fundings:
  *                 type: array
  *                 items:
  *                   type: object
  *                   properties:
- *                     lotNumber: { type: string }
- *                     description: { type: string }
- *                     estimatedAmount: { type: number }
+ *                     fundingSource: { type: string }
+ *                     loanGrantNumber: { type: string }
+ *                     allocationPct: { type: number }
  *     responses:
  *       201: { description: Activity created }
+ *       400: { description: Validation error }
  */
-router.post(
-  '/',
-  // authorize('Administrator', 'ProcurementOfficer'),
-  createActivity,
-);
+router.post('/', createActivity);
 
 /**
  * @swagger
@@ -99,10 +93,73 @@ router.post(
  *   patch:
  *     summary: Update an existing procurement activity
  *     tags: [Activities]
- *     security: [{ bearerAuth: [] }]
+ *     security: [{ cookieAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Activity updated }
+ */
+router.patch('/:id', updateActivity);
+
+/**
+ * @swagger
+ * /api/activities/{id}/stages/{stageId}:
+ *   patch:
+ *     summary: Update planning dates for a roadmap stage
+ *     tags: [Activities]
+ *     security: [{ cookieAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: stageId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Stage updated }
+ */
+router.patch('/:id/stages/:stageId', updateStage);
+
+/**
+ * @swagger
+ * /api/activities/{id}/stages/{stageId}/actual:
+ *   patch:
+ *     summary: Record actual dates for a completed roadmap stage
+ *     tags: [Activities]
+ *     security: [{ cookieAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: stageId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Actual dates recorded }
+ */
+router.patch('/:id/stages/:stageId/actual', updateStageActual);
+
+/**
+ * @swagger
+ * /api/activities/{id}/stages/{stageId}/replan:
+ *   post:
+ *     summary: Replan a stage with a revised date and reason (creates revision record)
+ *     tags: [Activities]
+ *     security: [{ cookieAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: stageId
  *         required: true
  *         schema: { type: string }
  *     requestBody:
@@ -111,19 +168,14 @@ router.post(
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [revisedStartDate, reason]
  *             properties:
- *               reference: { type: string }
- *               description: { type: string }
- *               procurementMethodId: { type: string }
- *               estimatedBudget: { type: number }
- *               processStatus: { type: string }
+ *               revisedStartDate: { type: string, format: date }
+ *               revisedEndDate: { type: string, format: date }
+ *               reason: { type: string, minLength: 10 }
  *     responses:
- *       200: { description: Activity updated }
+ *       200: { description: Stage replanned with revision history }
  */
-router.patch(
-  '/:id',
-  // authorize('Administrator', 'ProcurementOfficer', 'Director'),
-  updateActivity,
-);
+router.post('/:id/stages/:stageId/replan', replanStage);
 
 export default router;
