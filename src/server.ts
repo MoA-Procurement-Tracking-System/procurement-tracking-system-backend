@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { prisma } from './config/database.js';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
+import { registerBackupJob } from './jobs/backup.job.js';
 
 const server = createServer(app);
 
@@ -23,6 +24,8 @@ server.listen(env.PORT, () => {
     { port: env.PORT },
     `Procurement Tracking System API running on http://localhost:${env.PORT} [${env.NODE_ENV}]`,
   );
+  // Register scheduled jobs after the server is live
+  registerBackupJob();
 });
 
 process.on('uncaughtException', (err) => {
