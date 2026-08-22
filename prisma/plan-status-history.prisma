@@ -1,0 +1,21 @@
+// Append-only log of every Plan status transition.
+// Never rely on Plan.status alone for history — always insert a row here on every change.
+model PlanStatusHistory {
+  id     String @id @default(cuid())
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  fromStatus PlanStatus? // null on first transition (DRAFT creation)
+  toStatus   PlanStatus
+
+  changedById String
+  changedBy   User   @relation("PlanStatusChangedBy", fields: [changedById], references: [id])
+
+  notes String? // e.g. rejection reason, committee round note
+
+  createdAt DateTime @default(now())
+
+  @@index([planId])
+  @@index([changedById])
+  @@index([createdAt])
+}

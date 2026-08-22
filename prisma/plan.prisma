@@ -36,7 +36,8 @@ model Plan {
   activities     Activity[]
   reviews        PlanReview[]
   committeeVotes CommitteeVote[]
-  revisions      Revision[]      @relation("RevisionPlan")
+  revisions      Revision[]          @relation("RevisionPlan")
+  statusHistory  PlanStatusHistory[]
 
   @@index([projectId])
   @@index([status])

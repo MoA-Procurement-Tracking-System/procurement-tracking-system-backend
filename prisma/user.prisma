@@ -35,6 +35,8 @@ model User {
   uploadedDocuments   Document[]
   resolvedAlerts      Alert[]
   importBatches       ImportBatch[]
+  contractAmendments  ContractAmendment[]   @relation("ContractAmendedBy")
+  planStatusChanges   PlanStatusHistory[]   @relation("PlanStatusChangedBy")
 
   @@index([role])
   @@index([authRole, status])
