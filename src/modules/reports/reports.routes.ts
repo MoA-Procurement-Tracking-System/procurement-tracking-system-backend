@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { reportsController } from './reports.controller.js';
+import { loadSession, requireAuthenticated } from '../auth/auth.routes.js';
 
 const router = Router();
+
+// Secure all report endpoints using the project's cookie session middlewares
+router.use(loadSession, requireAuthenticated);
 
 /**
  * @openapi
