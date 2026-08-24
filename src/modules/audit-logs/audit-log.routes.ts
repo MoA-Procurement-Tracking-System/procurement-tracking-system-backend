@@ -1,21 +1,45 @@
 import { Router } from 'express';
+import type { RequestHandler } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
-import { requirePasswordChange } from '../auth/middleware/requirePasswordChange.js';
+import { loadSession, requireAuthenticated } from '../auth/auth.routes.js';
 import { listAuditLogs } from './audit-log.service.js';
 
 const router = Router();
-router.use(authenticate, requirePasswordChange, authorize('Administrator'));
+
+const bridgeAuth: RequestHandler = (req, _res, next) => {
+  if (req.auth?.user) {
+    const roleMap: Record<string, string> = {
+      ADMIN: 'Administrator',
+      OFFICER: 'ProcurementOfficer',
+      DIRECTOR: 'ProcurementDirector',
+      ENDORSING_COMMITTEE: 'ManagementTeam',
+    };
+    const userAuthRole = req.auth.user.role;
+    (req as unknown as Record<string, unknown>).user = {
+      id: req.auth.user.id,
+      role: roleMap[userAuthRole] || userAuthRole,
+    };
+  }
+  next();
+};
+
+router.use(
+  loadSession,
+  requireAuthenticated,
+  bridgeAuth,
+  authorize('Administrator'),
+);
 
 const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
-  userId: z.uuid().optional(),
+  userId: z.string().optional(),
   entityType: z.string().trim().optional(),
   entityId: z.string().trim().optional(),
   action: z.string().trim().optional(),
+  search: z.string().trim().optional(),
 });
 
 /**

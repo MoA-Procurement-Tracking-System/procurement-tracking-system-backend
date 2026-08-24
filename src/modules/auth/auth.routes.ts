@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { prisma } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
+import { ApiError } from '../../utils/errors.js';
 import {
   Prisma,
   Role,
@@ -1112,6 +1113,15 @@ export const authErrorHandler = (
   _next: NextFunction,
 ) => {
   void _next;
+  if (error instanceof ApiError) {
+    logger.warn({ code: error.code, message: error.message }, 'API Error');
+    res.status(error.status).json({
+      status: error.code,
+      message: error.message,
+      errors: error.fields,
+    });
+    return;
+  }
   logger.error({ error }, 'Unhandled API error');
   res.status(500).json({ message: 'The request could not be completed.' });
 };

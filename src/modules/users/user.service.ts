@@ -12,15 +12,30 @@ const safeSelect = {
   id: true,
   name: true,
   email: true,
+  username: true,
+  displayName: true,
   role: true,
+  authRole: true,
+  status: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
 } as const;
 
-export async function listUsers(query: ListUsersQuery) {
-  const { page, pageSize, search, role, isActive } = query;
+const safeSelectWithLastLogin = {
+  ...safeSelect,
+  sessions: {
+    select: { lastSeenAt: true },
+    orderBy: { lastSeenAt: 'desc' as const },
+    take: 1,
+  },
+} as const;
+
+export async function listUsers(query: Partial<ListUsersQuery> = {}) {
+  const page = Math.max(1, Number(query.page) || 1);
+  const pageSize = Math.max(1, Math.min(100, Number(query.pageSize) || 25));
   const skip = (page - 1) * pageSize;
+  const { search, role, isActive } = query;
 
   const where = {
     ...(search && {
@@ -33,16 +48,21 @@ export async function listUsers(query: ListUsersQuery) {
     ...(isActive !== undefined && { isActive }),
   };
 
-  const [data, total] = await prisma.$transaction([
+  const [rawData, total] = await prisma.$transaction([
     prisma.user.findMany({
       where,
-      select: safeSelect,
+      select: safeSelectWithLastLogin,
       skip,
       take: pageSize,
       orderBy: { createdAt: 'desc' },
     }),
     prisma.user.count({ where }),
   ]);
+
+  const data = rawData.map(({ sessions, ...user }) => ({
+    ...user,
+    lastLoginAt: sessions[0]?.lastSeenAt ?? null,
+  }));
 
   return {
     data,
