@@ -11,7 +11,8 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
-const createClient = () => new PrismaClient({ adapter });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createClient = () => new PrismaClient({ adapter: adapter as any });
 
 export const prisma = globalForPrisma.prisma ?? createClient();
 
