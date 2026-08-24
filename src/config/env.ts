@@ -85,6 +85,13 @@ const schema = z
     BOOTSTRAP_DIRECTOR_EMAIL: optionalEmail,
     BOOTSTRAP_DIRECTOR_NAME: optionalString,
     BOOTSTRAP_DIRECTOR_PASSWORD: z.string().optional(),
+    // Backup configuration
+    // Set BACKUP_ENABLED=true on the production server to activate the monthly cron job.
+    // Set BACKUP_REMOTE_PATH to the mounted share path or rsync target once IT confirms.
+    BACKUP_ENABLED: z
+      .preprocess((v) => v === 'true' || v === '1', z.boolean())
+      .default(false),
+    BACKUP_REMOTE_PATH: optionalString,
   })
   .superRefine((values, context) => {
     const mailerSendValues = [

@@ -1,12 +1,20 @@
 model Payment {
-  id             String        @id @default(uuid())
+  id             String       @id @default(uuid())
   contractId     String
-  contract       Contract      @relation(fields: [contractId], references: [id])
-  amount         Decimal       @db.Decimal(15, 2)
+  contract       Contract     @relation(fields: [contractId], references: [id])
+  amount         Decimal      @db.Decimal(15, 2)
   paymentDate    DateTime
   referenceNo    String
+  paymentType    PaymentType? // nullable so existing rows are unaffected; required at API layer for new payments
+  remarks        String?
   status         PaymentStatus @default(PENDING)
   idempotencyKey String?       @unique
   deletedAt      DateTime?
   createdAt      DateTime      @default(now())
+
+  @@index([contractId])
+  @@index([paymentDate])
+  @@index([status])
+  @@index([paymentType])
 }
+
