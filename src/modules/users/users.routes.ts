@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/authenticate.js';
+import type { RequestHandler } from 'express';
 import { authorize } from '../../middleware/authorize.js';
-import { requirePasswordChange } from '../auth/middleware/requirePasswordChange.js';
 import { validate } from '../../middleware/validate.js';
+import { loadSession, requireAuthenticated } from '../auth/auth.routes.js';
 import {
   listUsersHandler,
   getUserHandler,
@@ -18,8 +18,27 @@ import {
 
 const router = Router();
 
-// Every route below requires a valid access token AND a changed password
-router.use(authenticate, requirePasswordChange);
+// Bridge session auth → req.user so the authorize() middleware works
+const bridgeAuth: RequestHandler = (req, _res, next) => {
+  if (req.auth?.user) {
+    const roleMap: Record<string, string> = {
+      ADMIN: 'Administrator',
+      OFFICER: 'ProcurementOfficer',
+      DIRECTOR: 'ProcurementDirector',
+      ENDORSING_COMMITTEE: 'ManagementTeam',
+    };
+    const userAuthRole = req.auth.user.role;
+    const mappedRole = roleMap[userAuthRole] || userAuthRole;
+    (req as unknown as Record<string, unknown>).user = {
+      id: req.auth.user.id,
+      role: mappedRole,
+    };
+  }
+  next();
+};
+
+// Every route below requires a valid session cookie AND a fully authenticated session
+router.use(loadSession, requireAuthenticated, bridgeAuth);
 
 /**
  * @swagger
