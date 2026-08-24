@@ -26,6 +26,7 @@ import dashboardRouter from './modules/dashboard/dashboard.routes.js';
 import alertsRouter from './modules/alerts/alerts.routes.js';
 import reportsRouter from './modules/reports/reports.routes.js';
 import contractsRouter from './modules/contracts/contracts.routes.js';
+import excelRouter from './modules/excel/excel.routes.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -79,6 +80,7 @@ app.use('/api/suppliers', supplierRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/alerts', alertsRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/excel', excelRouter);
 app.use('/api', protectedRouter);
 
 // Error handlers

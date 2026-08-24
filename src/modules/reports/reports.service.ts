@@ -1,17 +1,16 @@
 import type { Response } from 'express';
-import ExcelJS from 'exceljs';
 import type {
   ActivityStatus,
   PlanStatus,
   ContractStatus,
   StageStatus,
+  PaymentStatus,
 } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
-import {
-  createStreamingWorkbook,
-  fmtDecimal,
-  fmtDate,
-} from './excel/workbook.helper.js';
+import { excelService } from '../excel/excel.service.js';
+
+const { createStreamingWorkbook, fmtDecimal, fmtDate } = excelService;
+
 import type {
   DetailedProcurementQuery,
   AnnualPlanQuery,
@@ -516,6 +515,7 @@ export class ReportsService {
         : {}),
       activity: {
         ...(methodId ? { procurementMethodId: methodId } : {}),
+        ...(region ? { contracts: { some: { region } } } : {}),
         plan: {
           ...(isDirector ? {} : { createdBy: userId }),
           ...(planId ? { id: planId } : {}),
@@ -676,6 +676,7 @@ export class ReportsService {
       activity: {
         ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
         ...(methodId ? { procurementMethodId: methodId } : {}),
+        ...(region ? { contracts: { some: { region } } } : {}),
         plan: planFilter,
       },
     };
@@ -820,6 +821,9 @@ export class ReportsService {
         ...(region ? { region } : {}),
         ...(supplierId ? { supplierId } : {}),
         ...(contractStatus ? { status: contractStatus as ContractStatus } : {}),
+        ...(paymentStatus
+          ? { payments: { some: { status: paymentStatus as PaymentStatus } } }
+          : {}),
         ...(activityId ? { activityId } : {}),
         activity: {
           plan: {
