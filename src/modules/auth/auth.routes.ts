@@ -814,7 +814,7 @@ authRouter.post('/create-password', async (req, res) => {
     !invitation ||
     invitation.usedAt ||
     invitation.expiresAt <= now ||
-    invitation.user.status !== UserStatus.INVITED
+    invitation.user.status !== UserStatus.PENDING_INVITATION
   ) {
     res.status(400).json({
       message: 'This account invitation link is invalid or has expired.',
@@ -848,7 +848,7 @@ authRouter.post('/create-password', async (req, res) => {
       const activated = await transaction.user.updateMany({
         where: {
           id: invitation.userId,
-          status: UserStatus.INVITED,
+          status: UserStatus.PENDING_INVITATION,
         },
         data: {
           passwordHash,
@@ -1037,7 +1037,7 @@ adminRouter.post('/users', async (req, res) => {
         displayName: parsed.data.displayName,
         role: procurementRole(parsed.data.role),
         authRole: parsed.data.role,
-        status: UserStatus.INVITED,
+        status: UserStatus.PENDING_INVITATION,
         isActive: true,
         passwordHash: dummyHash,
         mustChangePassword: false,
