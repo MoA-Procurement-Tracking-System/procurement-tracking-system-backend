@@ -18,7 +18,6 @@ import {
 } from '../../generated/prisma/enums.js';
 import {
   generateOpaqueToken,
-  generateTemporaryPassword,
   hashPassword,
   hashToken,
   validatePassword,

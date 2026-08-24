@@ -187,7 +187,7 @@ async function main() {
   });
 
   // Stage 2: Completed Late (revisions done)
-  const stage2 = await prisma.stage.create({
+  await prisma.stage.create({
     data: {
       activityId: activityA.id,
       stageTypeId: stageTypeBid.id,

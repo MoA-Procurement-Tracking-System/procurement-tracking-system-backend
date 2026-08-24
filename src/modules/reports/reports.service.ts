@@ -1,6 +1,4 @@
 import type { Response } from 'express';
-import ExcelJS from 'exceljs';
-import type { Prisma } from '../../generated/prisma/client.js';
 import { ActivityStatus } from '../../generated/prisma/enums.js';
 import { prisma } from '../../config/database.js';
 import {
