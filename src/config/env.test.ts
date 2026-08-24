@@ -15,9 +15,20 @@ function configureMailerSend(values: {
   vi.stubEnv('MAILERSEND_FROM_NAME', values.fromName);
 }
 
-describe('MailerSend environment configuration', () => {
+function configureSmtp(values: {
+  host?: string;
+  user?: string;
+  pass?: string;
+}) {
+  vi.stubEnv('SMTP_HOST', values.host ?? '');
+  vi.stubEnv('SMTP_USER', values.user ?? '');
+  vi.stubEnv('SMTP_PASS', values.pass ?? '');
+}
+
+describe('Email provider environment configuration', () => {
   it('accepts a complete MailerSend configuration', async () => {
     vi.stubEnv('NODE_ENV', 'test');
+    configureSmtp({ host: '', user: '', pass: '' });
     configureMailerSend({
       token: 'test-token',
       fromEmail: 'noreply@example.com',
@@ -29,8 +40,23 @@ describe('MailerSend environment configuration', () => {
     expect(env.MAILERSEND_API_TOKEN).toBe('test-token');
   });
 
+  it('accepts a complete SMTP configuration', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    configureMailerSend({ token: '', fromEmail: '', fromName: '' });
+    configureSmtp({
+      host: 'smtp.gmail.com',
+      user: 'test@gmail.com',
+      pass: 'testpass',
+    });
+
+    const { env } = await import('./env.js');
+
+    expect(env.SMTP_HOST).toBe('smtp.gmail.com');
+  });
+
   it('rejects a partial MailerSend configuration', async () => {
     vi.stubEnv('NODE_ENV', 'test');
+    configureSmtp({ host: '', user: '', pass: '' });
     configureMailerSend({
       token: 'test-token',
       fromEmail: '',
@@ -42,12 +68,13 @@ describe('MailerSend environment configuration', () => {
     );
   });
 
-  it('requires MailerSend in production', async () => {
+  it('requires an email provider in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     configureMailerSend({ token: '', fromEmail: '', fromName: '' });
+    configureSmtp({ host: '', user: '', pass: '' });
 
     await expect(import('./env.js')).rejects.toThrow(
-      'MailerSend configuration is required in production',
+      'An email provider (SMTP or MailerSend) configuration is required in production',
     );
   });
 });
