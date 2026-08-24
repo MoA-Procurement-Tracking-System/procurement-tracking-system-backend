@@ -1,5 +1,8 @@
-import type { Prisma } from '../../generated/prisma/client.js';
-import { ContractStatus, PaymentStatus } from '../../generated/prisma/enums.js';
+import {
+  Prisma,
+  ContractStatus,
+  PaymentStatus,
+} from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 import type {
   CreateContractDto,

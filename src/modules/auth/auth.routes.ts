@@ -9,13 +9,13 @@ import { z } from 'zod';
 import { prisma } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
-import type { Prisma } from '../../generated/prisma/client.js';
 import {
+  Prisma,
   Role,
   SessionKind,
   UserRole,
   UserStatus,
-} from '../../generated/prisma/enums.js';
+} from '../../generated/prisma/client.js';
 import {
   generateOpaqueToken,
   hashPassword,
@@ -693,7 +693,7 @@ authRouter.post('/forgot-password', async (req, res) => {
     ? await prisma.user.findUnique({ where: { email } })
     : null;
 
-  if (user?.status === UserStatus.ACTIVE && user.isActive) {
+  if (user && user.status === UserStatus.ACTIVE && user.isActive) {
     const token = generateOpaqueToken();
     await prisma.passwordResetToken.updateMany({
       where: { userId: user.id, usedAt: null },

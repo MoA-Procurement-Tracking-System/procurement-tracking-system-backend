@@ -1,11 +1,11 @@
-import type { Prisma } from '../../generated/prisma/client.js';
 import {
+  Prisma,
   PlanStatus,
   RevisionEntityType,
   RevisionChangeType,
   Role,
   VoteDecision,
-} from '../../generated/prisma/enums.js';
+} from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
 

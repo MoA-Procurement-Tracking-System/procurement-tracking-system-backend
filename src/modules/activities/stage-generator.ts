@@ -1,4 +1,4 @@
-import { StageStatus } from '../../generated/prisma/enums.js';
+import { StageStatus } from '../../generated/prisma/client.js';
 import type { Prisma, StageTemplate } from '../../generated/prisma/client.js';
 
 export async function generateStagesForActivity(

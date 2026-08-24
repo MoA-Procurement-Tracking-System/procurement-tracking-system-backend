@@ -1,5 +1,4 @@
-import type { Prisma } from '../../generated/prisma/client.js';
-import { ContractStatus } from '../../generated/prisma/enums.js';
+import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 
 export class DashboardService {
