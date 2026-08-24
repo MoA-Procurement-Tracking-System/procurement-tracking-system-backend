@@ -59,6 +59,23 @@ const schema = z
     LOGIN_LOCK_MINUTES: z.coerce.number().int().positive().default(15),
     PASSWORD_RESET_WEBHOOK_URL: optionalUrl,
     USER_INVITATION_WEBHOOK_URL: optionalUrl,
+    SMTP_HOST: optionalString,
+    SMTP_PORT: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.coerce.number().int().positive().optional(),
+    ),
+    SMTP_SECURE: z.preprocess(
+      (value) =>
+        value === 'true' || value === true
+          ? true
+          : value === 'false' || value === false
+            ? false
+            : undefined,
+      z.boolean().optional(),
+    ),
+    SMTP_USER: optionalString,
+    SMTP_PASS: optionalString,
+    SMTP_FROM: optionalString,
     MAILERSEND_API_TOKEN: optionalString,
     MAILERSEND_FROM_EMAIL: optionalEmail,
     MAILERSEND_FROM_NAME: optionalString,
@@ -82,9 +99,11 @@ const schema = z
       values.MAILERSEND_FROM_EMAIL,
       values.MAILERSEND_FROM_NAME,
     ];
-    const configuredValues = mailerSendValues.filter(Boolean).length;
-
-    if (configuredValues > 0 && configuredValues < mailerSendValues.length) {
+    const configuredMailerSend = mailerSendValues.filter(Boolean).length;
+    if (
+      configuredMailerSend > 0 &&
+      configuredMailerSend < mailerSendValues.length
+    ) {
       context.addIssue({
         code: 'custom',
         path: ['MAILERSEND_API_TOKEN'],
@@ -93,11 +112,19 @@ const schema = z
       });
     }
 
-    if (values.NODE_ENV === 'production' && configuredValues === 0) {
+    const hasSmtp = Boolean(
+      values.SMTP_HOST && values.SMTP_USER && values.SMTP_PASS,
+    );
+    if (
+      values.NODE_ENV === 'production' &&
+      configuredMailerSend === 0 &&
+      !hasSmtp
+    ) {
       context.addIssue({
         code: 'custom',
-        path: ['MAILERSEND_API_TOKEN'],
-        message: 'MailerSend configuration is required in production',
+        path: ['SMTP_HOST'],
+        message:
+          'An email provider (SMTP or MailerSend) configuration is required in production',
       });
     }
   });

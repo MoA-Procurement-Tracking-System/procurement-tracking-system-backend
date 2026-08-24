@@ -6,6 +6,7 @@ export type TransactionalEmail = {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 };
 
 export function isMailerSendConfigured(): boolean {
@@ -17,30 +18,36 @@ export function isMailerSendConfigured(): boolean {
 }
 
 export function isSmtpConfigured(): boolean {
-  // Assuming environment variables like SMTP_HOST exist, though not explicitly validated in env.ts yet
-  return Boolean(
-    process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS,
-  );
+  return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
 }
 
 export async function sendEmail(message: TransactionalEmail): Promise<void> {
-  // 1. Try SMTP / Nodemailer first
+  // 1. Try SMTP / Nodemailer first (e.g. Gmail SMTP)
   if (isSmtpConfigured()) {
+    const port = env.SMTP_PORT ?? 587;
+    const secure = env.SMTP_SECURE ?? port === 465;
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
+      host: env.SMTP_HOST,
+      port,
+      secure,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASS,
       },
     });
 
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"MoA Procurement" <no-reply@moa.gov.et>',
+      from:
+        env.SMTP_FROM || `"MoA Procurement Tracking System" <${env.SMTP_USER}>`,
       to: message.to,
       subject: message.subject,
       text: message.text,
+      ...(message.html ? { html: message.html } : {}),
     });
+    logger.info(
+      { to: message.to, subject: message.subject },
+      'Email sent successfully via SMTP',
+    );
     return;
   }
 
@@ -62,6 +69,7 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
         to: [{ email: message.to }],
         subject: message.subject,
         text: message.text,
+        ...(message.html ? { html: message.html } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     });
@@ -81,6 +89,10 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
         `MailerSend returned HTTP ${response.status}${providerMessage ? `: ${providerMessage}` : ''}`,
       );
     }
+    logger.info(
+      { to: message.to, subject: message.subject },
+      'Email sent successfully via MailerSend',
+    );
     return;
   }
 
@@ -102,6 +114,7 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
       to: message.to,
       subject: message.subject,
       text: message.text,
+      ...(message.html ? { html: message.html } : {}),
     });
 
     logger.info(`Test Email Sent: ${nodemailer.getTestMessageUrl(info)}`);

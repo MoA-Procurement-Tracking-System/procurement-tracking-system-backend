@@ -1,6 +1,5 @@
 import type { Response } from 'express';
-import ExcelJS from 'exceljs';
-import type { ActivityStatus } from '../../generated/prisma/client.js';
+import { ActivityStatus } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 import {
   createStreamingWorkbook,
