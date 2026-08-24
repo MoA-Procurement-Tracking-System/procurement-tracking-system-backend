@@ -1,5 +1,5 @@
 import { prisma } from '../config/database.js';
-import { Role, UserRole } from '../generated/prisma/enums.js';
+import { Role, UserRole } from '../generated/prisma/client.js';
 import { hashPassword } from '../modules/auth/auth.security.js';
 
 async function main() {

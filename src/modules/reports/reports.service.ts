@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { ActivityStatus } from '../../generated/prisma/enums.js';
+import { ActivityStatus } from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 import {
   createStreamingWorkbook,
