@@ -26,6 +26,7 @@ import {
 } from './auth.security.js';
 import {
   isMailerSendConfigured,
+  isSmtpConfigured,
   sendEmail,
 } from '../../services/email.service.js';
 
@@ -209,63 +210,102 @@ function expiresFromNow(milliseconds: number): Date {
   return new Date(Date.now() + milliseconds);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function deliverUserInvitation(values: {
   email: string;
   displayName: string;
   role: UserRole;
   invitationUrl: string;
 }) {
-  if (isMailerSendConfigured()) {
+  const roleDisplayNames: Record<UserRole, string> = {
+    [UserRole.OFFICER]: 'Procurement Officer',
+    [UserRole.DIRECTOR]: 'Procurement Director',
+    [UserRole.ENDORSING_COMMITTEE]: 'Endorsement Committee Member',
+    [UserRole.ADMIN]: 'System Administrator',
+  };
+
+  const roleTitle = roleDisplayNames[values.role] || values.role;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #0f172a; background-color: #f8fafc; margin: 0; padding: 20px; }
+          .container { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+          .header { background: #04382c; color: #ffffff; padding: 32px 24px; text-align: center; }
+          .header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+          .header p { margin: 6px 0 0 0; opacity: 0.85; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+          .body { padding: 32px 24px; }
+          .badge { display: inline-block; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-weight: 700; font-size: 13px; padding: 6px 14px; border-radius: 9999px; margin: 12px 0; }
+          .cta-btn { display: inline-block; background: #04382c; color: #ffffff !important; font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 9999px; font-size: 14px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .footer { background: #f8fafc; padding: 20px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+          .link-box { font-size: 12px; word-break: break-all; color: #047857; background: #f1f5f9; padding: 12px; border-radius: 8px; font-family: monospace; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Ministry of Agriculture</h1>
+            <p>Procurement Tracking System (PTS)</p>
+          </div>
+          <div class="body">
+            <h2 style="margin-top:0; color:#0f172a; font-size:18px;">Account Registration Invitation</h2>
+            <p>Hello <strong>${values.displayName}</strong>,</p>
+            <p>You have been officially invited to join the <strong>MoA Procurement Tracking System</strong> with the following assigned role:</p>
+            <div><span class="badge">${roleTitle}</span></div>
+            <p>To accept your invitation and activate your account, please set up your password by clicking the button below:</p>
+            <div style="text-align: center;">
+              <a href="${values.invitationUrl}" class="cta-btn">Create Password & Activate Account</a>
+            </div>
+            <p style="font-size: 13px; color: #64748b;">Or copy and paste this link into your web browser:</p>
+            <div class="link-box">${values.invitationUrl}</div>
+            <p style="font-size: 13px; color: #dc2626; font-weight: 600; margin-top: 20px;">
+              ⚠️ Note: This invitation link expires in ${env.USER_INVITATION_HOURS} hours.
+            </p>
+          </div>
+          <div class="footer">
+            <p>If you were not expecting this invitation, you may safely ignore this email.</p>
+            <p>&copy; ${new Date().getFullYear()} Ministry of Agriculture. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const textContent = [
+    `Hello ${values.displayName},`,
+    '',
+    `You have been invited to join the MoA Procurement Tracking System as ${roleTitle}.`,
+    '',
+    'Create your password using this secure link:',
+    values.invitationUrl,
+    '',
+    `This invitation expires in ${env.USER_INVITATION_HOURS} hours.`,
+    'If you were not expecting this invitation, you can ignore this email.',
+  ].join('\n');
+
+  if (isSmtpConfigured() || isMailerSendConfigured()) {
     await sendEmail({
       to: values.email,
-      subject: 'Create your MoA Procurement Tracking System account',
-      text: [
-        `Hello ${values.displayName},`,
-        '',
-        `You have been invited to join the MoA Procurement Tracking System as ${values.role.replaceAll('_', ' ').toLowerCase()}.`,
-        '',
-        'Create your password using this secure link:',
-        values.invitationUrl,
-        '',
-        `This invitation expires in ${env.USER_INVITATION_HOURS} hours.`,
-        'If you were not expecting this invitation, you can ignore this email.',
-      ].join('\n'),
+      subject:
+        'Invitation: Access your MoA Procurement Tracking System Account',
+      text: textContent,
+      html: htmlContent,
     });
     return;
   }
-
-  // Future Ministry email-server integration. Disable the MailerSend block
-  // above before uncommenting this block so invitations are not sent twice.
-  /*
-  if (env.USER_INVITATION_WEBHOOK_URL) {
-    const delivery = await fetch(env.USER_INVITATION_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        to: values.email,
-        displayName: values.displayName,
-        role: values.role,
-        invitationUrl: values.invitationUrl,
-      }),
-    });
-    if (!delivery.ok) {
-      throw new Error(`User invitation webhook returned ${delivery.status}`);
-    }
-    return;
-  }
-  */
 
   if (env.NODE_ENV !== 'production') {
     logger.warn(
       { email: values.email, invitationUrl: values.invitationUrl },
-      'Development user invitation link',
+      'Development user invitation link (Email provider not configured)',
     );
     return;
   }
 
   throw new Error(
-    'MailerSend email delivery is required to deliver invitations in production',
+    'An email provider (Gmail SMTP or MailerSend) is required to deliver invitations in production',
   );
 }
 
@@ -972,13 +1012,23 @@ adminRouter.post('/users', async (req, res) => {
     return;
   }
   const email = parsed.data.email.toLowerCase();
+  let createdUserId: string | null = null;
 
   try {
-    const temporaryPassword =
-      env.NODE_ENV !== 'production'
-        ? 'Password123!'
-        : generateTemporaryPassword();
-    const passwordHash = await hashPassword(temporaryPassword);
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      if (existing.status === UserStatus.ACTIVE) {
+        res.status(409).json({
+          message: 'An active user account with that email already exists.',
+        });
+        return;
+      }
+      // If user was previously invited but hasn't completed setup, remove old pending invitation
+      await prisma.user.delete({ where: { id: existing.id } });
+    }
+
+    const dummyHash = await hashPassword(generateOpaqueToken().raw);
+    const token = generateOpaqueToken();
 
     const user = await prisma.user.create({
       data: {
@@ -988,26 +1038,52 @@ adminRouter.post('/users', async (req, res) => {
         displayName: parsed.data.displayName,
         role: procurementRole(parsed.data.role),
         authRole: parsed.data.role,
-        status: UserStatus.ACTIVE,
+        status: UserStatus.INVITED,
         isActive: true,
-        passwordHash,
+        passwordHash: dummyHash,
         mustChangePassword: false,
         tempPasswordExpiresAt: null,
       },
     });
+    createdUserId = user.id;
 
-    await audit('USER_CREATED', true, req, {
+    await prisma.userInvitationToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: token.hash,
+        expiresAt: expiresFromNow(env.USER_INVITATION_HOURS * 3_600_000),
+      },
+    });
+
+    const invitationUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/create-password?token=${encodeURIComponent(token.raw)}`;
+
+    await deliverUserInvitation({
+      email: user.email,
+      displayName: user.displayName,
+      role: user.authRole,
+      invitationUrl,
+    });
+
+    await audit('USER_INVITED', true, req, {
       userId: user.id,
       email,
       metadata: { role: user.authRole, createdBy: req.auth!.user.id },
     });
 
     res.status(201).json({
-      message: 'User created successfully.',
+      message: `Invitation email sent successfully to ${user.email}.`,
       user: publicUser(user),
-      temporaryPassword,
     });
   } catch (error) {
+    // If user record was created in this request but email delivery failed, roll back user creation
+    if (createdUserId) {
+      try {
+        await prisma.user.delete({ where: { id: createdUserId } });
+      } catch {
+        // Ignore deletion error during rollback
+      }
+    }
+
     const code = (error as { code?: string }).code;
     if (code === 'P2002') {
       res.status(409).json({
@@ -1015,8 +1091,12 @@ adminRouter.post('/users', async (req, res) => {
       });
       return;
     }
-    logger.error({ error, email }, 'Could not create user');
-    res.status(500).json({ message: 'The user could not be created.' });
+    logger.error({ error, email }, 'Could not invite user');
+    const failureReason =
+      error instanceof Error
+        ? error.message
+        : 'The user invitation could not be completed.';
+    res.status(500).json({ message: `Invitation failed: ${failureReason}` });
   }
 });
 
