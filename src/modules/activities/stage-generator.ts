@@ -1,5 +1,5 @@
-import { StageStatus } from '../../generated/prisma/client.js';
-import type { Prisma, StageTemplate } from '../../generated/prisma/client.js';
+import { StageStatus } from '../../generated/prisma/index.js';
+import type { Prisma, StageTemplate } from '../../generated/prisma/index.js';
 
 export async function generateStagesForActivity(
   tx: Prisma.TransactionClient,

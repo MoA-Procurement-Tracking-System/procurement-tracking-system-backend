@@ -6,7 +6,7 @@ import type {
   PaymentType,
   ProjectStatus,
   PlanStatus,
-} from '../../generated/prisma/client.js';
+} from '../../generated/prisma/index.js';
 
 // Global Excel Theme Color (ARGB Hex Code). Default: Ministry Dark Green (#0A3C2F)
 export const EXCEL_THEME_COLOR = 'FF0A3C2F';

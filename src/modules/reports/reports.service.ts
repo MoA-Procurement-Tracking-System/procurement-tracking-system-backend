@@ -5,7 +5,7 @@ import type {
   ContractStatus,
   StageStatus,
   PaymentStatus,
-} from '../../generated/prisma/client.js';
+} from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 import { excelService } from '../excel/excel.service.js';
 

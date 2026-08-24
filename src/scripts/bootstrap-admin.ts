@@ -1,6 +1,6 @@
 import { prisma } from '../config/database.js';
 import { env } from '../config/env.js';
-import { Role, UserRole } from '../generated/prisma/enums.js';
+import { Role, UserRole } from '../generated/prisma/index.js';
 import {
   generateTemporaryPassword,
   hashPassword,
@@ -35,7 +35,7 @@ async function bootstrapAdministrator() {
       role: Role.Administrator,
       authRole: UserRole.ADMIN,
       passwordHash: await hashPassword(password),
-      mustChangePassword: true,
+      mustChangePassword: false,
       tempPasswordExpiresAt: new Date(
         Date.now() + env.TEMP_PASSWORD_HOURS * 3_600_000,
       ),

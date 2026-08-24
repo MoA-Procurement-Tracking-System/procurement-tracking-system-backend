@@ -1,4 +1,4 @@
-import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
+import { Prisma, ContractStatus } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 
 export class DashboardService {
