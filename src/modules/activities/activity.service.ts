@@ -1,11 +1,11 @@
+import type { Prisma } from '../../generated/prisma/client.js';
 import {
-  Prisma,
   ActivityStatus,
   PlanStatus,
   RevisionEntityType,
   RevisionChangeType,
   Role,
-} from '../../generated/prisma/client.js';
+} from '../../generated/prisma/enums.js';
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
 import { generateStagesForActivity } from './stage-generator.js';

@@ -1,4 +1,5 @@
-import { Prisma, PaymentStatus } from '../../generated/prisma/client.js';
+import type { Prisma } from '../../generated/prisma/client.js';
+import { PaymentStatus } from '../../generated/prisma/enums.js';
 import { prisma } from '../../config/database.js';
 
 export interface AlertItem {

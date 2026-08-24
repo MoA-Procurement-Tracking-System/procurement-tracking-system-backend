@@ -1,8 +1,8 @@
+import type { Prisma } from '../../generated/prisma/client.js';
 import {
   RevisionEntityType,
   RevisionChangeType,
-  Prisma,
-} from '../../generated/prisma/client.js';
+} from '../../generated/prisma/enums.js';
 
 export const logRevision = async (
   tx: Prisma.TransactionClient,
