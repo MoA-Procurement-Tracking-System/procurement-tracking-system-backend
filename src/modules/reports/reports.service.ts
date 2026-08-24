@@ -1,6 +1,11 @@
 import type { Response } from 'express';
 import ExcelJS from 'exceljs';
-import type { ActivityStatus } from '../../generated/prisma/client.js';
+import type {
+  ActivityStatus,
+  PlanStatus,
+  ContractStatus,
+  StageStatus,
+} from '../../generated/prisma/client.js';
 import { prisma } from '../../config/database.js';
 import {
   createStreamingWorkbook,
@@ -27,24 +32,50 @@ export class ReportsService {
     isDirector: boolean,
   ): Promise<void> {
     const {
-      planId,
       projectId,
-      procurementMethodId,
-      status,
-      budgetYear,
+      planId,
+      activityId,
+      category,
+      methodId,
+      marketApproach,
       reviewType,
+      fundingSourceId,
+      region,
+      officerId,
+      supplierId,
+      contractStatus,
+      activityStatus,
+      dateFrom,
+      dateTo,
       page,
       limit,
     } = query;
 
     const where = {
       ...(isDirector ? {} : { plan: { createdBy: userId } }),
-      ...(planId ? { planId } : {}),
       ...(projectId ? { plan: { projectId } } : {}),
-      ...(procurementMethodId ? { procurementMethodId } : {}),
-      ...(status ? { status: status as ActivityStatus } : {}),
-      ...(budgetYear ? { plan: { budgetYear } } : {}),
+      ...(planId ? { planId } : {}),
+      ...(activityId ? { id: activityId } : {}),
+      ...(category ? { plan: { procurementCategory: category } } : {}),
+      ...(methodId ? { procurementMethodId: methodId } : {}),
+      ...(marketApproach ? { marketApproach } : {}),
       ...(reviewType ? { reviewType } : {}),
+      ...(fundingSourceId ? { plan: { project: { fundingSourceId } } } : {}),
+      ...(region ? { contracts: { some: { region } } } : {}),
+      ...(officerId ? { plan: { createdBy: officerId } } : {}),
+      ...(supplierId ? { contracts: { some: { supplierId } } } : {}),
+      ...(contractStatus
+        ? { contracts: { some: { status: contractStatus as ContractStatus } } }
+        : {}),
+      ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
+      ...(dateFrom || dateTo
+        ? {
+            createdAt: {
+              ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+              ...(dateTo ? { lte: new Date(dateTo) } : {}),
+            },
+          }
+        : {}),
     };
 
     const activities = await prisma.activity.findMany({
@@ -54,20 +85,22 @@ export class ReportsService {
         plan: {
           select: {
             title: true,
-            budgetYear: true,
             procurementCategory: true,
-            project: { select: { code: true, name: true } },
-            creator: { select: { displayName: true } },
+            project: {
+              select: {
+                name: true,
+                fundingSource: { select: { label: true } },
+              },
+            },
           },
         },
         contracts: {
           where: { deletedAt: null },
           include: { supplier: { select: { name: true } } },
           orderBy: { createdAt: 'asc' },
-          take: 1, // first/primary contract
+          take: 1,
         },
-        components: { select: { component: true, subcomponent: true } },
-        fundings: { select: { fundingSource: true, loanGrantNumber: true } },
+        fundings: { select: { fundingSource: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
@@ -78,58 +111,54 @@ export class ReportsService {
     const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
     const sheet = addSheet('Detailed Procurement', [
-      'Reference',
-      'Project Code',
-      'Project Name',
-      'Budget Year',
+      'Project',
+      'Plan',
+      'Activity Reference',
+      'Activity Description',
+      'Procurement Type',
       'Category',
-      'Procurement Method',
+      'Method',
       'Market Approach',
       'Review Type',
-      'Description',
-      'Estimated Budget',
-      'Currency',
-      'Funding Sources',
-      'Components',
-      'Supplier / Winner',
-      'Contract Value',
+      'Funding Source',
+      'Budget Type',
+      'Estimated Amount',
+      'Winner/Supplier',
+      'Awarded Amount',
+      'Contract Amount',
       'Contract Status',
-      'Activity Status',
-      'Officer',
-      'Created At',
+      'Completion/Receipt Date',
     ]);
 
     for (const a of activities) {
       const primaryContract = a.contracts[0];
-      const fundingSources = a.fundings
-        .map((f) =>
-          [f.fundingSource, f.loanGrantNumber].filter(Boolean).join(' '),
-        )
-        .join('; ');
-      const components = a.components
-        .map((c) => [c.component, c.subcomponent].filter(Boolean).join(' > '))
-        .join('; ');
+      const budgetType = a.fundings.map((f) => f.fundingSource).join('; ');
 
       sheet.addRow([
-        a.reference,
-        a.plan.project.code,
         a.plan.project.name,
-        a.plan.budgetYear ?? '',
+        a.plan.title,
+        a.reference,
+        a.description ?? '',
+        a.plan.procurementCategory ?? '',
         a.plan.procurementCategory ?? '',
         a.procurementMethod.label,
         a.marketApproach ?? '',
         a.reviewType ?? '',
-        a.description ?? '',
+        a.plan.project.fundingSource.label,
+        budgetType,
         fmtDecimal(a.estimatedBudget),
-        a.currency ?? '',
-        fundingSources,
-        components,
         primaryContract?.supplier?.name ?? '',
         primaryContract ? fmtDecimal(primaryContract.totalValue) : '',
+        primaryContract
+          ? fmtDecimal(
+              primaryContract.contractAmountWithVat ||
+                primaryContract.totalValue,
+            )
+          : '',
         primaryContract?.status ?? '',
-        a.status,
-        a.plan.creator.displayName,
-        fmtDate(a.createdAt),
+        primaryContract?.actualCompletionDate
+          ? fmtDate(primaryContract.actualCompletionDate)
+          : '',
       ]);
     }
 
@@ -144,31 +173,69 @@ export class ReportsService {
     userId: string,
     isDirector: boolean,
   ): Promise<void> {
-    const { budgetYear, projectId, status, page, limit } = query;
+    const {
+      budgetYear,
+      projectId,
+      planId,
+      category,
+      methodId,
+      fundingSourceId,
+      region,
+      officerId,
+      status,
+      minAmount,
+      maxAmount,
+      page,
+      limit,
+    } = query;
+
+    const where = {
+      budgetYear,
+      isActive: true,
+      ...(isDirector ? {} : { createdBy: userId }),
+      ...(projectId ? { projectId } : {}),
+      ...(planId ? { id: planId } : {}),
+      ...(category ? { procurementCategory: category } : {}),
+      ...(status ? { status: status as PlanStatus } : {}),
+      ...(officerId ? { createdBy: officerId } : {}),
+      ...(fundingSourceId ? { project: { fundingSourceId } } : {}),
+      ...(region
+        ? { activities: { some: { contracts: { some: { region } } } } }
+        : {}),
+      ...(methodId
+        ? { activities: { some: { procurementMethodId: methodId } } }
+        : {}),
+      ...(minAmount || maxAmount
+        ? {
+            activities: {
+              some: {
+                estimatedBudget: {
+                  ...(minAmount !== undefined ? { gte: minAmount } : {}),
+                  ...(maxAmount !== undefined ? { lte: maxAmount } : {}),
+                },
+              },
+            },
+          }
+        : {}),
+    };
 
     const plans = await prisma.plan.findMany({
-      where: {
-        budgetYear,
-        isActive: true,
-        ...(isDirector ? {} : { createdBy: userId }),
-        ...(projectId ? { projectId } : {}),
-        ...(status
-          ? {
-              status:
-                status as import('../../generated/prisma/client.js').PlanStatus,
-            }
-          : {}),
-      },
+      where,
       include: {
-        project: { select: { code: true, name: true } },
+        project: {
+          select: {
+            code: true,
+            name: true,
+            fundingSource: { select: { label: true } },
+          },
+        },
         creator: { select: { displayName: true } },
         approvedByUser: { select: { displayName: true } },
         activities: {
           include: {
             procurementMethod: { select: { label: true } },
-            components: { select: { component: true, subcomponent: true } },
-            fundings: { select: { fundingSource: true } },
             stages: { orderBy: { sequence: 'asc' } },
+            contracts: { select: { totalValue: true } },
           },
         },
       },
@@ -199,19 +266,19 @@ export class ReportsService {
 
     // Sheet 2: Activity Detail (one row per Activity)
     const detailSheet = addSheet('Activity Detail', [
-      'Reference',
-      'Plan Title',
-      'Project Code',
-      'Project Name',
+      'Project',
+      'Plan',
+      'Activity Reference',
+      'Activity Description',
       'Category',
-      'Procurement Method',
-      'Description',
-      'Estimated Budget',
+      'Method',
+      'Estimated Amount',
       'Currency',
-      'Components',
-      'Funding Sources',
-      '1st Stage Planned Start',
-      'Last Stage Planned End',
+      'Funding Source',
+      'Officer',
+      'Original Planned Dates',
+      'Current Target Dates',
+      'Status',
     ]);
 
     for (const plan of plans) {
@@ -239,25 +306,32 @@ export class ReportsService {
       for (const a of plan.activities) {
         const firstStage = a.stages[0];
         const lastStage = a.stages[a.stages.length - 1];
-        const components = a.components
-          .map((c) => [c.component, c.subcomponent].filter(Boolean).join(' > '))
-          .join('; ');
-        const fundings = a.fundings.map((f) => f.fundingSource).join('; ');
+
+        // Format Date ranges: Min Planned Start to Max Planned End
+        const origDates =
+          firstStage?.plannedStartDate && lastStage?.plannedEndDate
+            ? `${fmtDate(firstStage.plannedStartDate)} to ${fmtDate(lastStage.plannedEndDate)}`
+            : '';
+
+        const targetDates =
+          firstStage?.currentTargetStartDate && lastStage?.currentTargetEndDate
+            ? `${fmtDate(firstStage.currentTargetStartDate)} to ${fmtDate(lastStage.currentTargetEndDate)}`
+            : '';
 
         detailSheet.addRow([
-          a.reference,
-          plan.title,
-          plan.project.code,
           plan.project.name,
+          plan.title,
+          a.reference,
+          a.description ?? '',
           plan.procurementCategory ?? '',
           a.procurementMethod.label,
-          a.description ?? '',
           fmtDecimal(a.estimatedBudget),
           a.currency ?? '',
-          components,
-          fundings,
-          fmtDate(firstStage?.plannedStartDate),
-          fmtDate(lastStage?.plannedEndDate),
+          plan.project.fundingSource.label,
+          plan.creator.displayName,
+          origDates,
+          targetDates,
+          a.status,
         ]);
       }
     }
@@ -267,94 +341,134 @@ export class ReportsService {
     await finalize();
   }
 
-  // ─── Report #3: Procurement Step ───────────────────────────────────────────
+  // ─── Report #3: Procurement STEP Report ─────────────────────────────────────
   async streamProcurementSteps(
     res: Response,
     query: ProcurementStepQuery,
   ): Promise<void> {
-    const { activityId } = query;
+    const {
+      projectId,
+      planId,
+      category,
+      methodId,
+      marketApproach,
+      reviewType,
+      fundingSourceId,
+      officerId,
+      activityStatus,
+      stageTypeId,
+      stageStatus,
+      dateFrom,
+      dateTo,
+      page,
+      limit,
+    } = query;
 
-    const activity = await prisma.activity.findUniqueOrThrow({
-      where: { id: activityId },
-      include: { procurementMethod: { select: { label: true } } },
+    const where = {
+      isNotApplicable: false,
+      ...(stageTypeId ? { stageTypeId } : {}),
+      ...(stageStatus ? { status: stageStatus as StageStatus } : {}),
+      ...(dateFrom || dateTo
+        ? {
+            actualEndDate: {
+              ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+              ...(dateTo ? { lte: new Date(dateTo) } : {}),
+            },
+          }
+        : {}),
+      activity: {
+        ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
+        ...(methodId ? { procurementMethodId: methodId } : {}),
+        ...(marketApproach ? { marketApproach } : {}),
+        ...(reviewType ? { reviewType } : {}),
+        plan: {
+          ...(planId ? { id: planId } : {}),
+          ...(projectId ? { projectId } : {}),
+          ...(category ? { procurementCategory: category } : {}),
+          ...(officerId ? { createdBy: officerId } : {}),
+          project: {
+            ...(fundingSourceId ? { fundingSourceId } : {}),
+          },
+        },
+      },
+    };
+
+    const stages = await prisma.stage.findMany({
+      where,
+      include: {
+        stageType: { select: { label: true } },
+        activity: {
+          include: {
+            procurementMethod: { select: { label: true } },
+            plan: {
+              select: {
+                title: true,
+                procurementCategory: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ activityId: 'asc' }, { sequence: 'asc' }],
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
-    const [stages, templates] = await Promise.all([
-      prisma.stage.findMany({
-        where: { activityId },
-        include: {
-          stageType: { select: { label: true } },
-          revisions: { orderBy: { revisionNo: 'asc' } },
-        },
-        orderBy: { sequence: 'asc' },
-      }),
-      prisma.stageTemplate.findMany({
-        where: {
-          procurementMethodId: activity.procurementMethodId,
-          isRequired: true,
-        },
-        include: { stageType: { select: { label: true } } },
-        orderBy: { sequence: 'asc' },
-      }),
-    ]);
-
-    // Build a set of stage type IDs that are present
-    const presentTypeIds = new Set(stages.map((s) => s.stageTypeId));
-
-    const filename = `procurement_steps_${activityId.slice(0, 8)}_${fmtDate(new Date())}.xlsx`;
+    const filename = `procurement_step_report_${fmtDate(new Date())}_p${page}.xlsx`;
     const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
-    const sheet = addSheet('Procurement Steps', [
-      'Seq',
-      'Stage Name',
-      'Required',
-      'Status',
-      'Planned Start',
-      'Planned End',
-      'Current Target Start',
-      'Current Target End',
-      'Actual Start',
-      'Actual End',
-      'Times Revised',
-      'Remarks',
+    const sheet = addSheet('STEP Report', [
+      'Activity Reference',
+      'Activity Description',
+      'Method',
+      'Market Approach',
+      'Review Type',
+      'Stage',
+      'Planned Date',
+      'Revised Date',
+      'Actual Date',
+      'Stage Status',
+      'Delay Days',
+      'Process Status',
+      'Activity Status',
     ]);
 
     for (const s of stages) {
-      const isRequired = templates.some((t) => t.stageTypeId === s.stageTypeId);
-      sheet.addRow([
-        s.sequence,
-        s.stageType.label,
-        isRequired ? 'Yes' : 'No',
-        s.isNotApplicable ? 'N/A' : s.status,
-        fmtDate(s.plannedStartDate),
-        fmtDate(s.plannedEndDate),
-        fmtDate(s.currentTargetStartDate),
-        fmtDate(s.currentTargetEndDate),
-        fmtDate(s.actualStartDate),
-        fmtDate(s.actualEndDate),
-        s.revisions.length,
-        s.remarks ?? '',
-      ]);
-    }
+      const today = new Date();
+      let delayDays = '';
 
-    // Add rows for required stages that are missing entirely
-    for (const t of templates) {
-      if (!presentTypeIds.has(t.stageTypeId)) {
-        sheet.addRow([
-          t.sequence,
-          t.stageType.label,
-          'Yes',
-          'NOT CREATED',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          0,
-          '',
-        ]);
+      if (
+        s.status === 'COMPLETED' &&
+        s.actualEndDate &&
+        s.currentTargetEndDate
+      ) {
+        const diff =
+          s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
+        delayDays = String(Math.round(diff / 86_400_000));
+      } else if (
+        s.status !== 'COMPLETED' &&
+        s.currentTargetEndDate &&
+        s.currentTargetEndDate < today
+      ) {
+        const diff = today.getTime() - s.currentTargetEndDate.getTime();
+        delayDays = String(Math.round(diff / 86_400_000));
       }
+
+      sheet.addRow([
+        s.activity.reference,
+        s.activity.description ?? '',
+        s.activity.procurementMethod.label,
+        s.activity.marketApproach ?? '',
+        s.activity.reviewType ?? '',
+        s.stageType.label,
+        fmtDate(s.plannedEndDate),
+        fmtDate(s.currentTargetEndDate),
+        fmtDate(s.actualEndDate),
+        s.status,
+        delayDays,
+        s.activity.processStatus ?? '',
+        s.activity.status,
+      ]);
     }
 
     await (sheet as unknown as { commit: () => Promise<void> }).commit();
@@ -368,82 +482,140 @@ export class ReportsService {
     userId: string,
     isDirector: boolean,
   ): Promise<void> {
-    const { planId, projectId, budgetYear, page, limit } = query;
+    const {
+      projectId,
+      planId,
+      budgetYear,
+      category,
+      methodId,
+      officerId,
+      region,
+      fundingSourceId,
+      stageTypeId,
+      stageStatus,
+      performanceStatus,
+      dateFrom,
+      dateTo,
+      page,
+      limit,
+    } = query;
 
-    const stages = await prisma.stage.findMany({
-      where: {
-        activity: {
-          plan: {
-            ...(isDirector ? {} : { createdBy: userId }),
-            ...(planId ? { id: planId } : {}),
-            ...(projectId ? { projectId } : {}),
-            ...(budgetYear ? { budgetYear } : {}),
+    const today = new Date();
+
+    const where = {
+      isNotApplicable: false,
+      ...(stageTypeId ? { stageTypeId } : {}),
+      ...(stageStatus ? { status: stageStatus as StageStatus } : {}),
+      ...(dateFrom || dateTo
+        ? {
+            actualEndDate: {
+              ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+              ...(dateTo ? { lte: new Date(dateTo) } : {}),
+            },
+          }
+        : {}),
+      activity: {
+        ...(methodId ? { procurementMethodId: methodId } : {}),
+        plan: {
+          ...(isDirector ? {} : { createdBy: userId }),
+          ...(planId ? { id: planId } : {}),
+          ...(projectId ? { projectId } : {}),
+          ...(budgetYear ? { budgetYear } : {}),
+          ...(category ? { procurementCategory: category } : {}),
+          ...(officerId ? { createdBy: officerId } : {}),
+          project: {
+            ...(fundingSourceId ? { fundingSourceId } : {}),
           },
         },
-        isNotApplicable: false,
       },
+    };
+
+    const stages = await prisma.stage.findMany({
+      where,
       include: {
         stageType: { select: { label: true } },
+        revisions: { orderBy: { revisionNo: 'asc' } },
         activity: {
           select: {
             reference: true,
+            description: true,
             plan: {
               select: {
                 title: true,
-                project: { select: { code: true } },
+                project: { select: { name: true } },
               },
             },
           },
         },
       },
       orderBy: [{ activityId: 'asc' }, { sequence: 'asc' }],
-      skip: (page - 1) * limit,
-      take: limit,
     });
+
+    // Filter by performance status in application memory (due to complex datetime differences)
+    let filteredStages = stages;
+    if (performanceStatus) {
+      filteredStages = stages.filter((s) => {
+        const isLate =
+          s.status === 'COMPLETED'
+            ? s.actualEndDate &&
+              s.currentTargetEndDate &&
+              s.actualEndDate > s.currentTargetEndDate
+            : s.currentTargetEndDate && s.currentTargetEndDate < today;
+        return performanceStatus === 'DELAYED' ? isLate : !isLate;
+      });
+    }
+
+    // Paginate in memory after filter
+    const paginated = filteredStages.slice((page - 1) * limit, page * limit);
 
     const filename = `plan_vs_actual_${fmtDate(new Date())}_p${page}.xlsx`;
     const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
     const sheet = addSheet('Plan vs Actual', [
-      'Project Code',
-      'Plan Title',
-      'Activity Reference',
-      'Stage Name',
-      'Planned End (Baseline)',
-      'Current Target End',
-      'Actual End',
-      'Baseline Slippage (days)',
-      'Operational Delay (days)',
+      'Project',
+      'Activity',
+      'Stage',
+      'Original Planned Date',
+      'Current Target Date',
+      'Actual Date',
+      'Variance / Delay Days',
       'Status',
+      'Replanning Count',
+      'Replanning Reason',
     ]);
 
-    for (const s of stages) {
-      const baselineSlippage =
-        s.actualEndDate && s.plannedEndDate
-          ? Math.round(
-              (s.actualEndDate.getTime() - s.plannedEndDate.getTime()) /
-                86_400_000,
-            )
-          : '';
-      const operationalDelay =
-        s.actualEndDate && s.currentTargetEndDate
-          ? Math.round(
-              (s.actualEndDate.getTime() - s.currentTargetEndDate.getTime()) /
-                86_400_000,
-            )
-          : '';
+    for (const s of paginated) {
+      let delayDays = '';
+      if (
+        s.status === 'COMPLETED' &&
+        s.actualEndDate &&
+        s.currentTargetEndDate
+      ) {
+        const diff =
+          s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
+        delayDays = String(Math.round(diff / 86_400_000));
+      } else if (
+        s.status !== 'COMPLETED' &&
+        s.currentTargetEndDate &&
+        s.currentTargetEndDate < today
+      ) {
+        const diff = today.getTime() - s.currentTargetEndDate.getTime();
+        delayDays = String(Math.round(diff / 86_400_000));
+      }
+
+      const lastRev = s.revisions[s.revisions.length - 1];
 
       sheet.addRow([
-        s.activity.plan.project.code,
-        s.activity.plan.title,
-        s.activity.reference,
+        s.activity.plan.project.name,
+        `${s.activity.reference} - ${s.activity.description ?? ''}`,
         s.stageType.label,
         fmtDate(s.plannedEndDate),
         fmtDate(s.currentTargetEndDate),
         fmtDate(s.actualEndDate),
-        baselineSlippage,
-        operationalDelay,
+        delayDays,
         s.status,
+        s.revisions.length,
+        lastRev?.reason ?? '',
       ]);
     }
 
@@ -458,164 +630,160 @@ export class ReportsService {
     userId: string,
     isDirector: boolean,
   ): Promise<void> {
-    const { projectId, planId, budgetYear, page, limit } = query;
+    const {
+      projectId,
+      planId,
+      category,
+      methodId,
+      officerId,
+      region,
+      fundingSourceId,
+      activityStatus,
+      stageTypeId,
+      minDelayDays,
+      delayBucket,
+      dateFrom,
+      dateTo,
+      page,
+      limit,
+    } = query;
+
     const today = new Date();
 
     const planFilter = {
       ...(isDirector ? {} : { createdBy: userId }),
       ...(planId ? { id: planId } : {}),
       ...(projectId ? { projectId } : {}),
-      ...(budgetYear ? { budgetYear } : {}),
+      ...(category ? { procurementCategory: category } : {}),
+      ...(officerId ? { createdBy: officerId } : {}),
+      project: {
+        ...(fundingSourceId ? { fundingSourceId } : {}),
+      },
     };
 
-    // Part A: open stages past their current target end date
-    const overdueOpen = await prisma.stage.findMany({
+    // Stage level filter
+    const stageWhere = {
+      isNotApplicable: false,
+      ...(stageTypeId ? { stageTypeId } : {}),
+      ...(dateFrom || dateTo
+        ? {
+            actualEndDate: {
+              ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+              ...(dateTo ? { lte: new Date(dateTo) } : {}),
+            },
+          }
+        : {}),
+      activity: {
+        ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
+        ...(methodId ? { procurementMethodId: methodId } : {}),
+        plan: planFilter,
+      },
+    };
+
+    // Query both open overdue and completed late stages
+    const stages = await prisma.stage.findMany({
       where: {
-        isNotApplicable: false,
-        status: { notIn: ['COMPLETED' as const] },
-        currentTargetEndDate: { lt: today },
-        activity: { plan: planFilter },
+        ...stageWhere,
+        OR: [
+          {
+            status: { notIn: ['COMPLETED'] },
+            currentTargetEndDate: { lt: today },
+          },
+          {
+            status: 'COMPLETED',
+            actualEndDate: { gt: prisma.stage.fields.currentTargetEndDate },
+          },
+        ],
       },
       include: {
         stageType: { select: { label: true } },
-        revisions: { select: { id: true } },
+        revisions: { orderBy: { revisionNo: 'asc' } },
         activity: {
-          select: {
-            reference: true,
+          include: {
             plan: {
-              select: {
-                title: true,
-                project: { select: { code: true, name: true } },
+              include: {
+                project: { select: { name: true } },
+                creator: { select: { displayName: true } },
               },
             },
           },
         },
       },
       orderBy: { currentTargetEndDate: 'asc' },
-      skip: (page - 1) * limit,
-      take: limit,
     });
 
-    // Part B: completed stages where actualEndDate > currentTargetEndDate
-    const completedLate = await prisma.$queryRaw<
-      Array<{
-        id: string;
-        activityId: string;
-        stageTypeLabel: string;
-        activityReference: string;
-        planTitle: string;
-        projectCode: string;
-        projectName: string;
-        plannedEndDate: Date | null;
-        currentTargetEndDate: Date | null;
-        actualEndDate: Date | null;
-        revisionCount: number;
-        status: string;
-      }>
-    >`
-      SELECT
-        s.id,
-        s."activityId",
-        lv.label         AS "stageTypeLabel",
-        a.reference      AS "activityReference",
-        pl.title         AS "planTitle",
-        pr.code          AS "projectCode",
-        pr.name          AS "projectName",
-        s."plannedEndDate",
-        s."currentTargetEndDate",
-        s."actualEndDate",
-        s.status,
-        (SELECT COUNT(*) FROM "StageRevision" sr WHERE sr."stageId" = s.id)::int AS "revisionCount"
-      FROM "Stage" s
-      JOIN "LookupValue" lv ON lv.id = s."stageTypeId"
-      JOIN "Activity" a    ON a.id  = s."activityId"
-      JOIN "Plan" pl       ON pl.id = a."planId"
-      JOIN "Project" pr    ON pr.id = pl."projectId"
-      WHERE s."actualEndDate" IS NOT NULL
-        AND s."actualEndDate" > s."currentTargetEndDate"
-        AND s."isNotApplicable" = false
-        ${!isDirector ? prisma.$queryRaw`AND pl."createdBy" = ${userId}` : prisma.$queryRaw``}
-        ${planId ? prisma.$queryRaw`AND pl.id = ${planId}` : prisma.$queryRaw``}
-        ${projectId ? prisma.$queryRaw`AND pr.id = ${projectId}` : prisma.$queryRaw``}
-        ${budgetYear ? prisma.$queryRaw`AND pl."budgetYear" = ${budgetYear}` : prisma.$queryRaw``}
-      LIMIT ${limit} OFFSET ${(page - 1) * limit}
-    `;
+    // Compute delay days and apply advanced filters in memory
+    const computed = stages
+      .map((s) => {
+        let delayDays = 0;
+        if (
+          s.status === 'COMPLETED' &&
+          s.actualEndDate &&
+          s.currentTargetEndDate
+        ) {
+          delayDays = Math.round(
+            (s.actualEndDate.getTime() - s.currentTargetEndDate.getTime()) /
+              86_400_000,
+          );
+        } else if (s.currentTargetEndDate) {
+          delayDays = Math.round(
+            (today.getTime() - s.currentTargetEndDate.getTime()) / 86_400_000,
+          );
+        }
+
+        return { stage: s, delayDays };
+      })
+      .filter(({ delayDays }) => {
+        if (delayDays <= 0) return false;
+        if (minDelayDays !== undefined && delayDays < minDelayDays)
+          return false;
+
+        if (delayBucket) {
+          if (delayBucket === '1-7') return delayDays >= 1 && delayDays <= 7;
+          if (delayBucket === '8-30') return delayDays >= 8 && delayDays <= 30;
+          if (delayBucket === '31-60')
+            return delayDays >= 31 && delayDays <= 60;
+          if (delayBucket === '60+') return delayDays >= 60;
+        }
+
+        return true;
+      });
+
+    // Paginate
+    const paginated = computed.slice((page - 1) * limit, page * limit);
 
     const filename = `delayed_procurement_${fmtDate(new Date())}_p${page}.xlsx`;
     const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
     const sheet = addSheet('Delayed Procurement', [
-      'Project Code',
-      'Project Name',
-      'Plan Title',
-      'Activity Reference',
-      'Stage Name',
-      'Status',
-      'Current Target End',
-      'Actual End',
-      'Operational Delay (days)',
-      'Baseline Slippage (days)',
-      'Times Revised',
-      'Flag',
+      'Project',
+      'Activity',
+      'Officer',
+      'Stage',
+      'Original Target',
+      'Current Target',
+      'Actual Date',
+      'Delay Days',
+      'Process Status',
+      'Reason',
+      'Remarks',
     ]);
 
-    for (const s of overdueOpen) {
-      const opDelay = s.currentTargetEndDate
-        ? Math.round(
-            (today.getTime() - s.currentTargetEndDate.getTime()) / 86_400_000,
-          )
-        : '';
-      const baseSlippage = s.plannedEndDate
-        ? Math.round(
-            (today.getTime() - s.plannedEndDate.getTime()) / 86_400_000,
-          )
-        : '';
+    for (const { stage: s, delayDays } of paginated) {
+      const lastRev = s.revisions[s.revisions.length - 1];
 
       sheet.addRow([
-        s.activity.plan.project.code,
         s.activity.plan.project.name,
-        s.activity.plan.title,
-        s.activity.reference,
+        `${s.activity.reference} - ${s.activity.description ?? ''}`,
+        s.activity.plan.creator.displayName,
         s.stageType.label,
-        s.status,
-        fmtDate(s.currentTargetEndDate),
-        '',
-        opDelay,
-        baseSlippage,
-        s.revisions.length,
-        'OVERDUE',
-      ]);
-    }
-
-    for (const s of completedLate) {
-      const opDelay =
-        s.actualEndDate && s.currentTargetEndDate
-          ? Math.round(
-              (s.actualEndDate.getTime() - s.currentTargetEndDate.getTime()) /
-                86_400_000,
-            )
-          : '';
-      const baseSlippage =
-        s.actualEndDate && s.plannedEndDate
-          ? Math.round(
-              (s.actualEndDate.getTime() - s.plannedEndDate.getTime()) /
-                86_400_000,
-            )
-          : '';
-
-      sheet.addRow([
-        s.projectCode,
-        s.projectName,
-        s.planTitle,
-        s.activityReference,
-        s.stageTypeLabel,
-        s.status,
+        fmtDate(s.plannedEndDate),
         fmtDate(s.currentTargetEndDate),
         fmtDate(s.actualEndDate),
-        opDelay,
-        baseSlippage,
-        s.revisionCount,
-        'COMPLETED LATE',
+        delayDays,
+        s.status,
+        lastRev?.reason ?? '',
+        s.remarks ?? '',
       ]);
     }
 
@@ -628,20 +796,57 @@ export class ReportsService {
     res: Response,
     query: ContractPaymentQuery,
   ): Promise<void> {
-    const { region, supplierId, status, projectId, page, limit } = query;
+    const {
+      projectId,
+      planId,
+      activityId,
+      supplierId,
+      region,
+      officerId,
+      contractStatus,
+      paymentStatus,
+      fundingSourceId,
+      minAmount,
+      maxAmount,
+      dateFrom,
+      dateTo,
+      page,
+      limit,
+    } = query;
 
     const contracts = await prisma.contract.findMany({
       where: {
         deletedAt: null,
         ...(region ? { region } : {}),
         ...(supplierId ? { supplierId } : {}),
-        ...(status
+        ...(contractStatus ? { status: contractStatus as ContractStatus } : {}),
+        ...(activityId ? { activityId } : {}),
+        activity: {
+          plan: {
+            ...(planId ? { id: planId } : {}),
+            ...(projectId ? { projectId } : {}),
+            ...(officerId ? { createdBy: officerId } : {}),
+            project: {
+              ...(fundingSourceId ? { fundingSourceId } : {}),
+            },
+          },
+        },
+        ...(minAmount || maxAmount
           ? {
-              status:
-                status as import('../../generated/prisma/client.js').ContractStatus,
+              totalValue: {
+                ...(minAmount !== undefined ? { gte: minAmount } : {}),
+                ...(maxAmount !== undefined ? { lte: maxAmount } : {}),
+              },
             }
           : {}),
-        ...(projectId ? { activity: { plan: { projectId } } } : {}),
+        ...(dateFrom || dateTo
+          ? {
+              createdAt: {
+                ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+                ...(dateTo ? { lte: new Date(dateTo) } : {}),
+              },
+            }
+          : {}),
       },
       include: {
         supplier: { select: { name: true } },
@@ -649,6 +854,12 @@ export class ReportsService {
           select: {
             reference: true,
             description: true,
+            plan: {
+              select: {
+                title: true,
+                project: { select: { name: true } },
+              },
+            },
           },
         },
         payments: {
@@ -669,32 +880,35 @@ export class ReportsService {
     const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
     const sheet = addSheet('Contract & Payment', [
-      'Supplier / Contractor',
+      'Project',
       'Activity',
+      'Supplier',
       'Region',
-      'Contract Amount with VAT',
+      'Contract Number',
+      'Contract Award Date',
+      'Contract Signature Date',
+      'Start Date',
+      'End Date',
+      'Original Contract Amount',
       'Amendment',
-      'Total with 15%VAT',
-      'Total Contract Net of VAT',
+      'Final Contract Amount',
       'Total Paid',
+      'Remaining Balance',
+      'Contract Status',
       'Advance',
       '1st Payment',
       '2nd Payment',
       'Final Payment',
-      'Retention Withholding',
       'Retention Payment',
-      'Remaining Balance',
-      'Subcomponent',
+      'Retention Withholding',
     ]);
 
     for (const c of contracts) {
-      // Sum amendment amounts (last amendment = final value change)
       const lastAmendment = c.amendments[c.amendments.length - 1];
       const amendmentTotal = lastAmendment
         ? Number(lastAmendment.newValue) - Number(c.totalValue)
         : 0;
 
-      // Pivot payments by type (sum per type, paid only)
       const byType = (type: string) =>
         c.payments
           .filter((p) => p.paymentType === type && p.status === 'PAID')
@@ -711,26 +925,31 @@ export class ReportsService {
       const remaining = contractWithVat - totalPaid;
 
       sheet.addRow([
-        c.supplier.name,
+        c.activity?.plan?.project?.name ?? '',
         c.activity?.description ?? c.activity?.reference ?? '',
+        c.supplier.name,
         c.region ?? '',
+        c.contractNo,
+        fmtDate(c.awardDate),
+        fmtDate(c.signatureDate),
+        fmtDate(c.startDate),
+        fmtDate(c.plannedEndDate),
         fmtDecimal(c.totalValue),
         amendmentTotal !== 0 ? amendmentTotal.toFixed(2) : '',
         contractWithVat.toFixed(2),
-        c.contractNetOfVat ? fmtDecimal(c.contractNetOfVat) : '',
         totalPaid.toFixed(2),
+        remaining.toFixed(2),
+        c.status,
         byType('ADVANCE') > 0 ? byType('ADVANCE').toFixed(2) : '',
         byType('INTERIM_1') > 0 ? byType('INTERIM_1').toFixed(2) : '',
         byType('INTERIM_2') > 0 ? byType('INTERIM_2').toFixed(2) : '',
         byType('FINAL') > 0 ? byType('FINAL').toFixed(2) : '',
-        byType('RETENTION_WITHHOLDING') > 0
-          ? byType('RETENTION_WITHHOLDING').toFixed(2)
-          : '',
         byType('RETENTION_PAYMENT') > 0
           ? byType('RETENTION_PAYMENT').toFixed(2)
           : '',
-        remaining.toFixed(2),
-        c.subcomponent ?? '',
+        byType('RETENTION_WITHHOLDING') > 0
+          ? byType('RETENTION_WITHHOLDING').toFixed(2)
+          : '',
       ]);
     }
 
@@ -743,88 +962,223 @@ export class ReportsService {
     res: Response,
     query: MonthlySummaryQuery,
   ): Promise<void> {
-    const { year, dateBasis } = query;
+    const {
+      year,
+      quarter,
+      projectId,
+      category,
+      methodId,
+      fundingSourceId,
+      region,
+      officerId,
+    } = query;
 
-    type MonthRow = {
-      month: Date;
-      contract_count: number;
-      total_value: string | number;
-      paid_amount: string | number;
+    const planFilter = {
+      ...(projectId ? { projectId } : {}),
+      ...(category ? { procurementCategory: category } : {}),
+      ...(officerId ? { createdBy: officerId } : {}),
+      project: {
+        ...(fundingSourceId ? { fundingSourceId } : {}),
+      },
     };
 
-    let rows: MonthRow[];
+    const activityWhere = {
+      plan: planFilter,
+      ...(methodId ? { procurementMethodId: methodId } : {}),
+      ...(region ? { contracts: { some: { region } } } : {}),
+      createdAt: {
+        gte: new Date(`${year}-01-01`),
+        lte: new Date(`${year}-12-31`),
+      },
+    };
 
-    if (dateBasis === 'awarded') {
-      rows = await prisma.$queryRaw<MonthRow[]>`
-        SELECT
-          DATE_TRUNC('month', c."createdAt")   AS month,
-          COUNT(*)::int                         AS contract_count,
-          COALESCE(SUM(c."totalValue"), 0)      AS total_value,
-          COALESCE(SUM(c."paidAmount"), 0)      AS paid_amount
-        FROM "Contract" c
-        WHERE EXTRACT(YEAR FROM c."createdAt") = ${year}
-          AND c."deletedAt" IS NULL
-        GROUP BY 1
-        ORDER BY 1
-      `;
-    } else if (dateBasis === 'planned') {
-      rows = await prisma.$queryRaw<MonthRow[]>`
-        SELECT
-          DATE_TRUNC('month', a."createdAt")    AS month,
-          COUNT(*)::int                         AS contract_count,
-          COALESCE(SUM(a."estimatedBudget"), 0) AS total_value,
-          0                                     AS paid_amount
-        FROM "Activity" a
-        WHERE EXTRACT(YEAR FROM a."createdAt") = ${year}
-        GROUP BY 1
-        ORDER BY 1
-      `;
-    } else {
-      // completed — group by last actual stage completion date
-      rows = await prisma.$queryRaw<MonthRow[]>`
-        SELECT
-          DATE_TRUNC('month', s."actualEndDate")  AS month,
-          COUNT(DISTINCT s."activityId")::int      AS contract_count,
-          0                                        AS total_value,
-          0                                        AS paid_amount
-        FROM "Stage" s
-        WHERE s."actualEndDate" IS NOT NULL
-          AND s.status = 'COMPLETED'
-          AND EXTRACT(YEAR FROM s."actualEndDate") = ${year}
-        GROUP BY 1
-        ORDER BY 1
-      `;
+    // Retrieve all activities for the year matching filters
+    const activities = await prisma.activity.findMany({
+      where: activityWhere,
+      include: {
+        procurementMethod: { select: { label: true } },
+        plan: {
+          select: {
+            procurementCategory: true,
+            project: {
+              select: {
+                name: true,
+                fundingSource: { select: { label: true, code: true } },
+              },
+            },
+          },
+        },
+        contracts: {
+          where: { deletedAt: null },
+          include: {
+            payments: {
+              where: { deletedAt: null, status: 'PAID' },
+              select: { amount: true },
+            },
+          },
+        },
+        stages: {
+          where: { isNotApplicable: false },
+          select: {
+            status: true,
+            currentTargetEndDate: true,
+            actualEndDate: true,
+          },
+        },
+      },
+    });
+
+    // Apply optional quarter filter
+    let filtered = activities;
+    if (quarter) {
+      const qStart = (quarter - 1) * 3; // 0, 3, 6, 9
+      const qEnd = qStart + 2; // 2, 5, 8, 11
+      filtered = activities.filter((a) => {
+        const m = a.createdAt.getMonth();
+        return m >= qStart && m <= qEnd;
+      });
     }
 
-    const filename = `monthly_summary_${year}_${dateBasis}.xlsx`;
+    const filename = `monthly_summary_${year}${quarter ? '_Q' + quarter : ''}.xlsx`;
     const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
-    const sheet = addSheet('Monthly Summary', [
-      'Month',
-      '# Contracts / Activities',
-      'Total Value',
-      'Total Paid',
-      'Remaining',
+    // Calculate Dashboard KPIs
+    const totalPlanned = filtered.reduce(
+      (s, a) => s + Number(a.estimatedBudget),
+      0,
+    );
+    const contracts = filtered.flatMap((a) => a.contracts);
+    const totalContractVal = contracts.reduce(
+      (s, c) => s + Number(c.contractAmountWithVat || c.totalValue),
+      0,
+    );
+    const totalPaid = contracts.reduce(
+      (s, c) => s + c.payments.reduce((sum, p) => sum + Number(p.amount), 0),
+      0,
+    );
+    const remaining = totalContractVal - totalPaid;
+
+    const allStages = filtered.flatMap((a) => a.stages);
+    const completedCount = allStages.filter(
+      (s) => s.status === 'COMPLETED',
+    ).length;
+    const ongoingCount = allStages.filter(
+      (s) => s.status === 'IN_PROGRESS' || s.status === 'NOT_STARTED',
+    ).length;
+    const delayedCount = allStages.filter((s) => {
+      const today = new Date();
+      return (
+        (s.status === 'COMPLETED' &&
+          s.actualEndDate &&
+          s.currentTargetEndDate &&
+          s.actualEndDate > s.currentTargetEndDate) ||
+        (s.status !== 'COMPLETED' &&
+          s.currentTargetEndDate &&
+          s.currentTargetEndDate < today)
+      );
+    }).length;
+
+    // 1. Dashboard KPIs Sheet
+    const kpiSheet = addSheet('Dashboard KPIs', ['Metric', 'Value']);
+    kpiSheet.addRow(['Total Activities', filtered.length]);
+    kpiSheet.addRow(['Total Planned Value (ETB)', totalPlanned.toFixed(2)]);
+    kpiSheet.addRow([
+      'Total Contract Value (ETB)',
+      totalContractVal.toFixed(2),
     ]);
+    kpiSheet.addRow(['Total Paid (ETB)', totalPaid.toFixed(2)]);
+    kpiSheet.addRow(['Remaining Balance (ETB)', remaining.toFixed(2)]);
+    kpiSheet.addRow(['Completed Stages', completedCount]);
+    kpiSheet.addRow(['Ongoing Stages', ongoingCount]);
+    kpiSheet.addRow(['Delayed Stages', delayedCount]);
 
-    for (const row of rows) {
-      const totalValue = Number(row.total_value);
-      const paidAmount = Number(row.paid_amount);
-      const monthLabel = new Date(row.month).toLocaleString('default', {
+    // 2. Category & Method Sheet
+    const catMethodSheet = addSheet('Category & Method', [
+      'Category',
+      'Method',
+      '# Activities',
+      'Planned Value',
+    ]);
+    const catMethodMap = new Map<string, { count: number; value: number }>();
+    for (const a of filtered) {
+      const key = `${a.plan.procurementCategory || 'N/A'}::${a.procurementMethod.label}`;
+      const entry = catMethodMap.get(key) || { count: 0, value: 0 };
+      entry.count += 1;
+      entry.value += a.estimatedBudget;
+      catMethodMap.set(key, entry);
+    }
+    for (const [key, val] of catMethodMap.entries()) {
+      const [cat, met] = key.split('::');
+      catMethodSheet.addRow([cat, met, val.count, val.value.toFixed(2)]);
+    }
+
+    // 3. Funding Source (Treasury/Loan/Grant) Sheet
+    const fundingSheet = addSheet('Funding Sources', [
+      'Funding Group',
+      '# Activities',
+      'Planned Value',
+    ]);
+    const fundingMap = new Map<string, { count: number; value: number }>();
+    for (const a of filtered) {
+      const label = a.plan.project.fundingSource.label || 'Other';
+      const entry = fundingMap.get(label) || { count: 0, value: 0 };
+      entry.count += 1;
+      entry.value += a.estimatedBudget;
+      fundingMap.set(label, entry);
+    }
+    for (const [label, val] of fundingMap.entries()) {
+      fundingSheet.addRow([label, val.count, val.value.toFixed(2)]);
+    }
+
+    // 4. Monthly Summary Sheet
+    const monthlySheet = addSheet('Monthly Breakdown', [
+      'Month',
+      '# Activities',
+      'Planned Budget',
+      'Total Paid',
+    ]);
+    const monthlyMap = new Map<
+      number,
+      { count: number; planned: number; paid: number }
+    >();
+    for (let m = 0; m < 12; m++) {
+      monthlyMap.set(m, { count: 0, planned: 0, paid: 0 });
+    }
+    for (const a of filtered) {
+      const m = a.createdAt.getMonth();
+      const entry = monthlyMap.get(m)!;
+      entry.count += 1;
+      entry.planned += a.estimatedBudget;
+      entry.paid += a.contracts.reduce(
+        (sum, c) =>
+          sum + c.payments.reduce((pSum, p) => pSum + Number(p.amount), 0),
+        0,
+      );
+    }
+    for (let m = 0; m < 12; m++) {
+      const entry = monthlyMap.get(m)!;
+      if (quarter) {
+        const qStart = (quarter - 1) * 3;
+        const qEnd = qStart + 2;
+        if (m < qStart || m > qEnd) continue;
+      }
+      const monthLabel = new Date(year, m, 1).toLocaleString('default', {
         month: 'long',
-        year: 'numeric',
       });
-
-      sheet.addRow([
+      monthlySheet.addRow([
         monthLabel,
-        row.contract_count,
-        totalValue.toFixed(2),
-        paidAmount.toFixed(2),
-        (totalValue - paidAmount).toFixed(2),
+        entry.count,
+        entry.planned.toFixed(2),
+        entry.paid.toFixed(2),
       ]);
     }
 
-    await (sheet as unknown as { commit: () => Promise<void> }).commit();
+    await (kpiSheet as unknown as { commit: () => Promise<void> }).commit();
+    await (
+      catMethodSheet as unknown as { commit: () => Promise<void> }
+    ).commit();
+    await (fundingSheet as unknown as { commit: () => Promise<void> }).commit();
+    await (monthlySheet as unknown as { commit: () => Promise<void> }).commit();
     await finalize();
   }
 
@@ -833,108 +1187,166 @@ export class ReportsService {
     res: Response,
     query: ProjectOfficerSummaryQuery,
   ): Promise<void> {
-    const { budgetYear, projectId, page, limit } = query;
+    const {
+      projectId,
+      officerId,
+      region,
+      budgetYear,
+      category,
+      methodId,
+      fundingSourceId,
+      status,
+      page,
+      limit,
+    } = query;
+
+    const where = {
+      isActive: true,
+      ...(budgetYear ? { budgetYear } : {}),
+      ...(projectId ? { projectId } : {}),
+      ...(officerId ? { createdBy: officerId } : {}),
+      ...(category ? { procurementCategory: category } : {}),
+      ...(status ? { status: status as PlanStatus } : {}),
+      project: {
+        ...(fundingSourceId ? { fundingSourceId } : {}),
+      },
+      ...(region || methodId
+        ? {
+            activities: {
+              some: {
+                ...(methodId ? { procurementMethodId: methodId } : {}),
+                ...(region ? { contracts: { some: { region } } } : {}),
+              },
+            },
+          }
+        : {}),
+    };
 
     const plans = await prisma.plan.findMany({
-      where: {
-        isActive: true,
-        ...(budgetYear ? { budgetYear } : {}),
-        ...(projectId ? { projectId } : {}),
-      },
+      where,
       include: {
-        creator: { select: { id: true, displayName: true } },
-        project: { select: { code: true, name: true } },
+        creator: { select: { displayName: true } },
+        project: { select: { id: true, code: true, name: true } },
         activities: {
           include: {
             stages: {
               where: { isNotApplicable: false },
               select: {
                 status: true,
-                actualEndDate: true,
                 currentTargetEndDate: true,
+                actualEndDate: true,
               },
             },
             contracts: {
               where: { deletedAt: null },
-              select: { totalValue: true },
+              select: {
+                totalValue: true,
+                contractAmountWithVat: true,
+                vatRate: true,
+                payments: {
+                  where: { deletedAt: null, status: 'PAID' },
+                  select: { amount: true },
+                },
+              },
             },
           },
         },
       },
       orderBy: [{ createdBy: 'asc' }, { createdAt: 'desc' }],
-      skip: (page - 1) * limit,
-      take: limit,
     });
+
+    // Group plans by officer
+    type GroupKey = string;
+    const groups = new Map<GroupKey, typeof plans>();
+    for (const plan of plans) {
+      const key = plan.createdBy;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(plan);
+    }
+
+    // Paginate groups in memory
+    const officerGroups = Array.from(groups.values());
+    const paginated = officerGroups.slice((page - 1) * limit, page * limit);
 
     const filename = `project_officer_summary_${fmtDate(new Date())}_p${page}.xlsx`;
     const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
     const sheet = addSheet('Project & Officer Summary', [
-      'Officer Name',
-      'Project Code',
-      'Project Name',
-      'Budget Year',
-      '# Plans',
-      '# Activities',
-      'Total Estimated Budget',
-      '# Contracts Awarded',
-      'Total Contract Value',
-      'Completed Stages On-Time %',
-      'Delayed Stages Count',
+      'Officer',
+      'Projects Assigned',
+      'Plans',
+      'Activities',
+      'Planned Value',
+      'Awarded Value',
+      'Contract Value',
+      'Completed',
+      'In Progress',
+      'Delayed',
+      'Total Paid',
+      'Remaining Balance',
     ]);
 
-    // Group plans by officer + project
-    type GroupKey = string;
-    const groups = new Map<GroupKey, typeof plans>();
-    for (const plan of plans) {
-      const key = `${plan.createdBy}::${plan.projectId}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(plan);
-    }
-
-    for (const groupPlans of groups.values()) {
+    for (const groupPlans of paginated) {
       const first = groupPlans[0]!;
+      const uniqueProjects = new Set(groupPlans.map((p) => p.project.code));
       const allActivities = groupPlans.flatMap((p) => p.activities);
       const allStages = allActivities.flatMap((a) => a.stages);
-      const completedStages = allStages.filter((s) => s.status === 'COMPLETED');
-      const onTimeCount = completedStages.filter(
-        (s) =>
-          s.actualEndDate &&
-          s.currentTargetEndDate &&
-          s.actualEndDate <= s.currentTargetEndDate,
-      ).length;
-      const delayedCount = completedStages.length - onTimeCount;
-      const onTimePct =
-        completedStages.length > 0
-          ? ((onTimeCount / completedStages.length) * 100).toFixed(1) + '%'
-          : 'N/A';
 
-      const totalEstBudget = allActivities.reduce(
+      const completedCount = allStages.filter(
+        (s) => s.status === 'COMPLETED',
+      ).length;
+      const inProgressCount = allStages.filter(
+        (s) => s.status === 'IN_PROGRESS' || s.status === 'NOT_STARTED',
+      ).length;
+
+      const today = new Date();
+      const delayedCount = allStages.filter((s) => {
+        return (
+          (s.status === 'COMPLETED' &&
+            s.actualEndDate &&
+            s.currentTargetEndDate &&
+            s.actualEndDate > s.currentTargetEndDate) ||
+          (s.status !== 'COMPLETED' &&
+            s.currentTargetEndDate &&
+            s.currentTargetEndDate < today)
+        );
+      }).length;
+
+      const plannedValue = allActivities.reduce(
         (s, a) => s + Number(a.estimatedBudget),
         0,
       );
+
       const allContracts = allActivities.flatMap((a) => a.contracts);
-      const totalContractValue = allContracts.reduce(
+      const awardedValue = allContracts.reduce(
         (s, c) => s + Number(c.totalValue),
         0,
       );
+      const contractValue = allContracts.reduce((s, c) => {
+        const val = c.contractAmountWithVat
+          ? Number(c.contractAmountWithVat)
+          : Number(c.totalValue) * (1 + (c.vatRate ?? 0) / 100);
+        return s + val;
+      }, 0);
 
-      const budgetYears = [
-        ...new Set(groupPlans.map((p) => p.budgetYear).filter(Boolean)),
-      ].join(', ');
+      const totalPaid = allContracts.reduce((s, c) => {
+        const paid = c.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+        return s + paid;
+      }, 0);
 
       sheet.addRow([
         first.creator.displayName,
-        first.project.code,
-        first.project.name,
-        budgetYears,
+        uniqueProjects.size,
         groupPlans.length,
         allActivities.length,
-        totalEstBudget.toFixed(2),
-        allContracts.length,
-        totalContractValue.toFixed(2),
-        onTimePct,
+        plannedValue.toFixed(2),
+        awardedValue.toFixed(2),
+        contractValue.toFixed(2),
+        completedCount,
+        inProgressCount,
         delayedCount,
+        totalPaid.toFixed(2),
+        (contractValue - totalPaid).toFixed(2),
       ]);
     }
 

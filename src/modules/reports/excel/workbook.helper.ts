@@ -1,6 +1,9 @@
 import type { Response } from 'express';
 import ExcelJS from 'exceljs';
 
+// Global Excel Theme Color (ARGB Hex Code). Default: Ministry Dark Green (#0A3C2F)
+export const EXCEL_THEME_COLOR = 'FF0A3C2F';
+
 /**
  * Creates a streaming Excel workbook writer that pipes directly to the HTTP response.
  * Never loads the full dataset into memory — each row is written and flushed immediately.
@@ -43,7 +46,7 @@ export function createStreamingWorkbook(res: Response, filename: string) {
     headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF1F4E79' }, // dark blue
+      fgColor: { argb: EXCEL_THEME_COLOR },
     };
     headerRow.alignment = {
       vertical: 'middle',
