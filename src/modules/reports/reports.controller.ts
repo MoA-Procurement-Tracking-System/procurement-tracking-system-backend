@@ -11,7 +11,7 @@ import {
   monthlySummarySchema,
   projectOfficerSummarySchema,
 } from './reports.schema.js';
-import type { UserRole } from '../../generated/prisma/client.js';
+import type { UserRole } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 
 const service = new ReportsService();

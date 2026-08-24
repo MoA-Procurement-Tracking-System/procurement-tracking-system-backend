@@ -5,7 +5,7 @@ import {
   RevisionChangeType,
   Role,
   VoteDecision,
-} from '../../generated/prisma/client.js';
+} from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
 

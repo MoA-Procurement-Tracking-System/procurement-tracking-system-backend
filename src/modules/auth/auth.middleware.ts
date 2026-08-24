@@ -5,7 +5,7 @@ import {
   SessionKind,
   UserStatus,
   UserRole,
-} from '../../generated/prisma/client.js';
+} from '../../generated/prisma/index.js';
 import { hashToken } from './auth.security.js';
 
 export type PublicUser = {

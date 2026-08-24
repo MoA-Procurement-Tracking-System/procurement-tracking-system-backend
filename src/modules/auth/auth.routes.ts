@@ -15,7 +15,7 @@ import {
   SessionKind,
   UserRole,
   UserStatus,
-} from '../../generated/prisma/client.js';
+} from '../../generated/prisma/index.js';
 import {
   generateOpaqueToken,
   hashPassword,

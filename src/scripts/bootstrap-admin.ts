@@ -1,6 +1,6 @@
 import { prisma } from '../config/database.js';
 import { env } from '../config/env.js';
-import { Role, UserRole } from '../generated/prisma/client.js';
+import { Role, UserRole } from '../generated/prisma/index.js';
 import {
   generateTemporaryPassword,
   hashPassword,

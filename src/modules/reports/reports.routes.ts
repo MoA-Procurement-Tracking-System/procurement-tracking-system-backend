@@ -15,32 +15,59 @@ router.use(loadSession, requireAuthenticated);
  *     tags: [Reports]
  *     parameters:
  *       - in: query
- *         name: planId
- *         schema: { type: string }
- *       - in: query
  *         name: projectId
  *         schema: { type: string }
  *       - in: query
- *         name: procurementMethodId
+ *         name: planId
  *         schema: { type: string }
  *       - in: query
- *         name: status
+ *         name: activityId
  *         schema: { type: string }
  *       - in: query
- *         name: budgetYear
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: methodId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: marketApproach
+ *         schema: { type: string }
+ *       - in: query
+ *         name: reviewType
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: region
+ *         schema: { type: string }
+ *       - in: query
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: supplierId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: contractStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: activityStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateFrom
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateTo
  *         schema: { type: string }
  *       - in: query
  *         name: page
  *         schema: { type: integer, default: 1 }
  *       - in: query
  *         name: limit
- *         schema: { type: integer, default: 500, maximum: 5000 }
+ *         schema: { type: integer, default: 500 }
  *     responses:
  *       200:
  *         description: Excel file download
- *         content:
- *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
- *             schema: { type: string, format: binary }
  */
 router.get('/detailed-procurement', (req, res) =>
   reportsController.detailedProcurement(req, res),
@@ -50,7 +77,7 @@ router.get('/detailed-procurement', (req, res) =>
  * @openapi
  * /api/reports/annual-procurement-plan:
  *   get:
- *     summary: Report #1 — Annual Procurement Plan (Excel, 2 sheets)
+ *     summary: Report #1 — Annual Procurement Plan (Excel)
  *     tags: [Reports]
  *     parameters:
  *       - in: query
@@ -60,6 +87,33 @@ router.get('/detailed-procurement', (req, res) =>
  *       - in: query
  *         name: projectId
  *         schema: { type: string }
+ *       - in: query
+ *         name: planId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: methodId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: region
+ *         schema: { type: string }
+ *       - in: query
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: status
+ *         schema: { type: string }
+ *       - in: query
+ *         name: minAmount
+ *         schema: { type: number }
+ *       - in: query
+ *         name: maxAmount
+ *         schema: { type: number }
  *       - in: query
  *         name: page
  *         schema: { type: integer, default: 1 }
@@ -78,13 +132,54 @@ router.get('/annual-procurement-plan', (req, res) =>
  * @openapi
  * /api/reports/procurement-steps:
  *   get:
- *     summary: Report #3 — Procurement Step tracker for one activity (Excel)
+ *     summary: Report #3 — Procurement STEP Report (Excel)
  *     tags: [Reports]
  *     parameters:
  *       - in: query
- *         name: activityId
- *         required: true
+ *         name: projectId
  *         schema: { type: string }
+ *       - in: query
+ *         name: planId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: methodId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: marketApproach
+ *         schema: { type: string }
+ *       - in: query
+ *         name: reviewType
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: activityStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: stageTypeId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: stageStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateFrom
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateTo
+ *         schema: { type: string }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 500 }
  *     responses:
  *       200:
  *         description: Excel file download
@@ -97,17 +192,47 @@ router.get('/procurement-steps', (req, res) =>
  * @openapi
  * /api/reports/plan-vs-actual:
  *   get:
- *     summary: Report #2 — Plan vs Actual milestone comparison (Excel)
+ *     summary: Report #2 — Plan vs Actual comparison (Excel)
  *     tags: [Reports]
  *     parameters:
- *       - in: query
- *         name: planId
- *         schema: { type: string }
  *       - in: query
  *         name: projectId
  *         schema: { type: string }
  *       - in: query
+ *         name: planId
+ *         schema: { type: string }
+ *       - in: query
  *         name: budgetYear
+ *         schema: { type: string }
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: methodId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: region
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: stageTypeId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: stageStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: performanceStatus
+ *         schema: { type: string, enum: [ON_TIME, DELAYED] }
+ *       - in: query
+ *         name: dateFrom
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateTo
  *         schema: { type: string }
  *       - in: query
  *         name: page
@@ -127,7 +252,7 @@ router.get('/plan-vs-actual', (req, res) =>
  * @openapi
  * /api/reports/delayed-procurement:
  *   get:
- *     summary: Report #4 — Delayed and overdue procurement stages (Excel)
+ *     summary: Report #4 — Delayed Procurement (Excel)
  *     tags: [Reports]
  *     parameters:
  *       - in: query
@@ -137,7 +262,37 @@ router.get('/plan-vs-actual', (req, res) =>
  *         name: planId
  *         schema: { type: string }
  *       - in: query
- *         name: budgetYear
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: methodId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: region
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: activityStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: stageTypeId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: minDelayDays
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: delayBucket
+ *         schema: { type: string, enum: [1-7, 8-30, 31-60, 60+] }
+ *       - in: query
+ *         name: dateFrom
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateTo
  *         schema: { type: string }
  *       - in: query
  *         name: page
@@ -161,16 +316,43 @@ router.get('/delayed-procurement', (req, res) =>
  *     tags: [Reports]
  *     parameters:
  *       - in: query
- *         name: region
+ *         name: projectId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: planId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: activityId
  *         schema: { type: string }
  *       - in: query
  *         name: supplierId
  *         schema: { type: string }
  *       - in: query
- *         name: status
+ *         name: region
  *         schema: { type: string }
  *       - in: query
- *         name: projectId
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: contractStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: paymentStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: minAmount
+ *         schema: { type: number }
+ *       - in: query
+ *         name: maxAmount
+ *         schema: { type: number }
+ *       - in: query
+ *         name: dateFrom
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateTo
  *         schema: { type: string }
  *       - in: query
  *         name: page
@@ -200,8 +382,32 @@ router.get('/contract-payment', (req, res) =>
  *         required: true
  *         schema: { type: integer }
  *       - in: query
- *         name: dateBasis
- *         schema: { type: string, enum: [awarded, planned, completed], default: awarded }
+ *         name: quarter
+ *         schema: { type: integer, enum: [1, 2, 3, 4] }
+ *       - in: query
+ *         name: projectId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: methodId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: region
+ *         schema: { type: string }
+ *       - in: query
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 500 }
  *     responses:
  *       200:
  *         description: Excel file download
@@ -220,10 +426,28 @@ router.get('/monthly-summary', (req, res) =>
  *     tags: [Reports]
  *     parameters:
  *       - in: query
+ *         name: projectId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: region
+ *         schema: { type: string }
+ *       - in: query
  *         name: budgetYear
  *         schema: { type: string }
  *       - in: query
- *         name: projectId
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: methodId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: status
  *         schema: { type: string }
  *       - in: query
  *         name: page
