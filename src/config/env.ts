@@ -26,7 +26,7 @@ const schema = z
       .string()
       .min(1)
       .default(
-        'postgresql://postgres:postgres@localhost:5433/procurement_tracking?schema=public',
+        'postgresql://postgres:postgres@localhost:5432/procurement_tracking?schema=public',
       ),
     REDIS_URL: z.string().default('redis://localhost:6379'),
     FRONTEND_URL: z.string().default('http://localhost:3000'),
