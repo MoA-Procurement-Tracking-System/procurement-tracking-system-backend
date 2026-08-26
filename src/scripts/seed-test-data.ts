@@ -3,6 +3,23 @@ import { Role, UserRole } from '../generated/prisma/index.js';
 import { hashPassword } from '../modules/auth/auth.security.js';
 
 async function main() {
+  const passwordHash = await hashPassword('Password123!');
+
+  await prisma.user.upsert({
+    where: { email: 'yabfikre@gmail.com' },
+    update: { isActive: true, status: 'ACTIVE', passwordHash },
+    create: {
+      name: 'Yeabsira Fikre',
+      email: 'yabfikre@gmail.com',
+      displayName: 'Yeabsira Fikre',
+      role: Role.Administrator,
+      authRole: UserRole.ADMIN,
+      passwordHash,
+      status: 'ACTIVE',
+      isActive: true,
+    },
+  });
+
   console.log('--- Starting Test Data Seeding ---');
 
   // 1. Ensure we have at least one user
@@ -19,7 +36,7 @@ async function main() {
         displayName: 'System Administrator',
         role: Role.Administrator,
         authRole: UserRole.ADMIN,
-        passwordHash: await hashPassword('TestPassword123!'),
+        passwordHash: await hashPassword('Password123!'),
         status: 'ACTIVE',
         isActive: true,
       },
