@@ -5,20 +5,69 @@ import { hashPassword } from '../modules/auth/auth.security.js';
 async function main() {
   const passwordHash = await hashPassword('Password123!');
 
-  await prisma.user.upsert({
-    where: { email: 'yabfikre@gmail.com' },
-    update: { isActive: true, status: 'ACTIVE', passwordHash },
-    create: {
-      name: 'Yeabsira Fikre',
+  const coreAccounts = [
+    {
       email: 'yabfikre@gmail.com',
-      displayName: 'Yeabsira Fikre',
+      name: 'Yeabsira Fikre',
       role: Role.Administrator,
       authRole: UserRole.ADMIN,
-      passwordHash,
-      status: 'ACTIVE',
-      isActive: true,
     },
-  });
+    {
+      email: 'fikreyabsira@gmail.com',
+      name: 'Yeabsira Fikre',
+      role: Role.Administrator,
+      authRole: UserRole.ADMIN,
+    },
+    {
+      email: 'admin@moa.gov.et',
+      name: 'System Administrator',
+      role: Role.Administrator,
+      authRole: UserRole.ADMIN,
+    },
+    {
+      email: 'officer@moa.gov.et',
+      name: 'Abebe Bikila',
+      role: Role.ProcurementOfficer,
+      authRole: UserRole.OFFICER,
+    },
+    {
+      email: 'director@moa.gov.et',
+      name: 'Dr. Aster Kebede',
+      role: Role.ProcurementDirector,
+      authRole: UserRole.DIRECTOR,
+    },
+    {
+      email: 'genet@moa.gov.et',
+      name: 'Genet Tadesse',
+      role: Role.ManagementTeam,
+      authRole: UserRole.ENDORSING_COMMITTEE,
+    },
+  ];
+
+  for (const acc of coreAccounts) {
+    await prisma.user.upsert({
+      where: { email: acc.email },
+      update: {
+        name: acc.name,
+        displayName: acc.name,
+        role: acc.role,
+        authRole: acc.authRole,
+        passwordHash,
+        status: 'ACTIVE',
+        isActive: true,
+      },
+      create: {
+        name: acc.name,
+        email: acc.email,
+        displayName: acc.name,
+        role: acc.role,
+        authRole: acc.authRole,
+        passwordHash,
+        status: 'ACTIVE',
+        isActive: true,
+      },
+    });
+  }
 
   console.log('--- Starting Test Data Seeding ---');
 
