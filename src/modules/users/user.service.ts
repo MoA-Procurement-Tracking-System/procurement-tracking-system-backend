@@ -1,6 +1,8 @@
 import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/errors.js';
 import { hashPassword } from '../auth/auth.security.js';
+import { UserRole } from '../../generated/prisma/index.js';
+import type { Prisma } from '../../generated/prisma/index.js';
 import type {
   CreateUserInput,
   UpdateUserInput,
@@ -37,16 +39,47 @@ export async function listUsers(query: Partial<ListUsersQuery> = {}) {
   const skip = (page - 1) * pageSize;
   const { search, role, isActive } = query;
 
-  const where = {
-    ...(search && {
+  const conditions: Prisma.UserWhereInput[] = [];
+
+  if (search) {
+    conditions.push({
       OR: [
-        { name: { contains: search, mode: 'insensitive' as const } },
-        { email: { contains: search, mode: 'insensitive' as const } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
       ],
-    }),
-    ...(role && { role }),
-    ...(isActive !== undefined && { isActive }),
-  };
+    });
+  }
+
+  if (role) {
+    let authRoleVal: UserRole | undefined = undefined;
+    if (role === 'ProcurementOfficer') {
+      authRoleVal = UserRole.OFFICER;
+    } else if (role === 'ProcurementDirector' || role === 'ProjectManager') {
+      authRoleVal = UserRole.DIRECTOR;
+    } else if (role === 'ManagementTeam') {
+      authRoleVal = UserRole.ENDORSING_COMMITTEE;
+    } else if (role === 'Administrator') {
+      authRoleVal = UserRole.ADMIN;
+    }
+
+    if (authRoleVal) {
+      conditions.push({
+        OR: [{ role }, { authRole: authRoleVal }],
+      });
+    } else {
+      conditions.push({ role });
+    }
+  }
+
+  if (isActive !== undefined) {
+    const activeBool = String(isActive) === 'true' || isActive === true;
+    conditions.push({
+      isActive: activeBool,
+    });
+  }
+
+  const where: Prisma.UserWhereInput =
+    conditions.length > 0 ? { AND: conditions } : {};
 
   const [rawData, total] = await prisma.$transaction([
     prisma.user.findMany({

@@ -42,6 +42,30 @@ async function main() {
       role: Role.ManagementTeam,
       authRole: UserRole.ENDORSING_COMMITTEE,
     },
+    {
+      email: 'edna@gmail.com',
+      name: 'Edna Asmamaw',
+      role: Role.ManagementTeam,
+      authRole: UserRole.ENDORSING_COMMITTEE,
+    },
+    {
+      email: 'alula@gmail.com',
+      name: 'Alula Girma',
+      role: Role.ManagementTeam,
+      authRole: UserRole.ENDORSING_COMMITTEE,
+    },
+    {
+      email: 'worku@gmail.com',
+      name: 'Worku Bekele',
+      role: Role.ManagementTeam,
+      authRole: UserRole.ENDORSING_COMMITTEE,
+    },
+    {
+      email: 'dawit@gmail.com',
+      name: 'Dawit Haile',
+      role: Role.ManagementTeam,
+      authRole: UserRole.ENDORSING_COMMITTEE,
+    },
   ];
 
   for (const acc of coreAccounts) {

@@ -152,11 +152,17 @@ export const submitCommitteeVote = async (
   res: Response,
 ) => {
   try {
+    const voterIdOrEmail =
+      req.body.voterUserId ||
+      req.body.voterEmail ||
+      req.body.memberId ||
+      req.user?.id ||
+      '';
     const plan = await planService.submitCommitteeVoteService(
       req.params.id as string,
       req.body.decision,
       req.body.comment || '',
-      req.user?.id || 'test-user-id',
+      voterIdOrEmail,
     );
     res.status(200).json(plan);
   } catch (error: unknown) {

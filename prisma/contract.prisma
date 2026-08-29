@@ -2,6 +2,7 @@ model Supplier {
   id        String    @id @default(uuid())
   name      String    @unique
   tinNumber String    @unique
+  address   String?
   email     String?
   phone     String?
   status    String    @default("ACTIVE")
