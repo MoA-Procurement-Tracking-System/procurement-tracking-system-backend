@@ -49,24 +49,24 @@ CREATE TYPE "VoteDecision" AS ENUM ('APPROVE', 'REJECT');
 -- AlterEnum
 BEGIN;
 CREATE TYPE "ActivityStatus_new" AS ENUM ('PLANNED', 'IN_PROGRESS', 'CONTRACTED', 'COMPLETED', 'CANCELLED');
-ALTER TABLE "public"."ActivityStage" ALTER COLUMN "status" DROP DEFAULT;
-ALTER TABLE "public"."Activity" ALTER COLUMN "status" DROP DEFAULT;
+ALTER TABLE "ActivityStage" ALTER COLUMN "status" DROP DEFAULT;
+ALTER TABLE "Activity" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "Activity" ALTER COLUMN "status" TYPE "ActivityStatus_new" USING ("status"::text::"ActivityStatus_new");
 ALTER TABLE "ActivityStage" ALTER COLUMN "status" TYPE "ActivityStatus_new" USING ("status"::text::"ActivityStatus_new");
 ALTER TYPE "ActivityStatus" RENAME TO "ActivityStatus_old";
 ALTER TYPE "ActivityStatus_new" RENAME TO "ActivityStatus";
-DROP TYPE "public"."ActivityStatus_old";
+DROP TYPE "ActivityStatus_old";
 ALTER TABLE "Activity" ALTER COLUMN "status" SET DEFAULT 'PLANNED';
 COMMIT;
 
 -- AlterEnum
 BEGIN;
 CREATE TYPE "PlanStatus_new" AS ENUM ('DRAFT', 'SUBMITTED', 'WITH_COMMITTEE', 'APPROVED', 'REJECTED', 'UPDATE_REQUESTED');
-ALTER TABLE "public"."Plan" ALTER COLUMN "status" DROP DEFAULT;
+ALTER TABLE "Plan" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "Plan" ALTER COLUMN "status" TYPE "PlanStatus_new" USING ("status"::text::"PlanStatus_new");
 ALTER TYPE "PlanStatus" RENAME TO "PlanStatus_old";
 ALTER TYPE "PlanStatus_new" RENAME TO "PlanStatus";
-DROP TYPE "public"."PlanStatus_old";
+DROP TYPE "PlanStatus_old";
 ALTER TABLE "Plan" ALTER COLUMN "status" SET DEFAULT 'DRAFT';
 COMMIT;
 

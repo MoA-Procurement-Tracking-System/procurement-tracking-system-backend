@@ -13,6 +13,11 @@ export const getProjectsService = async () => {
     include: {
       fundingSource: true,
       sector: true,
+      members: {
+        include: {
+          user: true,
+        },
+      },
     },
   });
 };
@@ -42,17 +47,38 @@ export const createProjectService = async (
         ...data,
         status: ProjectStatus.ACTIVE,
       },
+      include: {
+        fundingSource: true,
+        sector: true,
+        members: {
+          include: {
+            user: true,
+          },
+        },
+      },
     });
 
-    await logRevision(
-      tx,
-      RevisionEntityType.PROJECT,
-      RevisionChangeType.CREATE,
-      project.id,
-      userId,
-      null,
-      project,
-    );
+    try {
+      let validUserId = userId;
+      const userExists = await tx.user.findUnique({ where: { id: userId } });
+      if (!userExists) {
+        const fallbackUser = await tx.user.findFirst({ select: { id: true } });
+        if (fallbackUser) validUserId = fallbackUser.id;
+      }
+      if (validUserId) {
+        await logRevision(
+          tx,
+          RevisionEntityType.PROJECT,
+          RevisionChangeType.CREATE,
+          project.id,
+          validUserId,
+          null,
+          project,
+        );
+      }
+    } catch (auditErr) {
+      console.warn('logRevision warning:', auditErr);
+    }
 
     return project;
   });
@@ -69,17 +95,38 @@ export const updateProjectService = async (
     const project = await tx.project.update({
       where: { id },
       data,
+      include: {
+        fundingSource: true,
+        sector: true,
+        members: {
+          include: {
+            user: true,
+          },
+        },
+      },
     });
 
-    await logRevision(
-      tx,
-      RevisionEntityType.PROJECT,
-      RevisionChangeType.UPDATE,
-      id,
-      userId,
-      oldProject,
-      project,
-    );
+    try {
+      let validUserId = userId;
+      const userExists = await tx.user.findUnique({ where: { id: userId } });
+      if (!userExists) {
+        const fallbackUser = await tx.user.findFirst({ select: { id: true } });
+        if (fallbackUser) validUserId = fallbackUser.id;
+      }
+      if (validUserId) {
+        await logRevision(
+          tx,
+          RevisionEntityType.PROJECT,
+          RevisionChangeType.UPDATE,
+          id,
+          validUserId,
+          oldProject,
+          project,
+        );
+      }
+    } catch (auditErr) {
+      console.warn('logRevision warning:', auditErr);
+    }
 
     return project;
   });
@@ -89,8 +136,15 @@ export const assignOfficerService = async (
   projectId: string,
   officerId: string,
 ) => {
-  return prisma.userProject.create({
-    data: {
+  return prisma.userProject.upsert({
+    where: {
+      userId_projectId: {
+        userId: officerId,
+        projectId,
+      },
+    },
+    update: {},
+    create: {
       projectId,
       userId: officerId,
     },

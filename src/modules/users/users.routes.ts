@@ -69,7 +69,7 @@ router.use(loadSession, requireAuthenticated, bridgeAuth);
  */
 router.get(
   '/',
-  authorize('Administrator'),
+  authorize('Administrator', 'ProcurementDirector'),
   validate(listUsersQuerySchema, 'query'),
   listUsersHandler,
 );
@@ -92,7 +92,7 @@ router.get(
  */
 router.get(
   '/:id',
-  authorize('Administrator'),
+  authorize('Administrator', 'ProcurementDirector'),
   validate(userIdParamSchema, 'params'),
   getUserHandler,
 );
