@@ -465,4 +465,72 @@ router.get('/project-officer-summary', (req, res) =>
   reportsController.projectOfficerSummary(req, res),
 );
 
+/**
+ * @openapi
+ * /api/reports/activity-milestone:
+ *   get:
+ *     summary: Report #9 — Activity Milestone Report (Excel)
+ *     description: >
+ *       One row per Activity. Fixed identity columns followed by dynamic
+ *       Planned/Actual date column pairs for each procurement stage milestone
+ *       found in the result set (ordered by stage sequence). Matches the
+ *       "Direct Selection" tracker format.
+ *     tags: [Reports]
+ *     parameters:
+ *       - in: query
+ *         name: projectId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: planId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: budgetYear
+ *         schema: { type: string }
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *       - in: query
+ *         name: methodId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: marketApproach
+ *         schema: { type: string }
+ *       - in: query
+ *         name: reviewType
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fundingSourceId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: officerId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: activityStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: contractStatus
+ *         schema: { type: string }
+ *       - in: query
+ *         name: supplierId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateFrom
+ *         schema: { type: string }
+ *       - in: query
+ *         name: dateTo
+ *         schema: { type: string }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 500 }
+ *     responses:
+ *       200:
+ *         description: Excel file download (.xlsx)
+ */
+router.get('/activity-milestone', (req, res) =>
+  reportsController.activityMilestone(req, res),
+);
+
 export default router;
