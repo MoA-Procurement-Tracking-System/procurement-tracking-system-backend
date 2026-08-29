@@ -9,7 +9,7 @@ ADD COLUMN     "contractNetOfVat" DECIMAL(15,2),
 ADD COLUMN     "plannedEndDate" TIMESTAMP(3),
 ADD COLUMN     "remarks" TEXT,
 ADD COLUMN     "signatureDate" TIMESTAMP(3),
-ADD COLUMN     "startDate" TIMESTAMP(3),
+-- "startDate" is already created in the init migration
 ADD COLUMN     "subcomponent" TEXT,
 ADD COLUMN     "vatRate" DOUBLE PRECISION;
 
