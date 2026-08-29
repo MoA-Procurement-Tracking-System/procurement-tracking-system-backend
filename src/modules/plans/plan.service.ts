@@ -12,14 +12,19 @@ import { logRevision } from '../../shared/audit/revision.service.js';
 export const getPlansService = async () => {
   return prisma.plan.findMany({
     where: { isActive: true },
-    include: { project: true, creator: true },
+    include: { project: true, creator: true, committeeVotes: true },
   });
 };
 
 export const getPlanByIdService = async (id: string) => {
   return prisma.plan.findUnique({
     where: { id },
-    include: { project: true, creator: true, activities: true },
+    include: {
+      project: true,
+      creator: true,
+      activities: true,
+      committeeVotes: true,
+    },
   });
 };
 

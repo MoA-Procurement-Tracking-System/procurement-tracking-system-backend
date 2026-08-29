@@ -19,9 +19,17 @@ async function main() {
         displayName: 'System Administrator',
         role: Role.Administrator,
         authRole: UserRole.ADMIN,
-        passwordHash: await hashPassword('TestPassword123!'),
+        passwordHash: await hashPassword('Password123!'),
         status: 'ACTIVE',
         isActive: true,
+      },
+    });
+  } else {
+    console.log('Resetting admin password to Password123!...');
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await hashPassword('Password123!'),
       },
     });
   }

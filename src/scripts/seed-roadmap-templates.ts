@@ -1,4 +1,5 @@
 import { prisma } from '../config/database.js';
+import * as fs from 'fs';
 
 interface StageDef {
   label: string;
@@ -446,7 +447,21 @@ export async function seedRoadmapTemplates() {
   console.log('🎉 All 9 Roadmap Stage Templates successfully seeded!');
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+
+const isMain = () => {
+  if (!process.argv[1]) return false;
+  try {
+    const mainPath = fs.realpathSync(process.argv[1]);
+    const modulePath = fileURLToPath(import.meta.url);
+    return mainPath === modulePath;
+  } catch {
+    return false;
+  }
+};
+
+if (isMain()) {
   seedRoadmapTemplates()
     .catch((err) => {
       console.error('❌ Error seeding roadmap templates:', err);
