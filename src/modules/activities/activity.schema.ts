@@ -114,11 +114,32 @@ export const createActivityStep3Schema = z.object({
   longitude: z.number().min(-180).max(180).optional(),
 });
 
+export const stagePayloadItemSchema = z.object({
+  name: z.string().optional(),
+  stageTypeId: z.string().optional(),
+  sequence: z.number().optional(),
+  plannedStartDate: z.coerce.date().optional(),
+  plannedEndDate: z.coerce.date().optional(),
+  currentTargetStartDate: z.coerce.date().optional(),
+  currentTargetEndDate: z.coerce.date().optional(),
+  plannedDays: z.number().optional(),
+  isNotApplicable: z.boolean().optional(),
+  notApplicable: z.boolean().optional(),
+  gregorianDate: z.string().optional(),
+  ethiopianDate: z.string().optional(),
+  status: z.string().optional(),
+  remarks: z.string().optional(),
+});
+
 // ─── Full create schema & update schema ───────────────────────────────────────
 
 const baseCreateActivitySchema = createActivityStep1Schema
   .extend(step2BaseSchema.shape)
-  .extend(createActivityStep3Schema.shape);
+  .extend(createActivityStep3Schema.shape)
+  .extend({
+    stages: z.array(stagePayloadItemSchema).optional(),
+    roadmap: z.array(stagePayloadItemSchema).optional(),
+  });
 
 export const createActivitySchema = baseCreateActivitySchema
   .refine(
@@ -173,14 +194,34 @@ export const updateActivitySchema = createActivityStep1Schema
 export const updateStageSchema = z.object({
   plannedStartDate: z.coerce.date().optional(),
   plannedEndDate: z.coerce.date().optional(),
+  currentTargetStartDate: z.coerce.date().optional(),
+  currentTargetEndDate: z.coerce.date().optional(),
   plannedDays: z.number().int().nonnegative().optional(),
   isNotApplicable: z.boolean().optional(),
+  status: z
+    .enum([
+      'NOT_STARTED',
+      'IN_PROGRESS',
+      'COMPLETED',
+      'DELAYED',
+      'NOT_APPLICABLE',
+    ])
+    .optional(),
   remarks: z.string().trim().max(2000).optional(),
 });
 
 export const updateStageActualSchema = z.object({
   actualStartDate: z.coerce.date().optional(),
   actualEndDate: z.coerce.date().optional(),
+  status: z
+    .enum([
+      'NOT_STARTED',
+      'IN_PROGRESS',
+      'COMPLETED',
+      'DELAYED',
+      'NOT_APPLICABLE',
+    ])
+    .optional(),
   remarks: z.string().trim().max(2000).optional(),
 });
 

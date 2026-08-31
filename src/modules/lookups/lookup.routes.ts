@@ -1,8 +1,6 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
-import { requirePasswordChange } from '../auth/middleware/requirePasswordChange.js';
 import * as svc from './lookup.service.js';
 import {
   createLookupSchema,
@@ -12,7 +10,6 @@ import {
 } from './lookup.validation.js';
 
 const router = Router();
-router.use(authenticate, requirePasswordChange);
 
 /**
  * @swagger

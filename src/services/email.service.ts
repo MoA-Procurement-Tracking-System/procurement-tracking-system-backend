@@ -32,7 +32,7 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
       secure,
       auth: {
         user: env.SMTP_USER,
-        pass: env.SMTP_PASS,
+        pass: env.SMTP_PASS?.replace(/\s+/g, ''),
       },
     });
 

@@ -57,7 +57,14 @@ function clearSessionCookie(res: import('express').Response) {
 }
 
 export const loadSession: RequestHandler = async (req, res, next) => {
-  const raw = cookieValue(req.headers.cookie, env.SESSION_COOKIE_NAME);
+  let raw: string | undefined = undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    raw = authHeader.slice(7).trim();
+  }
+  if (!raw) {
+    raw = cookieValue(req.headers.cookie, env.SESSION_COOKIE_NAME);
+  }
   if (!raw) {
     clearSessionCookie(res);
     res

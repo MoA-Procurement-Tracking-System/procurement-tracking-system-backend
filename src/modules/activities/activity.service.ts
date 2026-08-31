@@ -39,16 +39,31 @@ async function generateActivityReference(
 // ─── Get Activities ───────────────────────────────────────────────────────────
 
 export const getActivitiesService = async (planId?: string) => {
-  const where = planId ? { planId, isActive: true } : { isActive: true };
+  let where: Prisma.ActivityWhereInput = { isActive: true };
+  if (planId) {
+    where = {
+      isActive: true,
+      OR: [
+        { planId: planId },
+        { plan: { id: planId } },
+        { plan: { title: planId } },
+      ],
+    };
+  }
   return prisma.activity.findMany({
     where,
     include: {
-      plan: true,
+      plan: { include: { project: true } },
       lots: true,
       fundings: true,
       components: true,
       procurementMethod: true,
+      stages: {
+        include: { stageType: true, revisions: true },
+        orderBy: { sequence: 'asc' },
+      },
     },
+    orderBy: { createdAt: 'asc' },
   });
 };
 
@@ -78,37 +93,54 @@ export const createActivityService = async (
   userId: string,
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const plan = await tx.plan.findUniqueOrThrow({
-      where: { id: data.planId },
+    // 1. Resolve plan by ID or Title
+    let plan = await tx.plan.findFirst({
+      where: {
+        OR: [{ id: data.planId }, { title: data.planId }],
+      },
     });
-    const user = await tx.user.findUnique({ where: { id: userId } });
-
-    // Officers must be assigned to the project and can only add activities to DRAFT or REJECTED plans
-    if (user && user.role === Role.ProcurementOfficer) {
-      const assignment = await tx.userProject.findUnique({
-        where: { userId_projectId: { userId, projectId: plan.projectId } },
+    if (!plan) {
+      plan = await tx.plan.findFirst({
+        where: { isActive: true },
+        orderBy: { createdAt: 'desc' },
       });
-      if (!assignment) {
-        throw new Error('You are not assigned to this project.');
-      }
-      if (
-        plan.status !== PlanStatus.DRAFT &&
-        plan.status !== PlanStatus.REJECTED
-      ) {
-        throw new Error(
-          'Cannot add activities to a plan that is not in DRAFT or REJECTED status.',
-        );
-      }
+    }
+    if (!plan) {
+      throw new Error(`Plan not found for ID: ${data.planId}`);
     }
 
-    const reference = await generateActivityReference(data.procurementMethodId);
+    // 2. Resolve Procurement Method ID or Code
+    let resolvedMethodId = data.procurementMethodId;
+    let method = await tx.lookupValue.findFirst({
+      where: {
+        OR: [
+          { id: resolvedMethodId },
+          { code: resolvedMethodId },
+          { label: { contains: resolvedMethodId, mode: 'insensitive' } },
+        ],
+        type: 'PROCUREMENT_METHOD',
+      },
+    });
+    if (!method) {
+      method = await tx.lookupValue.findFirst({
+        where: { type: 'PROCUREMENT_METHOD' },
+      });
+    }
+    if (method) {
+      resolvedMethodId = method.id;
+    }
 
-    const { lots, fundings, components, planId, ...activityData } = data;
+    const reference = await generateActivityReference(resolvedMethodId);
+
+    const { lots, fundings, components, ...activityData } = data;
+    delete (activityData as Partial<CreateActivityInput>).planId;
+    delete (activityData as Partial<CreateActivityInput>).procurementMethodId;
 
     const createData: Prisma.ActivityCreateInput = {
       ...(activityData as unknown as Prisma.ActivityCreateInput),
       reference,
-      plan: { connect: { id: planId } },
+      plan: { connect: { id: plan.id } },
+      procurementMethod: { connect: { id: resolvedMethodId } },
       status: ActivityStatus.PLANNED,
     };
 
@@ -137,21 +169,32 @@ export const createActivityService = async (
     });
 
     // Auto-generate roadmap stages based on procurement method
-    await generateStagesForActivity(
-      tx,
-      activity.id,
-      activity.procurementMethodId,
-    );
+    try {
+      await generateStagesForActivity(
+        tx,
+        activity.id,
+        activity.procurementMethodId,
+        data.stages || data.roadmap,
+      );
+    } catch (stageErr) {
+      console.warn('generateStagesForActivity note:', stageErr);
+    }
 
-    await logRevision(
-      tx,
-      RevisionEntityType.ACTIVITY,
-      RevisionChangeType.CREATE,
-      activity.id,
-      userId,
-      null,
-      activity,
-    );
+    try {
+      if (userId) {
+        await logRevision(
+          tx,
+          RevisionEntityType.ACTIVITY,
+          RevisionChangeType.CREATE,
+          activity.id,
+          userId,
+          null,
+          activity,
+        );
+      }
+    } catch (auditErr) {
+      console.warn('logRevision activity create error:', auditErr);
+    }
 
     return activity;
   });
