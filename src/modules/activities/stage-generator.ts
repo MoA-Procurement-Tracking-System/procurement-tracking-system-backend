@@ -34,7 +34,7 @@ export async function generateStagesForActivity(
   }
 
   const baseDate = new Date('2026-09-05T00:00:00Z');
-  let activeOffset = 0;
+  const activeOffset = 0;
 
   // 2. Create the Stage records for the activity
   const stagesToCreate = templates.map((template, idx: number) => {
@@ -57,17 +57,14 @@ export async function generateStagesForActivity(
           custom.status === 'NOT_APPLICABLE' ||
           custom.status === 'Not Applicable',
         )
-      : isTemplateOptional;
+      : false; // Default to NOT_STARTED, never auto-mark N/A without officer input
 
     let plannedStart: Date | null = null;
     if (!isNA) {
       if (custom?.plannedStartDate || custom?.gregorianDate) {
         const rawDate = custom.plannedStartDate || custom.gregorianDate;
         plannedStart = new Date(rawDate!);
-      } else {
-        plannedStart = new Date(baseDate);
-        plannedStart.setUTCDate(baseDate.getUTCDate() + activeOffset * 24);
-        activeOffset++;
+        if (isNaN(plannedStart.getTime())) plannedStart = null;
       }
     }
 
