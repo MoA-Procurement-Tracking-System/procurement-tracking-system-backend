@@ -5,11 +5,12 @@ WORKDIR /usr/src/app
 
 # Install build dependencies
 COPY package*.json ./
+COPY prisma.config.ts ./
+COPY prisma/ ./prisma/
 RUN npm ci
 
-# Copy source code and Prisma files
+# Copy source code
 COPY tsconfig.json ./
-COPY prisma/ ./prisma/
 COPY src/ ./src/
 
 # Generate Prisma Client and compile TypeScript
@@ -23,14 +24,17 @@ WORKDIR /usr/src/app
 
 ENV NODE_ENV=production
 
-# Install production-only dependencies
+# Copy package files and prisma schema for postinstall script
 COPY package*.json ./
+COPY prisma.config.ts ./
+COPY prisma/ ./prisma/
+
+# Install production-only dependencies
 RUN npm ci --omit=dev
 
 # Copy generated Prisma Client and compiled assets from build stage
 COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/src/generated ./src/generated
-COPY --from=builder /usr/src/app/prisma ./prisma
 
 # Expose server port
 EXPOSE 5000
