@@ -29,7 +29,15 @@ export class ContractsController {
   async createContract(req: Request, res: Response): Promise<void> {
     try {
       const validated = createContractSchema.parse(req.body);
-      const contract = await contractsService.createContract(validated);
+      const userId =
+        (
+          req as unknown as {
+            auth?: { user?: { id?: string } };
+            user?: { id?: string };
+          }
+        ).auth?.user?.id ||
+        (req as unknown as { user?: { id?: string } }).user?.id;
+      const contract = await contractsService.createContract(validated, userId);
       res.status(201).json(contract);
     } catch (error: unknown) {
       if (error instanceof ZodError) {
@@ -76,7 +84,19 @@ export class ContractsController {
         return;
       }
       const validatedBody = updateContractSchema.parse(req.body);
-      const updated = await contractsService.updateContract(id, validatedBody);
+      const userId =
+        (
+          req as unknown as {
+            auth?: { user?: { id?: string } };
+            user?: { id?: string };
+          }
+        ).auth?.user?.id ||
+        (req as unknown as { user?: { id?: string } }).user?.id;
+      const updated = await contractsService.updateContract(
+        id,
+        validatedBody,
+        userId,
+      );
       res.status(200).json(updated);
     } catch (error: unknown) {
       if (error instanceof ZodError) {
@@ -118,7 +138,19 @@ export class ContractsController {
     try {
       const id = String(req.params.id);
       const validated = createPaymentSchema.parse(req.body);
-      const result = await contractsService.recordPayment(id, validated);
+      const userId =
+        (
+          req as unknown as {
+            auth?: { user?: { id?: string } };
+            user?: { id?: string };
+          }
+        ).auth?.user?.id ||
+        (req as unknown as { user?: { id?: string } }).user?.id;
+      const result = await contractsService.recordPayment(
+        id,
+        validated,
+        userId,
+      );
       res.status(201).json(result);
     } catch (error: unknown) {
       if (error instanceof ZodError) {

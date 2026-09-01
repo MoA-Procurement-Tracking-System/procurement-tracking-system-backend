@@ -9,6 +9,7 @@ import {
 } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
+import { createAuditLog } from '../../shared/audit/audit-logger.js';
 import { generateStagesForActivity } from './stage-generator.js';
 import type {
   CreateActivityInput,
@@ -192,6 +193,21 @@ export const createActivityService = async (
           activity,
         );
       }
+      await createAuditLog(
+        {
+          userId,
+          action: 'ACTIVITY_CREATED',
+          entityType: 'ACTIVITY',
+          entityId: activity.id,
+          changes: {
+            reference: activity.reference,
+            estimatedBudget: activity.estimatedBudget,
+            currency: activity.currency,
+            description: activity.description,
+          },
+        },
+        tx,
+      );
     } catch (auditErr) {
       console.warn('logRevision activity create error:', auditErr);
     }
@@ -281,6 +297,22 @@ export const updateActivityService = async (
       userId,
       oldActivity,
       activity,
+    );
+
+    await createAuditLog(
+      {
+        userId,
+        action: 'ACTIVITY_UPDATED',
+        entityType: 'ACTIVITY',
+        entityId: activity.id,
+        changes: {
+          reference: activity.reference,
+          previousEstimatedBudget: oldActivity.estimatedBudget,
+          newEstimatedBudget: activity.estimatedBudget,
+          currency: activity.currency,
+        },
+      },
+      tx,
     );
 
     return activity;
