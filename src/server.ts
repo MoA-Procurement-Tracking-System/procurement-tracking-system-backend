@@ -4,6 +4,7 @@ import { prisma } from './config/database.js';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { registerBackupJob } from './jobs/backup.job.js';
+import { registerCommitteeReminderJob } from './jobs/committee-reminder.job.js';
 
 const server = createServer(app);
 
@@ -26,6 +27,7 @@ server.listen(env.PORT, () => {
   );
   // Register scheduled jobs after the server is live
   registerBackupJob();
+  registerCommitteeReminderJob();
 });
 
 process.on('uncaughtException', (err) => {

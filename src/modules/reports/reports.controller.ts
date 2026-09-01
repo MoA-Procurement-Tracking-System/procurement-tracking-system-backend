@@ -13,7 +13,6 @@ import {
   activityMilestoneSchema,
 } from './reports.schema.js';
 import type { UserRole } from '../../generated/prisma/index.js';
-import { prisma } from '../../config/database.js';
 
 const service = new ReportsService();
 
@@ -38,14 +37,7 @@ async function getActiveUser(req: Request) {
       authRole: req.auth.user.role as UserRole,
     };
   }
-  // Development fallback: look up the seeded admin user
-  const admin = await prisma.user.findFirst({
-    where: { email: 'admin@moa.gov.et' },
-  });
-  return {
-    id: admin?.id || 'test-user-id',
-    authRole: (admin?.authRole || 'ADMIN') as UserRole,
-  };
+  throw new Error('Sign in is required.');
 }
 
 export class ReportsController {

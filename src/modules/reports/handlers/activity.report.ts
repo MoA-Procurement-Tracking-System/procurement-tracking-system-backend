@@ -537,29 +537,6 @@ export async function streamActivityMilestone(
     take: limit,
   });
 
-  // ── Build global stage-type column list (same columns on every sheet) ───────
-  type StageTypeMeta = { id: string; label: string; avgSeq: number };
-  const stageTypeMap = new Map<string, StageTypeMeta>();
-
-  for (const a of activities) {
-    for (const s of a.stages) {
-      const existing = stageTypeMap.get(s.stageTypeId);
-      if (!existing) {
-        stageTypeMap.set(s.stageTypeId, {
-          id: s.stageTypeId,
-          label: s.stageType.label,
-          avgSeq: s.sequence,
-        });
-      } else {
-        existing.avgSeq = (existing.avgSeq + s.sequence) / 2;
-      }
-    }
-  }
-
-  const orderedStageTypes = Array.from(stageTypeMap.values()).sort(
-    (a, b) => a.avgSeq - b.avgSeq,
-  );
-
   // ── Group activities by procurement method (each group → one sheet) ─────────
   type MethodGroup = { label: string; activities: typeof activities };
   const methodGroups = new Map<string, MethodGroup>();

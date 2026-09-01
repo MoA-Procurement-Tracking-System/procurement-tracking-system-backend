@@ -33,13 +33,8 @@ export async function generateStagesForActivity(
     return [];
   }
 
-  const baseDate = new Date('2026-09-05T00:00:00Z');
-  const activeOffset = 0;
-
   // 2. Create the Stage records for the activity
   const stagesToCreate = templates.map((template, idx: number) => {
-    const isTemplateOptional = !template.isRequired || template.isConditional;
-
     const custom = customStages?.find(
       (cs, csIdx) =>
         cs.sequence === template.sequence ||

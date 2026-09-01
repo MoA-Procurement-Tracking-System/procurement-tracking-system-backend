@@ -183,6 +183,7 @@ router.post(
  * /api/plans/{id}/send-to-committee:
  *   post:
  *     summary: Send a submitted plan to the endorsing committee
+ *     description: Changes plan status to WITH_COMMITTEE and emails all committee members with a link to vote. Director can optionally set a voting deadline.
  *     tags: [Plans]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -190,8 +191,19 @@ router.post(
  *         name: id
  *         required: true
  *         schema: { type: string }
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               voteDeadlineHours:
+ *                 type: number
+ *                 description: Number of hours from now until the voting deadline (e.g. 48 for 2 days)
+ *                 example: 48
  *     responses:
- *       200: { description: Plan sent to committee }
+ *       200: { description: Plan sent to committee, emails dispatched }
  */
 router.post(
   '/:id/send-to-committee',
