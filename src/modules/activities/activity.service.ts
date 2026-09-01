@@ -287,46 +287,71 @@ export const updateActivityService = async (
   });
 };
 
+// ─── Stage Status Calculation ────────────────────────────────────────────────
+function determineStageStatus(stage: {
+  isNotApplicable: boolean;
+  actualStartDate: Date | null;
+  actualEndDate: Date | null;
+  currentTargetEndDate: Date | null;
+}): StageStatus {
+  if (stage.isNotApplicable) {
+    return StageStatus.NOT_APPLICABLE;
+  }
+  if (stage.actualEndDate) {
+    return StageStatus.COMPLETED;
+  }
+  if (stage.actualStartDate) {
+    return StageStatus.IN_PROGRESS;
+  }
+  if (stage.currentTargetEndDate && stage.currentTargetEndDate < new Date()) {
+    return StageStatus.DELAYED;
+  }
+  return StageStatus.NOT_STARTED;
+}
+
 // ─── Stage: Update Planning Dates ────────────────────────────────────────────
 
 export const updateStageService = async (
   stageId: string,
   data: UpdateStageInput,
 ) => {
-  const updateData: Prisma.StageUpdateInput = {};
-  if (data.plannedStartDate !== undefined) {
-    updateData.plannedStartDate = data.plannedStartDate;
-    if (data.currentTargetStartDate === undefined) {
+  return prisma.$transaction(async (tx) => {
+    const stage = await tx.stage.findUniqueOrThrow({ where: { id: stageId } });
+
+    const updateData: Prisma.StageUpdateInput = {};
+    if (data.plannedStartDate !== undefined) {
+      updateData.plannedStartDate = data.plannedStartDate;
       updateData.currentTargetStartDate = data.plannedStartDate;
     }
-  }
-  if (data.plannedEndDate !== undefined) {
-    updateData.plannedEndDate = data.plannedEndDate;
-    if (data.currentTargetEndDate === undefined) {
+    if (data.plannedEndDate !== undefined) {
+      updateData.plannedEndDate = data.plannedEndDate;
       updateData.currentTargetEndDate = data.plannedEndDate;
     }
-  }
-  if (data.currentTargetStartDate !== undefined) {
-    updateData.currentTargetStartDate = data.currentTargetStartDate;
-  }
-  if (data.currentTargetEndDate !== undefined) {
-    updateData.currentTargetEndDate = data.currentTargetEndDate;
-  }
-  if (data.plannedDays !== undefined) updateData.plannedDays = data.plannedDays;
-  if (data.isNotApplicable !== undefined) {
-    updateData.isNotApplicable = data.isNotApplicable;
-    if (data.isNotApplicable) {
-      updateData.status = StageStatus.NOT_APPLICABLE;
-    }
-  }
-  if (data.status !== undefined) {
-    updateData.status = data.status as StageStatus;
-  }
-  if (data.remarks !== undefined) updateData.remarks = data.remarks;
+    if (data.plannedDays !== undefined)
+      updateData.plannedDays = data.plannedDays;
+    if (data.isNotApplicable !== undefined)
+      updateData.isNotApplicable = data.isNotApplicable;
+    if (data.remarks !== undefined) updateData.remarks = data.remarks;
 
-  return prisma.stage.update({
-    where: { id: stageId },
-    data: updateData,
+    // Pre-calculate status
+    const tempStage = {
+      isNotApplicable:
+        data.isNotApplicable !== undefined
+          ? data.isNotApplicable
+          : stage.isNotApplicable,
+      actualStartDate: stage.actualStartDate,
+      actualEndDate: stage.actualEndDate,
+      currentTargetEndDate:
+        data.plannedEndDate !== undefined
+          ? data.plannedEndDate
+          : stage.currentTargetEndDate,
+    };
+    updateData.status = determineStageStatus(tempStage);
+
+    return tx.stage.update({
+      where: { id: stageId },
+      data: updateData,
+    });
   });
 };
 
@@ -336,26 +361,61 @@ export const updateStageActualService = async (
   stageId: string,
   data: UpdateStageActualInput,
 ) => {
-  const updateData: Prisma.StageUpdateInput = {};
-  if (data.actualStartDate !== undefined)
-    updateData.actualStartDate = data.actualStartDate;
-  if (data.actualEndDate !== undefined)
-    updateData.actualEndDate = data.actualEndDate;
-  if (data.status !== undefined) {
-    updateData.status = data.status as StageStatus;
-  } else if (data.actualEndDate !== undefined && data.actualEndDate !== null) {
-    updateData.status = StageStatus.COMPLETED;
-  } else if (
-    data.actualStartDate !== undefined &&
-    data.actualStartDate !== null
-  ) {
-    updateData.status = StageStatus.IN_PROGRESS;
-  }
-  if (data.remarks !== undefined) updateData.remarks = data.remarks;
+  return prisma.$transaction(async (tx) => {
+    const stage = await tx.stage.findUniqueOrThrow({
+      where: { id: stageId },
+      include: { activity: { include: { stages: true } } },
+    });
 
-  return prisma.stage.update({
-    where: { id: stageId },
-    data: updateData,
+    const newStartDate =
+      data.actualStartDate !== undefined
+        ? data.actualStartDate
+        : stage.actualStartDate;
+    const newEndDate =
+      data.actualEndDate !== undefined
+        ? data.actualEndDate
+        : stage.actualEndDate;
+
+    // Enforce Date order: Actual completion cannot precede start date or preceding stages' actual completions
+    if (newEndDate) {
+      const end = new Date(newEndDate);
+      if (newStartDate && new Date(newStartDate) > end) {
+        throw new Error('Actual end date cannot precede actual start date.');
+      }
+      for (const other of stage.activity.stages) {
+        if (
+          other.sequence < stage.sequence &&
+          !other.isNotApplicable &&
+          other.actualEndDate &&
+          new Date(other.actualEndDate) > end
+        ) {
+          throw new Error(
+            `Actual end date cannot precede the actual completion of preceding stage (${other.sequence}).`,
+          );
+        }
+      }
+    }
+
+    const updateData: Prisma.StageUpdateInput = {};
+    if (data.actualStartDate !== undefined)
+      updateData.actualStartDate = data.actualStartDate;
+    if (data.actualEndDate !== undefined)
+      updateData.actualEndDate = data.actualEndDate;
+    if (data.remarks !== undefined) updateData.remarks = data.remarks;
+
+    // Sync status
+    const tempStage = {
+      isNotApplicable: stage.isNotApplicable,
+      actualStartDate: newStartDate,
+      actualEndDate: newEndDate,
+      currentTargetEndDate: stage.currentTargetEndDate,
+    };
+    updateData.status = determineStageStatus(tempStage);
+
+    return tx.stage.update({
+      where: { id: stageId },
+      data: updateData,
+    });
   });
 };
 
@@ -399,6 +459,18 @@ export const replanStageService = async (
     if (data.revisedEndDate !== undefined) {
       stageUpdateData.currentTargetEndDate = data.revisedEndDate;
     }
+
+    // Pre-calculate status with new target end date
+    const tempStage = {
+      isNotApplicable: stage.isNotApplicable,
+      actualStartDate: stage.actualStartDate,
+      actualEndDate: stage.actualEndDate,
+      currentTargetEndDate:
+        data.revisedEndDate !== undefined
+          ? data.revisedEndDate
+          : stage.currentTargetEndDate,
+    };
+    stageUpdateData.status = determineStageStatus(tempStage);
 
     return tx.stage.update({
       where: { id: stage.id },

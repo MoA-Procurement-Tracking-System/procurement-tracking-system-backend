@@ -10,9 +10,9 @@ import {
   contractPaymentSchema,
   monthlySummarySchema,
   projectOfficerSummarySchema,
+  activityMilestoneSchema,
 } from './reports.schema.js';
 import type { UserRole } from '../../generated/prisma/index.js';
-import { prisma } from '../../config/database.js';
 
 const service = new ReportsService();
 
@@ -37,14 +37,7 @@ async function getActiveUser(req: Request) {
       authRole: req.auth.user.role as UserRole,
     };
   }
-  // Development fallback: look up the seeded admin user
-  const admin = await prisma.user.findFirst({
-    where: { email: 'admin@moa.gov.et' },
-  });
-  return {
-    id: admin?.id || 'test-user-id',
-    authRole: (admin?.authRole || 'ADMIN') as UserRole,
-  };
+  throw new Error('Sign in is required.');
 }
 
 export class ReportsController {
@@ -168,6 +161,22 @@ export class ReportsController {
       }
       const query = projectOfficerSummarySchema.parse(req.query);
       await service.streamProjectOfficerSummary(res, query);
+    } catch (e) {
+      handleError(res, e);
+    }
+  }
+
+  // Report #9
+  async activityMilestone(req: Request, res: Response): Promise<void> {
+    try {
+      const query = activityMilestoneSchema.parse(req.query);
+      const user = await getActiveUser(req);
+      await service.streamActivityMilestone(
+        res,
+        query,
+        user.id,
+        isDirectorOrAdmin(user.authRole),
+      );
     } catch (e) {
       handleError(res, e);
     }

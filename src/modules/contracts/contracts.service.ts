@@ -62,6 +62,20 @@ export class ContractsService {
         throw new Error('Contract not found');
       }
 
+      const currentPaidAmount = Number(contract.paidAmount);
+      const limit = Number(
+        contract.contractAmountWithVat || contract.totalValue,
+      );
+
+      const updatedPaidAmount = currentPaidAmount + data.amount;
+      const updatedRemainingValue = limit - updatedPaidAmount;
+
+      if (updatedPaidAmount > limit) {
+        throw new Error(
+          `Total paid amount (${updatedPaidAmount}) would exceed the contract limit (${limit}).`,
+        );
+      }
+
       const payment = await tx.payment.create({
         data: {
           contractId,
@@ -71,12 +85,6 @@ export class ContractsService {
           paymentDate: data.paymentDate ?? new Date(),
         },
       });
-
-      const currentPaidAmount = Number(contract.paidAmount);
-      const currentTotalValue = Number(contract.totalValue);
-
-      const updatedPaidAmount = currentPaidAmount + data.amount;
-      const updatedRemainingValue = currentTotalValue - updatedPaidAmount;
 
       await tx.contract.update({
         where: { id: contractId },
@@ -106,7 +114,6 @@ export class ContractsService {
   async updateContract(id: string, data: UpdateContractDto) {
     const { isDeleted, ...updateData } = data;
 
-    // Build data object without keys that evaluate to undefined
     const formattedData: Prisma.ContractUpdateInput = {};
 
     if (updateData.contractNo !== undefined)
@@ -130,12 +137,10 @@ export class ContractsService {
   }
 
   async getContractPayments(id: string, status?: string) {
-    // Define where using Prisma's PaymentWhereInput type
     const where: Prisma.PaymentWhereInput = {
       contractId: id,
     };
 
-    // Safely check and cast status to the enum type
     if (
       status &&
       Object.values(PaymentStatus).includes(status as PaymentStatus)

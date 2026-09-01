@@ -117,9 +117,14 @@ export const sendToCommittee = async (
   res: Response,
 ) => {
   try {
+    const voteDeadlineHours =
+      typeof req.body.voteDeadlineHours === 'number'
+        ? req.body.voteDeadlineHours
+        : undefined;
     const plan = await planService.sendToCommitteeService(
       req.params.id as string,
       req.user?.id || 'test-user-id',
+      voteDeadlineHours,
     );
     res.status(200).json(plan);
   } catch (error: unknown) {

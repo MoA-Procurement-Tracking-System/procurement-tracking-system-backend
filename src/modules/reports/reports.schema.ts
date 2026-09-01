@@ -158,3 +158,22 @@ export const projectOfficerSummarySchema = z.object({
 export type ProjectOfficerSummaryQuery = z.infer<
   typeof projectOfficerSummarySchema
 >;
+
+// ─── Report #9: Activity Milestone Report ────────────────────────────────────
+export const activityMilestoneSchema = z.object({
+  projectId: z.string().optional(),
+  planId: z.string().optional(),
+  budgetYear: z.string().optional(),
+  category: z.string().optional(),
+  methodId: z.string().optional(),
+  marketApproach: z.string().optional(),
+  reviewType: z.string().optional(),
+  fundingSourceId: z.string().optional(),
+  officerId: z.string().optional(),
+  activityStatus: z.string().optional(),
+  contractStatus: z.string().optional(),
+  supplierId: z.string().optional(),
+  ...dateRangeParams,
+  ...pageParams,
+});
+export type ActivityMilestoneQuery = z.infer<typeof activityMilestoneSchema>;

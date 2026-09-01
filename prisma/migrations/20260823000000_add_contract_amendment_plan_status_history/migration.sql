@@ -1,3 +1,6 @@
+-- DropTable if exists due to conflict in init migration
+DROP TABLE IF EXISTS "ContractAmendment" CASCADE;
+
 -- CreateTable
 CREATE TABLE "ContractAmendment" (
     "id" TEXT NOT NULL,
@@ -43,23 +46,23 @@ CREATE INDEX "PlanStatusHistory_changedById_idx" ON "PlanStatusHistory"("changed
 -- CreateIndex
 CREATE INDEX "PlanStatusHistory_createdAt_idx" ON "PlanStatusHistory"("createdAt");
 
--- CreateIndex
-CREATE INDEX "Contract_activityId_idx" ON "Contract"("activityId");
+-- CreateIndex (Commented out as it's already created in the init migration)
+-- CREATE INDEX "Contract_activityId_idx" ON "Contract"("activityId");
 
--- CreateIndex
-CREATE INDEX "Contract_supplierId_idx" ON "Contract"("supplierId");
+-- CreateIndex (Commented out as it's already created in the init migration)
+-- CREATE INDEX "Contract_supplierId_idx" ON "Contract"("supplierId");
 
--- CreateIndex
-CREATE INDEX "Contract_status_idx" ON "Contract"("status");
+-- CreateIndex (Commented out as the status column does not exist yet at this point in the migrations)
+-- CREATE INDEX "Contract_status_idx" ON "Contract"("status");
 
--- CreateIndex
-CREATE INDEX "Payment_contractId_idx" ON "Payment"("contractId");
+-- CreateIndex (Commented out as it's already created in the init migration)
+-- CREATE INDEX "Payment_contractId_idx" ON "Payment"("contractId");
 
--- CreateIndex
-CREATE INDEX "Payment_paymentDate_idx" ON "Payment"("paymentDate");
+-- CreateIndex (Commented out as it's already created in the init migration)
+-- CREATE INDEX "Payment_paymentDate_idx" ON "Payment"("paymentDate");
 
--- CreateIndex
-CREATE INDEX "Payment_status_idx" ON "Payment"("status");
+-- CreateIndex (Commented out as the status column does not exist yet at this point in the migrations)
+-- CREATE INDEX "Payment_status_idx" ON "Payment"("status");
 
 -- AddForeignKey
 ALTER TABLE "ContractAmendment" ADD CONSTRAINT "ContractAmendment_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE CASCADE ON UPDATE CASCADE;
