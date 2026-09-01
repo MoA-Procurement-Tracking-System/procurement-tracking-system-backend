@@ -1,0 +1,52 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement-app
+    restart: always
+    ports:
+      - '5000:5000'
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql://postgres:postgres_prod_pass@postgres:5432/procurement?schema=public
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: procurement-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_prod_pass
+      POSTGRES_DB: procurement
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d procurement"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: procurement-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_prod_data:/data
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
