@@ -431,7 +431,7 @@ DROP TABLE IF EXISTS "ContractMilestone";
 DROP TABLE IF EXISTS "ContractSecurity";
 
 -- CreateTable
-CREATE TABLE "ActivityLot" (
+CREATE TABLE IF NOT EXISTS "ActivityLot" (
     "id" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "lotNumber" TEXT NOT NULL,
@@ -444,7 +444,7 @@ CREATE TABLE "ActivityLot" (
 );
 
 -- CreateTable
-CREATE TABLE "ActivityFunding" (
+CREATE TABLE IF NOT EXISTS "ActivityFunding" (
     "id" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "fundingSource" TEXT NOT NULL,
@@ -457,7 +457,7 @@ CREATE TABLE "ActivityFunding" (
 );
 
 -- CreateTable
-CREATE TABLE "ActivityComponent" (
+CREATE TABLE IF NOT EXISTS "ActivityComponent" (
     "id" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "component" TEXT NOT NULL,
@@ -470,7 +470,7 @@ CREATE TABLE "ActivityComponent" (
 );
 
 -- CreateTable
-CREATE TABLE "CommitteeVote" (
+CREATE TABLE IF NOT EXISTS "CommitteeVote" (
     "id" TEXT NOT NULL,
     "planId" TEXT NOT NULL,
     "round" INTEGER NOT NULL,
@@ -483,7 +483,7 @@ CREATE TABLE "CommitteeVote" (
 );
 
 -- CreateTable
-CREATE TABLE "Stage" (
+CREATE TABLE IF NOT EXISTS "Stage" (
     "id" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "stageTypeId" TEXT NOT NULL,
@@ -505,7 +505,7 @@ CREATE TABLE "Stage" (
 );
 
 -- CreateTable
-CREATE TABLE "StageRevision" (
+CREATE TABLE IF NOT EXISTS "StageRevision" (
     "id" TEXT NOT NULL,
     "stageId" TEXT NOT NULL,
     "revisionNo" INTEGER NOT NULL,
@@ -519,148 +519,106 @@ CREATE TABLE "StageRevision" (
 );
 
 -- CreateIndex
-CREATE INDEX "ActivityLot_activityId_idx" ON "ActivityLot"("activityId");
+CREATE INDEX IF NOT EXISTS "ActivityLot_activityId_idx" ON "ActivityLot"("activityId");
 
 -- CreateIndex
-CREATE INDEX "ActivityFunding_activityId_idx" ON "ActivityFunding"("activityId");
+CREATE INDEX IF NOT EXISTS "ActivityFunding_activityId_idx" ON "ActivityFunding"("activityId");
 
 -- CreateIndex
-CREATE INDEX "ActivityComponent_activityId_idx" ON "ActivityComponent"("activityId");
+CREATE INDEX IF NOT EXISTS "ActivityComponent_activityId_idx" ON "ActivityComponent"("activityId");
 
 -- CreateIndex
-CREATE INDEX "CommitteeVote_planId_idx" ON "CommitteeVote"("planId");
+CREATE INDEX IF NOT EXISTS "CommitteeVote_planId_idx" ON "CommitteeVote"("planId");
 
 -- CreateIndex
-CREATE INDEX "CommitteeVote_memberId_idx" ON "CommitteeVote"("memberId");
+CREATE INDEX IF NOT EXISTS "CommitteeVote_memberId_idx" ON "CommitteeVote"("memberId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CommitteeVote_planId_round_memberId_key" ON "CommitteeVote"("planId", "round", "memberId");
+CREATE UNIQUE INDEX IF NOT EXISTS "CommitteeVote_planId_round_memberId_key" ON "CommitteeVote"("planId", "round", "memberId");
 
 -- CreateIndex
-CREATE INDEX "Stage_activityId_idx" ON "Stage"("activityId");
+CREATE INDEX IF NOT EXISTS "Stage_activityId_idx" ON "Stage"("activityId");
 
 -- CreateIndex
-CREATE INDEX "Stage_stageTypeId_idx" ON "Stage"("stageTypeId");
+CREATE INDEX IF NOT EXISTS "Stage_stageTypeId_idx" ON "Stage"("stageTypeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Stage_activityId_sequence_key" ON "Stage"("activityId", "sequence");
+CREATE UNIQUE INDEX IF NOT EXISTS "Stage_activityId_sequence_key" ON "Stage"("activityId", "sequence");
 
 -- CreateIndex
-CREATE INDEX "StageRevision_stageId_idx" ON "StageRevision"("stageId");
+CREATE INDEX IF NOT EXISTS "StageRevision_stageId_idx" ON "StageRevision"("stageId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StageRevision_stageId_revisionNo_key" ON "StageRevision"("stageId", "revisionNo");
+CREATE UNIQUE INDEX IF NOT EXISTS "StageRevision_stageId_revisionNo_key" ON "StageRevision"("stageId", "revisionNo");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Activity_reference_key" ON "Activity"("reference");
+CREATE UNIQUE INDEX IF NOT EXISTS "Activity_reference_key" ON "Activity"("reference");
 
 -- CreateIndex
-CREATE INDEX "Activity_procurementMethodId_idx" ON "Activity"("procurementMethodId");
+CREATE INDEX IF NOT EXISTS "Activity_procurementMethodId_idx" ON "Activity"("procurementMethodId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Contract_contractNo_key" ON "Contract"("contractNo");
+CREATE UNIQUE INDEX IF NOT EXISTS "Contract_contractNo_key" ON "Contract"("contractNo");
 
 -- CreateIndex
-CREATE INDEX "Contract_status_idx" ON "Contract"("status");
+CREATE INDEX IF NOT EXISTS "Contract_status_idx" ON "Contract"("status");
 
 -- CreateIndex
-CREATE INDEX "Payment_status_idx" ON "Payment"("status");
+CREATE INDEX IF NOT EXISTS "Payment_status_idx" ON "Payment"("status");
 
 -- CreateIndex
-CREATE INDEX "Project_status_idx" ON "Project"("status");
+CREATE INDEX IF NOT EXISTS "Project_status_idx" ON "Project"("status");
 
 -- CreateIndex
-CREATE INDEX "Project_fundingSourceId_idx" ON "Project"("fundingSourceId");
+CREATE INDEX IF NOT EXISTS "Project_fundingSourceId_idx" ON "Project"("fundingSourceId");
 
 -- CreateIndex
-CREATE INDEX "Project_sectorId_idx" ON "Project"("sectorId");
+CREATE INDEX IF NOT EXISTS "Project_sectorId_idx" ON "Project"("sectorId");
 
 -- CreateIndex
-CREATE INDEX "Revision_projectId_idx" ON "Revision"("projectId");
+CREATE INDEX IF NOT EXISTS "Revision_projectId_idx" ON "Revision"("projectId");
 
 -- CreateIndex
-CREATE INDEX "Revision_planId_idx" ON "Revision"("planId");
+CREATE INDEX IF NOT EXISTS "Revision_planId_idx" ON "Revision"("planId");
 
 -- CreateIndex
-CREATE INDEX "Revision_activityId_idx" ON "Revision"("activityId");
+CREATE INDEX IF NOT EXISTS "Revision_activityId_idx" ON "Revision"("activityId");
 
 -- CreateIndex
-CREATE INDEX "Revision_stageId_idx" ON "Revision"("stageId");
+CREATE INDEX IF NOT EXISTS "Revision_stageId_idx" ON "Revision"("stageId");
 
 -- CreateIndex
-CREATE INDEX "StageTemplate_procurementMethodId_idx" ON "StageTemplate"("procurementMethodId");
+CREATE INDEX IF NOT EXISTS "StageTemplate_procurementMethodId_idx" ON "StageTemplate"("procurementMethodId");
 
 -- CreateIndex
-CREATE INDEX "StageTemplate_stageTypeId_idx" ON "StageTemplate"("stageTypeId");
+CREATE INDEX IF NOT EXISTS "StageTemplate_stageTypeId_idx" ON "StageTemplate"("stageTypeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StageTemplate_procurementMethodId_sequence_key" ON "StageTemplate"("procurementMethodId", "sequence");
+CREATE UNIQUE INDEX IF NOT EXISTS "StageTemplate_procurementMethodId_sequence_key" ON "StageTemplate"("procurementMethodId", "sequence");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Supplier_tinNumber_key" ON "Supplier"("tinNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "Supplier_tinNumber_key" ON "Supplier"("tinNumber");
 
--- AddForeignKey
-ALTER TABLE "Activity" ADD CONSTRAINT "Activity_procurementMethodId_fkey" FOREIGN KEY ("procurementMethodId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ActivityLot" ADD CONSTRAINT "ActivityLot_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ActivityFunding" ADD CONSTRAINT "ActivityFunding_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ActivityComponent" ADD CONSTRAINT "ActivityComponent_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "CommitteeVote" ADD CONSTRAINT "CommitteeVote_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Contract" ADD CONSTRAINT "Contract_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Document" ADD CONSTRAINT "Document_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Plan" ADD CONSTRAINT "Plan_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Project" ADD CONSTRAINT "Project_fundingSourceId_fkey" FOREIGN KEY ("fundingSourceId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Project" ADD CONSTRAINT "Project_sectorId_fkey" FOREIGN KEY ("sectorId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StageTemplate" ADD CONSTRAINT "StageTemplate_procurementMethodId_fkey" FOREIGN KEY ("procurementMethodId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StageTemplate" ADD CONSTRAINT "StageTemplate_stageTypeId_fkey" FOREIGN KEY ("stageTypeId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Stage" ADD CONSTRAINT "Stage_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Stage" ADD CONSTRAINT "Stage_stageTypeId_fkey" FOREIGN KEY ("stageTypeId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StageRevision" ADD CONSTRAINT "StageRevision_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StageRevision" ADD CONSTRAINT "StageRevision_revisedById_fkey" FOREIGN KEY ("revisedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- AddForeignKey (safe)
+DO $$ BEGIN ALTER TABLE "Activity" ADD CONSTRAINT "Activity_procurementMethodId_fkey" FOREIGN KEY ("procurementMethodId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ActivityLot" ADD CONSTRAINT "ActivityLot_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ActivityFunding" ADD CONSTRAINT "ActivityFunding_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ActivityComponent" ADD CONSTRAINT "ActivityComponent_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "CommitteeVote" ADD CONSTRAINT "CommitteeVote_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" ADD CONSTRAINT "Contract_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Document" ADD CONSTRAINT "Document_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Payment" ADD CONSTRAINT "Payment_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Plan" ADD CONSTRAINT "Plan_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Project" ADD CONSTRAINT "Project_fundingSourceId_fkey" FOREIGN KEY ("fundingSourceId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Project" ADD CONSTRAINT "Project_sectorId_fkey" FOREIGN KEY ("sectorId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageTemplate" ADD CONSTRAINT "StageTemplate_procurementMethodId_fkey" FOREIGN KEY ("procurementMethodId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageTemplate" ADD CONSTRAINT "StageTemplate_stageTypeId_fkey" FOREIGN KEY ("stageTypeId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Stage" ADD CONSTRAINT "Stage_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Stage" ADD CONSTRAINT "Stage_stageTypeId_fkey" FOREIGN KEY ("stageTypeId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageRevision" ADD CONSTRAINT "StageRevision_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageRevision" ADD CONSTRAINT "StageRevision_revisedById_fkey" FOREIGN KEY ("revisedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
