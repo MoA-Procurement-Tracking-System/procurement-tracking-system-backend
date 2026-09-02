@@ -10,9 +10,21 @@ const options: swaggerJSDoc.Options = {
       description: 'API documentation for the procurement tracking system',
     },
     servers: [
+      ...(process.env['RENDER_EXTERNAL_URL']
+        ? [
+            {
+              url: process.env['RENDER_EXTERNAL_URL'],
+              description: 'Production Server',
+            },
+          ]
+        : []),
+      {
+        url: '/',
+        description: 'Current Domain',
+      },
       {
         url: `http://localhost:${env.PORT}`,
-        description: 'Development server',
+        description: 'Development Server',
       },
     ],
     components: {
@@ -25,7 +37,12 @@ const options: swaggerJSDoc.Options = {
       },
     },
   },
-  apis: ['./src/routes/*.ts', './src/modules/**/*.ts'],
+  apis: [
+    './src/routes/*.ts',
+    './src/modules/**/*.ts',
+    './dist/routes/*.js',
+    './dist/modules/**/*.js',
+  ],
 };
 
 export const swaggerSpec = swaggerJSDoc(options);

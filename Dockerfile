@@ -35,9 +35,10 @@ RUN npm ci --omit=dev --ignore-scripts
 # Copy generated Prisma Client and compiled assets from build stage
 COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/src/generated ./src/generated
+COPY --from=builder /usr/src/app/src/generated ./dist/generated
 
 # Expose server port
 EXPOSE 5000
 
-# Start server (run pending database migrations first)
-CMD npx prisma migrate deploy && node dist/server.js
+# Start server (resolve any failed migrations, then apply pending ones, then start)
+CMD npx prisma migrate resolve --rolled-back 20260825191228_add_pending_invitation_status 2>/dev/null || true && npx prisma migrate deploy && node dist/server.js

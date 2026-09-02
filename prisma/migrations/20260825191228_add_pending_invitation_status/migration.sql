@@ -81,31 +81,44 @@
   - Added the required column `updatedAt` to the `Supplier` table without a default value. This is not possible if the table is not empty.
 
 */
--- CreateEnum
-CREATE TYPE "ContractStatus" AS ENUM ('DRAFT', 'ACTIVE', 'COMPLETED', 'TERMINATED', 'CANCELLED');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "ContractStatus" AS ENUM ('DRAFT', 'ACTIVE', 'COMPLETED', 'TERMINATED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'APPROVED', 'PAID', 'REJECTED', 'FAILED');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'APPROVED', 'PAID', 'REJECTED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "ProjectStatus" AS ENUM ('ACTIVE', 'CLOSED', 'SUSPENDED');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "ProjectStatus" AS ENUM ('ACTIVE', 'CLOSED', 'SUSPENDED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "RevisionChangeType" AS ENUM ('CREATE', 'UPDATE', 'REPLAN', 'APPROVE', 'REJECT', 'SOFT_DELETE');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "RevisionChangeType" AS ENUM ('CREATE', 'UPDATE', 'REPLAN', 'APPROVE', 'REJECT', 'SOFT_DELETE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "RevisionEntityType" AS ENUM ('PROJECT', 'PLAN', 'ACTIVITY', 'STAGE');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "RevisionEntityType" AS ENUM ('PROJECT', 'PLAN', 'ACTIVITY', 'STAGE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "StageStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'NOT_APPLICABLE');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "StageStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'NOT_APPLICABLE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "VoteDecision" AS ENUM ('APPROVE', 'REJECT');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "VoteDecision" AS ENUM ('APPROVE', 'REJECT');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- AlterEnum
 BEGIN;
 CREATE TYPE "ActivityStatus_new" AS ENUM ('PLANNED', 'IN_PROGRESS', 'CONTRACTED', 'COMPLETED', 'CANCELLED');
-ALTER TABLE "public"."ActivityStage" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "public"."Activity" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "Activity" ALTER COLUMN "status" TYPE "ActivityStatus_new" USING ("status"::text::"ActivityStatus_new");
 ALTER TYPE "ActivityStatus" RENAME TO "ActivityStatus_old";
@@ -138,343 +151,287 @@ DROP TYPE "public"."UserStatus_old";
 ALTER TABLE "User" ALTER COLUMN "status" SET DEFAULT 'ACTIVE';
 COMMIT;
 
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_categoryId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_currencyId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_fundingSourceId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_methodId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_officerId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_regionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_reviewStatusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_reviewTypeId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_reviewedById_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_sectorId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ActivityStage" DROP CONSTRAINT "ActivityStage_activityId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT "Contract_activityId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT "Contract_currencyId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT "Contract_regionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT "Contract_statusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractMilestone" DROP CONSTRAINT "ContractMilestone_contractId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractMilestone" DROP CONSTRAINT "ContractMilestone_statusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT "ContractSecurity_contractId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT "ContractSecurity_currencyId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT "ContractSecurity_statusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT "ContractSecurity_typeId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Document" DROP CONSTRAINT "Document_stageId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT "Payment_contractId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT "Payment_statusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT "Payment_typeId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Plan" DROP CONSTRAINT "Plan_projectId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Revision" DROP CONSTRAINT "Revision_changedById_fkey";
-
--- DropForeignKey
-ALTER TABLE "StageTemplate" DROP CONSTRAINT "StageTemplate_categoryId_fkey";
-
--- DropForeignKey
-ALTER TABLE "StageTemplate" DROP CONSTRAINT "StageTemplate_methodId_fkey";
+-- DropForeignKey (safe)
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_categoryId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_currencyId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_fundingSourceId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_methodId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_officerId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_regionId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewStatusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewTypeId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewedById_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_sectorId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ActivityStage" DROP CONSTRAINT IF EXISTS "ActivityStage_activityId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_activityId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_currencyId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_regionId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_statusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractMilestone" DROP CONSTRAINT IF EXISTS "ContractMilestone_contractId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractMilestone" DROP CONSTRAINT IF EXISTS "ContractMilestone_statusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_contractId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_currencyId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_statusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_typeId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Document" DROP CONSTRAINT IF EXISTS "Document_stageId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_contractId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_statusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_typeId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Plan" DROP CONSTRAINT IF EXISTS "Plan_projectId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" DROP CONSTRAINT IF EXISTS "Revision_changedById_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageTemplate" DROP CONSTRAINT IF EXISTS "StageTemplate_categoryId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageTemplate" DROP CONSTRAINT IF EXISTS "StageTemplate_methodId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
 
 -- DropIndex
-DROP INDEX "Activity_categoryId_idx";
+DROP INDEX IF EXISTS "Activity_categoryId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_currencyId_idx";
+DROP INDEX IF EXISTS "Activity_currencyId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_dueDate_idx";
+DROP INDEX IF EXISTS "Activity_dueDate_idx";
 
 -- DropIndex
-DROP INDEX "Activity_fundingSourceId_idx";
+DROP INDEX IF EXISTS "Activity_fundingSourceId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_methodId_idx";
+DROP INDEX IF EXISTS "Activity_methodId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_officerId_idx";
+DROP INDEX IF EXISTS "Activity_officerId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_referenceNumber_key";
+DROP INDEX IF EXISTS "Activity_referenceNumber_key";
 
 -- DropIndex
-DROP INDEX "Activity_regionId_idx";
+DROP INDEX IF EXISTS "Activity_regionId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_reviewStatusId_idx";
+DROP INDEX IF EXISTS "Activity_reviewStatusId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_reviewTypeId_idx";
+DROP INDEX IF EXISTS "Activity_reviewTypeId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_reviewedById_idx";
+DROP INDEX IF EXISTS "Activity_reviewedById_idx";
 
 -- DropIndex
-DROP INDEX "Activity_sectorId_idx";
+DROP INDEX IF EXISTS "Activity_sectorId_idx";
 
 -- DropIndex
-DROP INDEX "Contract_completionDate_idx";
+DROP INDEX IF EXISTS "Contract_completionDate_idx";
 
 -- DropIndex
-DROP INDEX "Contract_contractNumber_key";
+DROP INDEX IF EXISTS "Contract_contractNumber_key";
 
 -- DropIndex
-DROP INDEX "Contract_currencyId_idx";
+DROP INDEX IF EXISTS "Contract_currencyId_idx";
 
 -- DropIndex
-DROP INDEX "Contract_regionId_idx";
+DROP INDEX IF EXISTS "Contract_regionId_idx";
 
 -- DropIndex
-DROP INDEX "Contract_statusId_idx";
+DROP INDEX IF EXISTS "Contract_statusId_idx";
 
 -- DropIndex
-DROP INDEX "Payment_statusId_idx";
+DROP INDEX IF EXISTS "Payment_statusId_idx";
 
 -- DropIndex
-DROP INDEX "Payment_typeId_idx";
+DROP INDEX IF EXISTS "Payment_typeId_idx";
 
 -- DropIndex
-DROP INDEX "Plan_budgetYear_idx";
+DROP INDEX IF EXISTS "Plan_budgetYear_idx";
 
 -- DropIndex
-DROP INDEX "Plan_referenceNo_key";
+DROP INDEX IF EXISTS "Plan_referenceNo_key";
 
 -- DropIndex
-DROP INDEX "Revision_changedAt_idx";
+DROP INDEX IF EXISTS "Revision_changedAt_idx";
 
 -- DropIndex
-DROP INDEX "Revision_entityType_entityId_idx";
+DROP INDEX IF EXISTS "Revision_entityType_entityId_idx";
 
 -- DropIndex
-DROP INDEX "StageTemplate_categoryId_methodId_idx";
+DROP INDEX IF EXISTS "StageTemplate_categoryId_methodId_idx";
 
 -- DropIndex
-DROP INDEX "StageTemplate_categoryId_methodId_order_key";
+DROP INDEX IF EXISTS "StageTemplate_categoryId_methodId_order_key";
 
 -- DropIndex
-DROP INDEX "StageTemplate_isActive_idx";
+DROP INDEX IF EXISTS "StageTemplate_isActive_idx";
 
 -- DropIndex
-DROP INDEX "Supplier_isActive_idx";
+DROP INDEX IF EXISTS "Supplier_isActive_idx";
 
 -- AlterTable
-ALTER TABLE "Activity" DROP COLUMN "categoryId",
-DROP COLUMN "currencyId",
-DROP COLUMN "dueDate",
-DROP COLUMN "estimatedAmount",
-DROP COLUMN "fundingSourceId",
-DROP COLUMN "methodId",
-DROP COLUMN "officerId",
-DROP COLUMN "referenceNumber",
-DROP COLUMN "regionId",
-DROP COLUMN "reviewNotes",
-DROP COLUMN "reviewStatusId",
-DROP COLUMN "reviewTypeId",
-DROP COLUMN "reviewedAt",
-DROP COLUMN "reviewedById",
-DROP COLUMN "sectorId",
-ADD COLUMN     "bidReferenceNo" TEXT,
-ADD COLUMN     "contractId" TEXT,
-ADD COLUMN     "contractType" TEXT,
-ADD COLUMN     "currency" TEXT,
-ADD COLUMN     "domesticPreference" TEXT,
-ADD COLUMN     "estimatedBudget" DOUBLE PRECISION NOT NULL,
-ADD COLUMN     "evaluationOptions" TEXT[],
-ADD COLUMN     "highSeaShRisk" BOOLEAN,
-ADD COLUMN     "isImport" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "latitude" DOUBLE PRECISION,
-ADD COLUMN     "location" TEXT,
-ADD COLUMN     "longitude" DOUBLE PRECISION,
-ADD COLUMN     "lotRequired" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "marketApproach" TEXT,
-ADD COLUMN     "oversightClassification" TEXT,
-ADD COLUMN     "performancePct" DOUBLE PRECISION,
-ADD COLUMN     "pricingBasis" TEXT,
-ADD COLUMN     "processStatus" TEXT,
-ADD COLUMN     "procurementClassificationCode" TEXT,
-ADD COLUMN     "procurementClassificationDesc" TEXT,
-ADD COLUMN     "procurementDocumentType" TEXT,
-ADD COLUMN     "procurementMethodId" TEXT NOT NULL,
-ADD COLUMN     "procurementProcess" TEXT,
-ADD COLUMN     "qualificationApproach" TEXT,
-ADD COLUMN     "reference" TEXT NOT NULL,
-ADD COLUMN     "requiresUnAgencyContracting" BOOLEAN,
-ADD COLUMN     "reviewType" TEXT,
-ADD COLUMN     "scopeNotes" TEXT,
-ADD COLUMN     "specificMethod" TEXT,
+ALTER TABLE "Activity" DROP COLUMN IF EXISTS "categoryId",
+DROP COLUMN IF EXISTS "currencyId",
+DROP COLUMN IF EXISTS "dueDate",
+DROP COLUMN IF EXISTS "estimatedAmount",
+DROP COLUMN IF EXISTS "fundingSourceId",
+DROP COLUMN IF EXISTS "methodId",
+DROP COLUMN IF EXISTS "officerId",
+DROP COLUMN IF EXISTS "referenceNumber",
+DROP COLUMN IF EXISTS "regionId",
+DROP COLUMN IF EXISTS "reviewNotes",
+DROP COLUMN IF EXISTS "reviewStatusId",
+DROP COLUMN IF EXISTS "reviewTypeId",
+DROP COLUMN IF EXISTS "reviewedAt",
+DROP COLUMN IF EXISTS "reviewedById",
+DROP COLUMN IF EXISTS "sectorId",
+ADD COLUMN IF NOT EXISTS     "bidReferenceNo" TEXT,
+ADD COLUMN IF NOT EXISTS     "contractId" TEXT,
+ADD COLUMN IF NOT EXISTS     "contractType" TEXT,
+ADD COLUMN IF NOT EXISTS     "currency" TEXT,
+ADD COLUMN IF NOT EXISTS     "domesticPreference" TEXT,
+ADD COLUMN IF NOT EXISTS     "estimatedBudget" DOUBLE PRECISION NOT NULL,
+ADD COLUMN IF NOT EXISTS     "evaluationOptions" TEXT[],
+ADD COLUMN IF NOT EXISTS     "highSeaShRisk" BOOLEAN,
+ADD COLUMN IF NOT EXISTS     "isImport" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS     "latitude" DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS     "location" TEXT,
+ADD COLUMN IF NOT EXISTS     "longitude" DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS     "lotRequired" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS     "marketApproach" TEXT,
+ADD COLUMN IF NOT EXISTS     "oversightClassification" TEXT,
+ADD COLUMN IF NOT EXISTS     "performancePct" DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS     "pricingBasis" TEXT,
+ADD COLUMN IF NOT EXISTS     "processStatus" TEXT,
+ADD COLUMN IF NOT EXISTS     "procurementClassificationCode" TEXT,
+ADD COLUMN IF NOT EXISTS     "procurementClassificationDesc" TEXT,
+ADD COLUMN IF NOT EXISTS     "procurementDocumentType" TEXT,
+ADD COLUMN IF NOT EXISTS     "procurementMethodId" TEXT NOT NULL,
+ADD COLUMN IF NOT EXISTS     "procurementProcess" TEXT,
+ADD COLUMN IF NOT EXISTS     "qualificationApproach" TEXT,
+ADD COLUMN IF NOT EXISTS     "reference" TEXT NOT NULL,
+ADD COLUMN IF NOT EXISTS     "requiresUnAgencyContracting" BOOLEAN,
+ADD COLUMN IF NOT EXISTS     "reviewType" TEXT,
+ADD COLUMN IF NOT EXISTS     "scopeNotes" TEXT,
+ADD COLUMN IF NOT EXISTS     "specificMethod" TEXT,
 ALTER COLUMN "description" DROP NOT NULL,
 ALTER COLUMN "status" SET DEFAULT 'PLANNED';
 
 -- AlterTable
-ALTER TABLE "Contract" DROP COLUMN "completionDate",
-DROP COLUMN "contractNumber",
-DROP COLUMN "currencyId",
-DROP COLUMN "currentAmount",
-DROP COLUMN "isActive",
-DROP COLUMN "originalAmount",
-DROP COLUMN "regionId",
-DROP COLUMN "signingDate",
-DROP COLUMN "statusId",
-ADD COLUMN     "contractNo" TEXT NOT NULL,
-ADD COLUMN     "currency" TEXT NOT NULL DEFAULT 'ETB',
-ADD COLUMN     "deletedAt" TIMESTAMP(3),
-ADD COLUMN     "paidAmount" DECIMAL(15,2) NOT NULL DEFAULT 0.00,
-ADD COLUMN     "region" TEXT,
-ADD COLUMN     "remainingValue" DECIMAL(15,2) NOT NULL,
-ADD COLUMN     "sector" TEXT,
-ADD COLUMN     "status" "ContractStatus" NOT NULL DEFAULT 'DRAFT',
-ADD COLUMN     "totalValue" DECIMAL(15,2) NOT NULL,
+ALTER TABLE "Contract" DROP COLUMN IF EXISTS "completionDate",
+DROP COLUMN IF EXISTS "contractNumber",
+DROP COLUMN IF EXISTS "currencyId",
+DROP COLUMN IF EXISTS "currentAmount",
+DROP COLUMN IF EXISTS "isActive",
+DROP COLUMN IF EXISTS "originalAmount",
+DROP COLUMN IF EXISTS "regionId",
+DROP COLUMN IF EXISTS "signingDate",
+DROP COLUMN IF EXISTS "statusId",
+ADD COLUMN IF NOT EXISTS     "contractNo" TEXT NOT NULL,
+ADD COLUMN IF NOT EXISTS     "currency" TEXT NOT NULL DEFAULT 'ETB',
+ADD COLUMN IF NOT EXISTS     "deletedAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "paidAmount" DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+ADD COLUMN IF NOT EXISTS     "region" TEXT,
+ADD COLUMN IF NOT EXISTS     "remainingValue" DECIMAL(15,2) NOT NULL,
+ADD COLUMN IF NOT EXISTS     "sector" TEXT,
+ADD COLUMN IF NOT EXISTS     "status" "ContractStatus" NOT NULL DEFAULT 'DRAFT',
+ADD COLUMN IF NOT EXISTS     "totalValue" DECIMAL(15,2) NOT NULL,
 ALTER COLUMN "activityId" DROP NOT NULL;
 
 -- AlterTable
-ALTER TABLE "Payment" DROP COLUMN "isActive",
-DROP COLUMN "requestDate",
-DROP COLUMN "statusId",
-DROP COLUMN "typeId",
-ADD COLUMN     "deletedAt" TIMESTAMP(3),
-ADD COLUMN     "referenceNo" TEXT NOT NULL,
-ADD COLUMN     "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
+ALTER TABLE "Payment" DROP COLUMN IF EXISTS "isActive",
+DROP COLUMN IF EXISTS "requestDate",
+DROP COLUMN IF EXISTS "statusId",
+DROP COLUMN IF EXISTS "typeId",
+ADD COLUMN IF NOT EXISTS     "deletedAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "referenceNo" TEXT NOT NULL,
+ADD COLUMN IF NOT EXISTS     "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
 ALTER COLUMN "amount" SET DATA TYPE DECIMAL(15,2),
 ALTER COLUMN "paymentDate" SET NOT NULL;
 
 -- AlterTable
-ALTER TABLE "Plan" DROP COLUMN "name",
-DROP COLUMN "referenceNo",
-ADD COLUMN     "committeeRound" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN     "committeeVoteDeadline" TIMESTAMP(3),
-ADD COLUMN     "gpnDate" TIMESTAMP(3),
-ADD COLUMN     "organization" TEXT,
-ADD COLUMN     "periodEnd" TIMESTAMP(3) NOT NULL,
-ADD COLUMN     "periodStart" TIMESTAMP(3) NOT NULL,
-ADD COLUMN     "procurementCategory" TEXT,
-ADD COLUMN     "title" TEXT NOT NULL,
+ALTER TABLE "Plan" DROP COLUMN IF EXISTS "name",
+DROP COLUMN IF EXISTS "referenceNo",
+ADD COLUMN IF NOT EXISTS     "committeeRound" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS     "committeeVoteDeadline" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "gpnDate" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "organization" TEXT,
+ADD COLUMN IF NOT EXISTS     "periodEnd" TIMESTAMP(3) NOT NULL,
+ADD COLUMN IF NOT EXISTS     "periodStart" TIMESTAMP(3) NOT NULL,
+ADD COLUMN IF NOT EXISTS     "procurementCategory" TEXT,
+ADD COLUMN IF NOT EXISTS     "title" TEXT NOT NULL,
 ALTER COLUMN "budgetYear" DROP NOT NULL,
 ALTER COLUMN "budgetYear" SET DATA TYPE TEXT,
 ALTER COLUMN "projectId" SET NOT NULL,
 ALTER COLUMN "status" SET DEFAULT 'DRAFT';
 
 -- AlterTable
-ALTER TABLE "Project" ADD COLUMN     "baseCurrency" TEXT,
-ADD COLUMN     "components" TEXT[],
-ADD COLUMN     "country" TEXT,
-ADD COLUMN     "executingAgency" TEXT,
-ADD COLUMN     "fundingSourceId" TEXT NOT NULL,
-ADD COLUMN     "fundingType" TEXT,
-ADD COLUMN     "loanGrantNumbers" TEXT[],
-ADD COLUMN     "organization" TEXT,
-ADD COLUMN     "projectEndDate" TIMESTAMP(3),
-ADD COLUMN     "projectStartDate" TIMESTAMP(3),
-ADD COLUMN     "sapIdentificationNo" TEXT,
-ADD COLUMN     "sectorId" TEXT NOT NULL,
-ADD COLUMN     "status" "ProjectStatus" NOT NULL DEFAULT 'ACTIVE',
-ADD COLUMN     "subcomponents" TEXT[],
-ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL;
+ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS     "baseCurrency" TEXT,
+ADD COLUMN IF NOT EXISTS     "components" TEXT[],
+ADD COLUMN IF NOT EXISTS     "country" TEXT,
+ADD COLUMN IF NOT EXISTS     "executingAgency" TEXT,
+ADD COLUMN IF NOT EXISTS     "fundingSourceId" TEXT NOT NULL,
+ADD COLUMN IF NOT EXISTS     "fundingType" TEXT,
+ADD COLUMN IF NOT EXISTS     "loanGrantNumbers" TEXT[],
+ADD COLUMN IF NOT EXISTS     "organization" TEXT,
+ADD COLUMN IF NOT EXISTS     "projectEndDate" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "projectStartDate" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "sapIdentificationNo" TEXT,
+ADD COLUMN IF NOT EXISTS     "sectorId" TEXT NOT NULL,
+ADD COLUMN IF NOT EXISTS     "status" "ProjectStatus" NOT NULL DEFAULT 'ACTIVE',
+ADD COLUMN IF NOT EXISTS     "subcomponents" TEXT[],
+ADD COLUMN IF NOT EXISTS     "updatedAt" TIMESTAMP(3) NOT NULL;
 
 -- AlterTable
-ALTER TABLE "Revision" DROP COLUMN "changedAt",
-DROP COLUMN "entityId",
-DROP COLUMN "field",
-DROP COLUMN "newValue",
-DROP COLUMN "oldValue",
-DROP COLUMN "reason",
-ADD COLUMN     "activityId" TEXT,
-ADD COLUMN     "changeType" "RevisionChangeType" NOT NULL,
-ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-ADD COLUMN     "newValues" JSONB,
-ADD COLUMN     "planId" TEXT,
-ADD COLUMN     "previousValues" JSONB,
-ADD COLUMN     "projectId" TEXT,
-ADD COLUMN     "stageId" TEXT,
-ADD COLUMN     "userId" TEXT,
-DROP COLUMN "entityType",
-ADD COLUMN     "entityType" "RevisionEntityType" NOT NULL;
+ALTER TABLE "Revision" DROP COLUMN IF EXISTS "changedAt",
+DROP COLUMN IF EXISTS "entityId",
+DROP COLUMN IF EXISTS "field",
+DROP COLUMN IF EXISTS "newValue",
+DROP COLUMN IF EXISTS "oldValue",
+DROP COLUMN IF EXISTS "reason",
+ADD COLUMN IF NOT EXISTS     "activityId" TEXT,
+ADD COLUMN IF NOT EXISTS     "changeType" "RevisionChangeType" NOT NULL,
+ADD COLUMN IF NOT EXISTS     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN IF NOT EXISTS     "newValues" JSONB,
+ADD COLUMN IF NOT EXISTS     "planId" TEXT,
+ADD COLUMN IF NOT EXISTS     "previousValues" JSONB,
+ADD COLUMN IF NOT EXISTS     "projectId" TEXT,
+ADD COLUMN IF NOT EXISTS     "stageId" TEXT,
+ADD COLUMN IF NOT EXISTS     "userId" TEXT,
+DROP COLUMN IF EXISTS "entityType",
+ADD COLUMN IF NOT EXISTS     "entityType" "RevisionEntityType" NOT NULL;
 
 -- AlterTable
-ALTER TABLE "StageTemplate" DROP COLUMN "categoryId",
-DROP COLUMN "createdAt",
-DROP COLUMN "isActive",
-DROP COLUMN "isMandatory",
-DROP COLUMN "methodId",
-DROP COLUMN "order",
-DROP COLUMN "stageName",
-ADD COLUMN     "conditionField" TEXT,
-ADD COLUMN     "isConditional" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "isRequired" BOOLEAN NOT NULL DEFAULT true,
-ADD COLUMN     "procurementMethodId" TEXT NOT NULL,
-ADD COLUMN     "sequence" INTEGER NOT NULL,
-ADD COLUMN     "stageTypeId" TEXT NOT NULL;
+ALTER TABLE "StageTemplate" DROP COLUMN IF EXISTS "categoryId",
+DROP COLUMN IF EXISTS "createdAt",
+DROP COLUMN IF EXISTS "isActive",
+DROP COLUMN IF EXISTS "isMandatory",
+DROP COLUMN IF EXISTS "methodId",
+DROP COLUMN IF EXISTS "order",
+DROP COLUMN IF EXISTS "stageName",
+ADD COLUMN IF NOT EXISTS     "conditionField" TEXT,
+ADD COLUMN IF NOT EXISTS     "isConditional" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS     "isRequired" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN IF NOT EXISTS     "procurementMethodId" TEXT NOT NULL,
+ADD COLUMN IF NOT EXISTS     "sequence" INTEGER NOT NULL,
+ADD COLUMN IF NOT EXISTS     "stageTypeId" TEXT NOT NULL;
 
 -- AlterTable
-ALTER TABLE "Supplier" DROP COLUMN "address",
-DROP COLUMN "contact",
-DROP COLUMN "isActive",
-ADD COLUMN     "deletedAt" TIMESTAMP(3),
-ADD COLUMN     "email" TEXT,
-ADD COLUMN     "phone" TEXT,
-ADD COLUMN     "status" TEXT NOT NULL DEFAULT 'ACTIVE',
-ADD COLUMN     "tinNumber" TEXT NOT NULL,
-ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL;
+ALTER TABLE "Supplier" DROP COLUMN IF EXISTS "address",
+DROP COLUMN IF EXISTS "contact",
+DROP COLUMN IF EXISTS "isActive",
+ADD COLUMN IF NOT EXISTS     "deletedAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "email" TEXT,
+ADD COLUMN IF NOT EXISTS     "phone" TEXT,
+ADD COLUMN IF NOT EXISTS     "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+ADD COLUMN IF NOT EXISTS     "tinNumber" TEXT NOT NULL,
+ADD COLUMN IF NOT EXISTS     "updatedAt" TIMESTAMP(3) NOT NULL;
 
 -- DropTable
-DROP TABLE "ActivityStage";
+DROP TABLE IF EXISTS "ActivityStage";
 
 -- DropTable
-DROP TABLE "ContractMilestone";
+DROP TABLE IF EXISTS "ContractMilestone";
 
 -- DropTable
-DROP TABLE "ContractSecurity";
+DROP TABLE IF EXISTS "ContractSecurity";
 
 -- CreateTable
-CREATE TABLE "ActivityLot" (
+CREATE TABLE IF NOT EXISTS "ActivityLot" (
     "id" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "lotNumber" TEXT NOT NULL,
@@ -487,7 +444,7 @@ CREATE TABLE "ActivityLot" (
 );
 
 -- CreateTable
-CREATE TABLE "ActivityFunding" (
+CREATE TABLE IF NOT EXISTS "ActivityFunding" (
     "id" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "fundingSource" TEXT NOT NULL,
@@ -500,7 +457,7 @@ CREATE TABLE "ActivityFunding" (
 );
 
 -- CreateTable
-CREATE TABLE "ActivityComponent" (
+CREATE TABLE IF NOT EXISTS "ActivityComponent" (
     "id" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "component" TEXT NOT NULL,
@@ -513,7 +470,7 @@ CREATE TABLE "ActivityComponent" (
 );
 
 -- CreateTable
-CREATE TABLE "CommitteeVote" (
+CREATE TABLE IF NOT EXISTS "CommitteeVote" (
     "id" TEXT NOT NULL,
     "planId" TEXT NOT NULL,
     "round" INTEGER NOT NULL,
@@ -526,7 +483,7 @@ CREATE TABLE "CommitteeVote" (
 );
 
 -- CreateTable
-CREATE TABLE "Stage" (
+CREATE TABLE IF NOT EXISTS "Stage" (
     "id" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "stageTypeId" TEXT NOT NULL,
@@ -548,7 +505,7 @@ CREATE TABLE "Stage" (
 );
 
 -- CreateTable
-CREATE TABLE "StageRevision" (
+CREATE TABLE IF NOT EXISTS "StageRevision" (
     "id" TEXT NOT NULL,
     "stageId" TEXT NOT NULL,
     "revisionNo" INTEGER NOT NULL,
@@ -562,148 +519,106 @@ CREATE TABLE "StageRevision" (
 );
 
 -- CreateIndex
-CREATE INDEX "ActivityLot_activityId_idx" ON "ActivityLot"("activityId");
+CREATE INDEX IF NOT EXISTS "ActivityLot_activityId_idx" ON "ActivityLot"("activityId");
 
 -- CreateIndex
-CREATE INDEX "ActivityFunding_activityId_idx" ON "ActivityFunding"("activityId");
+CREATE INDEX IF NOT EXISTS "ActivityFunding_activityId_idx" ON "ActivityFunding"("activityId");
 
 -- CreateIndex
-CREATE INDEX "ActivityComponent_activityId_idx" ON "ActivityComponent"("activityId");
+CREATE INDEX IF NOT EXISTS "ActivityComponent_activityId_idx" ON "ActivityComponent"("activityId");
 
 -- CreateIndex
-CREATE INDEX "CommitteeVote_planId_idx" ON "CommitteeVote"("planId");
+CREATE INDEX IF NOT EXISTS "CommitteeVote_planId_idx" ON "CommitteeVote"("planId");
 
 -- CreateIndex
-CREATE INDEX "CommitteeVote_memberId_idx" ON "CommitteeVote"("memberId");
+CREATE INDEX IF NOT EXISTS "CommitteeVote_memberId_idx" ON "CommitteeVote"("memberId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CommitteeVote_planId_round_memberId_key" ON "CommitteeVote"("planId", "round", "memberId");
+CREATE UNIQUE INDEX IF NOT EXISTS "CommitteeVote_planId_round_memberId_key" ON "CommitteeVote"("planId", "round", "memberId");
 
 -- CreateIndex
-CREATE INDEX "Stage_activityId_idx" ON "Stage"("activityId");
+CREATE INDEX IF NOT EXISTS "Stage_activityId_idx" ON "Stage"("activityId");
 
 -- CreateIndex
-CREATE INDEX "Stage_stageTypeId_idx" ON "Stage"("stageTypeId");
+CREATE INDEX IF NOT EXISTS "Stage_stageTypeId_idx" ON "Stage"("stageTypeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Stage_activityId_sequence_key" ON "Stage"("activityId", "sequence");
+CREATE UNIQUE INDEX IF NOT EXISTS "Stage_activityId_sequence_key" ON "Stage"("activityId", "sequence");
 
 -- CreateIndex
-CREATE INDEX "StageRevision_stageId_idx" ON "StageRevision"("stageId");
+CREATE INDEX IF NOT EXISTS "StageRevision_stageId_idx" ON "StageRevision"("stageId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StageRevision_stageId_revisionNo_key" ON "StageRevision"("stageId", "revisionNo");
+CREATE UNIQUE INDEX IF NOT EXISTS "StageRevision_stageId_revisionNo_key" ON "StageRevision"("stageId", "revisionNo");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Activity_reference_key" ON "Activity"("reference");
+CREATE UNIQUE INDEX IF NOT EXISTS "Activity_reference_key" ON "Activity"("reference");
 
 -- CreateIndex
-CREATE INDEX "Activity_procurementMethodId_idx" ON "Activity"("procurementMethodId");
+CREATE INDEX IF NOT EXISTS "Activity_procurementMethodId_idx" ON "Activity"("procurementMethodId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Contract_contractNo_key" ON "Contract"("contractNo");
+CREATE UNIQUE INDEX IF NOT EXISTS "Contract_contractNo_key" ON "Contract"("contractNo");
 
 -- CreateIndex
-CREATE INDEX "Contract_status_idx" ON "Contract"("status");
+CREATE INDEX IF NOT EXISTS "Contract_status_idx" ON "Contract"("status");
 
 -- CreateIndex
-CREATE INDEX "Payment_status_idx" ON "Payment"("status");
+CREATE INDEX IF NOT EXISTS "Payment_status_idx" ON "Payment"("status");
 
 -- CreateIndex
-CREATE INDEX "Project_status_idx" ON "Project"("status");
+CREATE INDEX IF NOT EXISTS "Project_status_idx" ON "Project"("status");
 
 -- CreateIndex
-CREATE INDEX "Project_fundingSourceId_idx" ON "Project"("fundingSourceId");
+CREATE INDEX IF NOT EXISTS "Project_fundingSourceId_idx" ON "Project"("fundingSourceId");
 
 -- CreateIndex
-CREATE INDEX "Project_sectorId_idx" ON "Project"("sectorId");
+CREATE INDEX IF NOT EXISTS "Project_sectorId_idx" ON "Project"("sectorId");
 
 -- CreateIndex
-CREATE INDEX "Revision_projectId_idx" ON "Revision"("projectId");
+CREATE INDEX IF NOT EXISTS "Revision_projectId_idx" ON "Revision"("projectId");
 
 -- CreateIndex
-CREATE INDEX "Revision_planId_idx" ON "Revision"("planId");
+CREATE INDEX IF NOT EXISTS "Revision_planId_idx" ON "Revision"("planId");
 
 -- CreateIndex
-CREATE INDEX "Revision_activityId_idx" ON "Revision"("activityId");
+CREATE INDEX IF NOT EXISTS "Revision_activityId_idx" ON "Revision"("activityId");
 
 -- CreateIndex
-CREATE INDEX "Revision_stageId_idx" ON "Revision"("stageId");
+CREATE INDEX IF NOT EXISTS "Revision_stageId_idx" ON "Revision"("stageId");
 
 -- CreateIndex
-CREATE INDEX "StageTemplate_procurementMethodId_idx" ON "StageTemplate"("procurementMethodId");
+CREATE INDEX IF NOT EXISTS "StageTemplate_procurementMethodId_idx" ON "StageTemplate"("procurementMethodId");
 
 -- CreateIndex
-CREATE INDEX "StageTemplate_stageTypeId_idx" ON "StageTemplate"("stageTypeId");
+CREATE INDEX IF NOT EXISTS "StageTemplate_stageTypeId_idx" ON "StageTemplate"("stageTypeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StageTemplate_procurementMethodId_sequence_key" ON "StageTemplate"("procurementMethodId", "sequence");
+CREATE UNIQUE INDEX IF NOT EXISTS "StageTemplate_procurementMethodId_sequence_key" ON "StageTemplate"("procurementMethodId", "sequence");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Supplier_tinNumber_key" ON "Supplier"("tinNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "Supplier_tinNumber_key" ON "Supplier"("tinNumber");
 
--- AddForeignKey
-ALTER TABLE "Activity" ADD CONSTRAINT "Activity_procurementMethodId_fkey" FOREIGN KEY ("procurementMethodId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ActivityLot" ADD CONSTRAINT "ActivityLot_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ActivityFunding" ADD CONSTRAINT "ActivityFunding_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ActivityComponent" ADD CONSTRAINT "ActivityComponent_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "CommitteeVote" ADD CONSTRAINT "CommitteeVote_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Contract" ADD CONSTRAINT "Contract_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Document" ADD CONSTRAINT "Document_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Plan" ADD CONSTRAINT "Plan_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Project" ADD CONSTRAINT "Project_fundingSourceId_fkey" FOREIGN KEY ("fundingSourceId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Project" ADD CONSTRAINT "Project_sectorId_fkey" FOREIGN KEY ("sectorId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Revision" ADD CONSTRAINT "Revision_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StageTemplate" ADD CONSTRAINT "StageTemplate_procurementMethodId_fkey" FOREIGN KEY ("procurementMethodId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StageTemplate" ADD CONSTRAINT "StageTemplate_stageTypeId_fkey" FOREIGN KEY ("stageTypeId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Stage" ADD CONSTRAINT "Stage_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Stage" ADD CONSTRAINT "Stage_stageTypeId_fkey" FOREIGN KEY ("stageTypeId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StageRevision" ADD CONSTRAINT "StageRevision_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StageRevision" ADD CONSTRAINT "StageRevision_revisedById_fkey" FOREIGN KEY ("revisedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- AddForeignKey (safe)
+DO $$ BEGIN ALTER TABLE "Activity" ADD CONSTRAINT "Activity_procurementMethodId_fkey" FOREIGN KEY ("procurementMethodId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ActivityLot" ADD CONSTRAINT "ActivityLot_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ActivityFunding" ADD CONSTRAINT "ActivityFunding_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ActivityComponent" ADD CONSTRAINT "ActivityComponent_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "CommitteeVote" ADD CONSTRAINT "CommitteeVote_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" ADD CONSTRAINT "Contract_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Document" ADD CONSTRAINT "Document_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Payment" ADD CONSTRAINT "Payment_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Plan" ADD CONSTRAINT "Plan_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Project" ADD CONSTRAINT "Project_fundingSourceId_fkey" FOREIGN KEY ("fundingSourceId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Project" ADD CONSTRAINT "Project_sectorId_fkey" FOREIGN KEY ("sectorId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" ADD CONSTRAINT "Revision_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageTemplate" ADD CONSTRAINT "StageTemplate_procurementMethodId_fkey" FOREIGN KEY ("procurementMethodId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageTemplate" ADD CONSTRAINT "StageTemplate_stageTypeId_fkey" FOREIGN KEY ("stageTypeId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Stage" ADD CONSTRAINT "Stage_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Stage" ADD CONSTRAINT "Stage_stageTypeId_fkey" FOREIGN KEY ("stageTypeId") REFERENCES "LookupValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageRevision" ADD CONSTRAINT "StageRevision_stageId_fkey" FOREIGN KEY ("stageId") REFERENCES "Stage"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageRevision" ADD CONSTRAINT "StageRevision_revisedById_fkey" FOREIGN KEY ("revisedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
