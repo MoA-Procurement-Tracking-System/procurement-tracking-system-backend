@@ -29,8 +29,8 @@ COPY package*.json ./
 COPY prisma.config.ts ./
 COPY prisma/ ./prisma/
 
-# Install production-only dependencies
-RUN npm ci --omit=dev
+# Install production-only dependencies (skip postinstall/prisma generate — already done in builder)
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copy generated Prisma Client and compiled assets from build stage
 COPY --from=builder /usr/src/app/dist ./dist
