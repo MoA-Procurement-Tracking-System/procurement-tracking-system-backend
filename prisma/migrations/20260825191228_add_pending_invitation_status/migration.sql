@@ -151,92 +151,36 @@ DROP TYPE "public"."UserStatus_old";
 ALTER TABLE "User" ALTER COLUMN "status" SET DEFAULT 'ACTIVE';
 COMMIT;
 
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_categoryId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_currencyId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_fundingSourceId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_methodId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_officerId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_regionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewStatusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewTypeId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewedById_fkey";
-
--- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_sectorId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ActivityStage" DROP CONSTRAINT IF EXISTS "ActivityStage_activityId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_activityId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_currencyId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_regionId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_statusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractMilestone" DROP CONSTRAINT IF EXISTS "ContractMilestone_contractId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractMilestone" DROP CONSTRAINT IF EXISTS "ContractMilestone_statusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_contractId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_currencyId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_statusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_typeId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Document" DROP CONSTRAINT IF EXISTS "Document_stageId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_contractId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_statusId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_typeId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Plan" DROP CONSTRAINT IF EXISTS "Plan_projectId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Revision" DROP CONSTRAINT IF EXISTS "Revision_changedById_fkey";
-
--- DropForeignKey
-ALTER TABLE "StageTemplate" DROP CONSTRAINT IF EXISTS "StageTemplate_categoryId_fkey";
-
--- DropForeignKey
-ALTER TABLE "StageTemplate" DROP CONSTRAINT IF EXISTS "StageTemplate_methodId_fkey";
+-- DropForeignKey (safe)
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_categoryId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_currencyId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_fundingSourceId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_methodId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_officerId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_regionId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewStatusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewTypeId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewedById_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_sectorId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ActivityStage" DROP CONSTRAINT IF EXISTS "ActivityStage_activityId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_activityId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_currencyId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_regionId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_statusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractMilestone" DROP CONSTRAINT IF EXISTS "ContractMilestone_contractId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractMilestone" DROP CONSTRAINT IF EXISTS "ContractMilestone_statusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_contractId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_currencyId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_statusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_typeId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Document" DROP CONSTRAINT IF EXISTS "Document_stageId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_contractId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_statusId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_typeId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Plan" DROP CONSTRAINT IF EXISTS "Plan_projectId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "Revision" DROP CONSTRAINT IF EXISTS "Revision_changedById_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageTemplate" DROP CONSTRAINT IF EXISTS "StageTemplate_categoryId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "StageTemplate" DROP CONSTRAINT IF EXISTS "StageTemplate_methodId_fkey"; EXCEPTION WHEN undefined_table OR undefined_object THEN NULL; END $$;
 
 -- DropIndex
 DROP INDEX IF EXISTS "Activity_categoryId_idx";
