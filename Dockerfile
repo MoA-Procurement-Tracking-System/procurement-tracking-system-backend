@@ -35,6 +35,7 @@ RUN npm ci --omit=dev --ignore-scripts
 # Copy generated Prisma Client and compiled assets from build stage
 COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/src/generated ./src/generated
+COPY --from=builder /usr/src/app/src/generated ./dist/generated
 
 # Expose server port
 EXPOSE 5000
