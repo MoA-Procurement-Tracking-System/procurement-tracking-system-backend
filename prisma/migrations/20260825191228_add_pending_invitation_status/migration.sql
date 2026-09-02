@@ -119,7 +119,6 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- AlterEnum
 BEGIN;
 CREATE TYPE "ActivityStatus_new" AS ENUM ('PLANNED', 'IN_PROGRESS', 'CONTRACTED', 'COMPLETED', 'CANCELLED');
-ALTER TABLE "public"."ActivityStage" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "public"."Activity" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "Activity" ALTER COLUMN "status" TYPE "ActivityStatus_new" USING ("status"::text::"ActivityStatus_new");
 ALTER TYPE "ActivityStatus" RENAME TO "ActivityStatus_old";
