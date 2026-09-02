@@ -152,172 +152,172 @@ ALTER TABLE "User" ALTER COLUMN "status" SET DEFAULT 'ACTIVE';
 COMMIT;
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_categoryId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_categoryId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_currencyId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_currencyId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_fundingSourceId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_fundingSourceId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_methodId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_methodId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_officerId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_officerId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_regionId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_regionId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_reviewStatusId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewStatusId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_reviewTypeId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewTypeId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_reviewedById_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_reviewedById_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Activity" DROP CONSTRAINT "Activity_sectorId_fkey";
+ALTER TABLE "Activity" DROP CONSTRAINT IF EXISTS "Activity_sectorId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "ActivityStage" DROP CONSTRAINT "ActivityStage_activityId_fkey";
+ALTER TABLE "ActivityStage" DROP CONSTRAINT IF EXISTS "ActivityStage_activityId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT "Contract_activityId_fkey";
+ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_activityId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT "Contract_currencyId_fkey";
+ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_currencyId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT "Contract_regionId_fkey";
+ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_regionId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Contract" DROP CONSTRAINT "Contract_statusId_fkey";
+ALTER TABLE "Contract" DROP CONSTRAINT IF EXISTS "Contract_statusId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "ContractMilestone" DROP CONSTRAINT "ContractMilestone_contractId_fkey";
+ALTER TABLE "ContractMilestone" DROP CONSTRAINT IF EXISTS "ContractMilestone_contractId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "ContractMilestone" DROP CONSTRAINT "ContractMilestone_statusId_fkey";
+ALTER TABLE "ContractMilestone" DROP CONSTRAINT IF EXISTS "ContractMilestone_statusId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT "ContractSecurity_contractId_fkey";
+ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_contractId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT "ContractSecurity_currencyId_fkey";
+ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_currencyId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT "ContractSecurity_statusId_fkey";
+ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_statusId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "ContractSecurity" DROP CONSTRAINT "ContractSecurity_typeId_fkey";
+ALTER TABLE "ContractSecurity" DROP CONSTRAINT IF EXISTS "ContractSecurity_typeId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Document" DROP CONSTRAINT "Document_stageId_fkey";
+ALTER TABLE "Document" DROP CONSTRAINT IF EXISTS "Document_stageId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT "Payment_contractId_fkey";
+ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_contractId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT "Payment_statusId_fkey";
+ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_statusId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Payment" DROP CONSTRAINT "Payment_typeId_fkey";
+ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_typeId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Plan" DROP CONSTRAINT "Plan_projectId_fkey";
+ALTER TABLE "Plan" DROP CONSTRAINT IF EXISTS "Plan_projectId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Revision" DROP CONSTRAINT "Revision_changedById_fkey";
+ALTER TABLE "Revision" DROP CONSTRAINT IF EXISTS "Revision_changedById_fkey";
 
 -- DropForeignKey
-ALTER TABLE "StageTemplate" DROP CONSTRAINT "StageTemplate_categoryId_fkey";
+ALTER TABLE "StageTemplate" DROP CONSTRAINT IF EXISTS "StageTemplate_categoryId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "StageTemplate" DROP CONSTRAINT "StageTemplate_methodId_fkey";
+ALTER TABLE "StageTemplate" DROP CONSTRAINT IF EXISTS "StageTemplate_methodId_fkey";
 
 -- DropIndex
-DROP INDEX "Activity_categoryId_idx";
+DROP INDEX IF EXISTS "Activity_categoryId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_currencyId_idx";
+DROP INDEX IF EXISTS "Activity_currencyId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_dueDate_idx";
+DROP INDEX IF EXISTS "Activity_dueDate_idx";
 
 -- DropIndex
-DROP INDEX "Activity_fundingSourceId_idx";
+DROP INDEX IF EXISTS "Activity_fundingSourceId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_methodId_idx";
+DROP INDEX IF EXISTS "Activity_methodId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_officerId_idx";
+DROP INDEX IF EXISTS "Activity_officerId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_referenceNumber_key";
+DROP INDEX IF EXISTS "Activity_referenceNumber_key";
 
 -- DropIndex
-DROP INDEX "Activity_regionId_idx";
+DROP INDEX IF EXISTS "Activity_regionId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_reviewStatusId_idx";
+DROP INDEX IF EXISTS "Activity_reviewStatusId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_reviewTypeId_idx";
+DROP INDEX IF EXISTS "Activity_reviewTypeId_idx";
 
 -- DropIndex
-DROP INDEX "Activity_reviewedById_idx";
+DROP INDEX IF EXISTS "Activity_reviewedById_idx";
 
 -- DropIndex
-DROP INDEX "Activity_sectorId_idx";
+DROP INDEX IF EXISTS "Activity_sectorId_idx";
 
 -- DropIndex
-DROP INDEX "Contract_completionDate_idx";
+DROP INDEX IF EXISTS "Contract_completionDate_idx";
 
 -- DropIndex
-DROP INDEX "Contract_contractNumber_key";
+DROP INDEX IF EXISTS "Contract_contractNumber_key";
 
 -- DropIndex
-DROP INDEX "Contract_currencyId_idx";
+DROP INDEX IF EXISTS "Contract_currencyId_idx";
 
 -- DropIndex
-DROP INDEX "Contract_regionId_idx";
+DROP INDEX IF EXISTS "Contract_regionId_idx";
 
 -- DropIndex
-DROP INDEX "Contract_statusId_idx";
+DROP INDEX IF EXISTS "Contract_statusId_idx";
 
 -- DropIndex
-DROP INDEX "Payment_statusId_idx";
+DROP INDEX IF EXISTS "Payment_statusId_idx";
 
 -- DropIndex
-DROP INDEX "Payment_typeId_idx";
+DROP INDEX IF EXISTS "Payment_typeId_idx";
 
 -- DropIndex
-DROP INDEX "Plan_budgetYear_idx";
+DROP INDEX IF EXISTS "Plan_budgetYear_idx";
 
 -- DropIndex
-DROP INDEX "Plan_referenceNo_key";
+DROP INDEX IF EXISTS "Plan_referenceNo_key";
 
 -- DropIndex
-DROP INDEX "Revision_changedAt_idx";
+DROP INDEX IF EXISTS "Revision_changedAt_idx";
 
 -- DropIndex
-DROP INDEX "Revision_entityType_entityId_idx";
+DROP INDEX IF EXISTS "Revision_entityType_entityId_idx";
 
 -- DropIndex
-DROP INDEX "StageTemplate_categoryId_methodId_idx";
+DROP INDEX IF EXISTS "StageTemplate_categoryId_methodId_idx";
 
 -- DropIndex
-DROP INDEX "StageTemplate_categoryId_methodId_order_key";
+DROP INDEX IF EXISTS "StageTemplate_categoryId_methodId_order_key";
 
 -- DropIndex
-DROP INDEX "StageTemplate_isActive_idx";
+DROP INDEX IF EXISTS "StageTemplate_isActive_idx";
 
 -- DropIndex
-DROP INDEX "Supplier_isActive_idx";
+DROP INDEX IF EXISTS "Supplier_isActive_idx";
 
 -- AlterTable
 ALTER TABLE "Activity" DROP COLUMN "categoryId",
@@ -478,13 +478,13 @@ ADD COLUMN     "tinNumber" TEXT NOT NULL,
 ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL;
 
 -- DropTable
-DROP TABLE "ActivityStage";
+DROP TABLE IF EXISTS "ActivityStage";
 
 -- DropTable
-DROP TABLE "ContractMilestone";
+DROP TABLE IF EXISTS "ContractMilestone";
 
 -- DropTable
-DROP TABLE "ContractSecurity";
+DROP TABLE IF EXISTS "ContractSecurity";
 
 -- CreateTable
 CREATE TABLE "ActivityLot" (
