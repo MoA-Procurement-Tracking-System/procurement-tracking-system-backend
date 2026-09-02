@@ -52,7 +52,7 @@ export class ContractsService {
     });
 
     await createAuditLog({
-      userId,
+      userId: userId ?? null,
       action: 'CONTRACT_CREATED',
       entityType: 'CONTRACT',
       entityId: contract.id,
@@ -116,7 +116,7 @@ export class ContractsService {
 
       await createAuditLog(
         {
-          userId,
+          userId: userId ?? null,
           action: 'PAYMENT_ADDED',
           entityType: 'PAYMENT',
           entityId: payment.id,
@@ -177,7 +177,7 @@ export class ContractsService {
     });
 
     await createAuditLog({
-      userId,
+      userId: userId ?? null,
       action: 'CONTRACT_UPDATED',
       entityType: 'CONTRACT',
       entityId: id,
