@@ -9,6 +9,8 @@ import type {
   CreatePaymentDto,
   UpdateContractDto,
 } from './contracts.schema.js';
+import { createAuditLog } from '../../shared/audit/audit-logger.js';
+
 export class ContractsService {
   async getContracts(search?: string, status?: string) {
     const where: Prisma.ContractWhereInput = {
@@ -35,24 +37,42 @@ export class ContractsService {
     });
   }
 
-  async createContract(data: CreateContractDto) {
-    return await prisma.contract.create({
+  async createContract(data: CreateContractDto, userId?: string) {
+    const contract = await prisma.contract.create({
       data: {
         contractNo: data.contractNo,
         totalValue: data.totalValue,
         remainingValue: data.totalValue,
         paidAmount: 0,
         currency: data.currency ?? 'ETB',
-        // Conditionally include supplierId only if provided
         ...(data.supplierId ? { supplierId: data.supplierId } : {}),
-        // Conditionally include optional nullable string fields
         ...(data.region ? { region: data.region } : {}),
         ...(data.sector ? { sector: data.sector } : {}),
       },
     });
+
+    await createAuditLog({
+      userId: userId ?? null,
+      action: 'CONTRACT_CREATED',
+      entityType: 'CONTRACT',
+      entityId: contract.id,
+      changes: {
+        contractNo: contract.contractNo,
+        totalValue: Number(contract.totalValue),
+        currency: contract.currency,
+        region: contract.region,
+        sector: contract.sector,
+      },
+    });
+
+    return contract;
   }
 
-  async recordPayment(contractId: string, data: CreatePaymentDto) {
+  async recordPayment(
+    contractId: string,
+    data: CreatePaymentDto,
+    userId?: string,
+  ) {
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const contract = await tx.contract.findUnique({
         where: { id: contractId },
@@ -94,6 +114,25 @@ export class ContractsService {
         },
       });
 
+      await createAuditLog(
+        {
+          userId: userId ?? null,
+          action: 'PAYMENT_ADDED',
+          entityType: 'PAYMENT',
+          entityId: payment.id,
+          changes: {
+            contractNo: contract.contractNo,
+            amount: data.amount,
+            currency: contract.currency,
+            referenceNo: data.referenceNo,
+            previousPaidAmount: currentPaidAmount,
+            newPaidAmount: updatedPaidAmount,
+            remainingBalance: updatedRemainingValue,
+          },
+        },
+        tx,
+      );
+
       return payment;
     });
   }
@@ -111,8 +150,10 @@ export class ContractsService {
     });
   }
 
-  async updateContract(id: string, data: UpdateContractDto) {
+  async updateContract(id: string, data: UpdateContractDto, userId?: string) {
     const { isDeleted, ...updateData } = data;
+
+    const oldContract = await prisma.contract.findUnique({ where: { id } });
 
     const formattedData: Prisma.ContractUpdateInput = {};
 
@@ -130,10 +171,27 @@ export class ContractsService {
       formattedData.sector = updateData.sector;
     if (isDeleted === true) formattedData.deletedAt = new Date();
 
-    return await prisma.contract.update({
+    const updated = await prisma.contract.update({
       where: { id },
       data: formattedData,
     });
+
+    await createAuditLog({
+      userId: userId ?? null,
+      action: 'CONTRACT_UPDATED',
+      entityType: 'CONTRACT',
+      entityId: id,
+      changes: {
+        contractNo: updated.contractNo,
+        previousTotalValue: oldContract
+          ? Number(oldContract.totalValue)
+          : undefined,
+        newTotalValue: Number(updated.totalValue),
+        currency: updated.currency,
+      },
+    });
+
+    return updated;
   }
 
   async getContractPayments(id: string, status?: string) {

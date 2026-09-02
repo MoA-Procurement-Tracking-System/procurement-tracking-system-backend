@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database.js';
+import { formatAuditSummary } from './audit-formatter.js';
 
 export async function listAuditLogs(
   query: {
@@ -41,7 +42,11 @@ export async function listAuditLogs(
           where: auditWhere,
           take: 200,
           orderBy: { createdAt: 'desc' },
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: {
+            user: {
+              select: { id: true, name: true, displayName: true, email: true },
+            },
+          },
         }),
     isSystemOnly
       ? Promise.resolve([])
@@ -49,7 +54,11 @@ export async function listAuditLogs(
           where: authWhere,
           take: 200,
           orderBy: { createdAt: 'desc' },
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: {
+            user: {
+              select: { id: true, name: true, displayName: true, email: true },
+            },
+          },
         }),
   ]);
 
@@ -72,9 +81,19 @@ export async function listAuditLogs(
     },
     createdAt: a.createdAt,
     user: a.user
-      ? { id: a.user.id, name: a.user.name, email: a.user.email }
+      ? {
+          id: a.user.id,
+          name: a.user.name,
+          displayName: a.user.displayName,
+          email: a.user.email,
+        }
       : a.email
-        ? { id: a.userId || '', name: a.email, email: a.email }
+        ? {
+            id: a.userId || '',
+            name: a.email,
+            displayName: a.email,
+            email: a.email,
+          }
         : null,
   }));
 
@@ -96,11 +115,22 @@ export async function listAuditLogs(
     );
   }
 
-  const paginatedData = combined.slice(skip, skip + pageSize);
+  const rawPaginated = combined.slice(skip, skip + pageSize);
+  const data = rawPaginated.map((item) => ({
+    ...item,
+    summary: formatAuditSummary({
+      action: item.action,
+      entityType: item.entityType,
+      entityId: item.entityId,
+      changes: item.changes as Record<string, unknown>,
+      user: item.user,
+    }),
+  }));
+
   const total = combined.length;
 
   return {
-    data: paginatedData,
+    data,
     meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
   };
 }
