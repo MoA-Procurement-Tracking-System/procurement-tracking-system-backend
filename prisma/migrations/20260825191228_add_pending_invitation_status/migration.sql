@@ -81,26 +81,40 @@
   - Added the required column `updatedAt` to the `Supplier` table without a default value. This is not possible if the table is not empty.
 
 */
--- CreateEnum
-CREATE TYPE "ContractStatus" AS ENUM ('DRAFT', 'ACTIVE', 'COMPLETED', 'TERMINATED', 'CANCELLED');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "ContractStatus" AS ENUM ('DRAFT', 'ACTIVE', 'COMPLETED', 'TERMINATED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'APPROVED', 'PAID', 'REJECTED', 'FAILED');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'APPROVED', 'PAID', 'REJECTED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "ProjectStatus" AS ENUM ('ACTIVE', 'CLOSED', 'SUSPENDED');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "ProjectStatus" AS ENUM ('ACTIVE', 'CLOSED', 'SUSPENDED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "RevisionChangeType" AS ENUM ('CREATE', 'UPDATE', 'REPLAN', 'APPROVE', 'REJECT', 'SOFT_DELETE');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "RevisionChangeType" AS ENUM ('CREATE', 'UPDATE', 'REPLAN', 'APPROVE', 'REJECT', 'SOFT_DELETE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "RevisionEntityType" AS ENUM ('PROJECT', 'PLAN', 'ACTIVITY', 'STAGE');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "RevisionEntityType" AS ENUM ('PROJECT', 'PLAN', 'ACTIVITY', 'STAGE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "StageStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'NOT_APPLICABLE');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "StageStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'NOT_APPLICABLE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateEnum
-CREATE TYPE "VoteDecision" AS ENUM ('APPROVE', 'REJECT');
+-- CreateEnum (safe: skip if already exists)
+DO $$ BEGIN
+  CREATE TYPE "VoteDecision" AS ENUM ('APPROVE', 'REJECT');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- AlterEnum
 BEGIN;
