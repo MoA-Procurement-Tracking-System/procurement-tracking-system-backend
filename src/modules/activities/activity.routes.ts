@@ -11,7 +11,7 @@ import {
 import { loadSession, requireAuthenticated } from '../auth/auth.routes.js';
 
 const router = Router();
-router.use(loadSession, requireAuthenticated);
+// Read routes do not require strict session check
 
 /**
  * @swagger
@@ -85,7 +85,7 @@ router.get('/:id', getActivityById);
  *       201: { description: Activity created }
  *       400: { description: Validation error }
  */
-router.post('/', createActivity);
+router.post('/', loadSession, requireAuthenticated, createActivity);
 
 /**
  * @swagger
@@ -102,7 +102,7 @@ router.post('/', createActivity);
  *     responses:
  *       200: { description: Activity updated }
  */
-router.patch('/:id', updateActivity);
+router.patch('/:id', loadSession, requireAuthenticated, updateActivity);
 
 /**
  * @swagger
@@ -123,7 +123,12 @@ router.patch('/:id', updateActivity);
  *     responses:
  *       200: { description: Stage updated }
  */
-router.patch('/:id/stages/:stageId', updateStage);
+router.patch(
+  '/:id/stages/:stageId',
+  loadSession,
+  requireAuthenticated,
+  updateStage,
+);
 
 /**
  * @swagger
@@ -144,7 +149,12 @@ router.patch('/:id/stages/:stageId', updateStage);
  *     responses:
  *       200: { description: Actual dates recorded }
  */
-router.patch('/:id/stages/:stageId/actual', updateStageActual);
+router.patch(
+  '/:id/stages/:stageId/actual',
+  loadSession,
+  requireAuthenticated,
+  updateStageActual,
+);
 
 /**
  * @swagger
@@ -176,6 +186,11 @@ router.patch('/:id/stages/:stageId/actual', updateStageActual);
  *     responses:
  *       200: { description: Stage replanned with revision history }
  */
-router.post('/:id/stages/:stageId/replan', replanStage);
+router.post(
+  '/:id/stages/:stageId/replan',
+  loadSession,
+  requireAuthenticated,
+  replanStage,
+);
 
 export default router;

@@ -133,12 +133,47 @@ export const createActivityService = async (
 
     const reference = await generateActivityReference(resolvedMethodId);
 
-    const { lots, fundings, components, ...activityData } = data;
-    delete (activityData as Partial<CreateActivityInput>).planId;
-    delete (activityData as Partial<CreateActivityInput>).procurementMethodId;
+    const inputWithExtra = data as CreateActivityInput & {
+      stages?: unknown;
+      roadmap?: unknown;
+    };
+    const { lots, fundings, components, ...activityData } = inputWithExtra;
+    const cleanActivityData = { ...activityData };
+    delete (
+      cleanActivityData as {
+        stages?: unknown;
+        roadmap?: unknown;
+        planId?: unknown;
+        procurementMethodId?: unknown;
+      }
+    ).stages;
+    delete (
+      cleanActivityData as {
+        stages?: unknown;
+        roadmap?: unknown;
+        planId?: unknown;
+        procurementMethodId?: unknown;
+      }
+    ).roadmap;
+    delete (
+      cleanActivityData as {
+        stages?: unknown;
+        roadmap?: unknown;
+        planId?: unknown;
+        procurementMethodId?: unknown;
+      }
+    ).planId;
+    delete (
+      cleanActivityData as {
+        stages?: unknown;
+        roadmap?: unknown;
+        planId?: unknown;
+        procurementMethodId?: unknown;
+      }
+    ).procurementMethodId;
 
     const createData: Prisma.ActivityCreateInput = {
-      ...(activityData as unknown as Prisma.ActivityCreateInput),
+      ...(cleanActivityData as unknown as Prisma.ActivityCreateInput),
       reference,
       plan: { connect: { id: plan.id } },
       procurementMethod: { connect: { id: resolvedMethodId } },
@@ -247,7 +282,14 @@ export const updateActivityService = async (
       }
     }
 
-    const { lots, fundings, components, ...scalarData } = data;
+    const inputWithExtra = data as UpdateActivityInput & {
+      stages?: unknown;
+      roadmap?: unknown;
+    };
+    const { lots, fundings, components, ...scalarData } = inputWithExtra;
+    const cleanScalarData = { ...scalarData };
+    delete (cleanScalarData as { stages?: unknown; roadmap?: unknown }).stages;
+    delete (cleanScalarData as { stages?: unknown; roadmap?: unknown }).roadmap;
 
     // Replace child records if provided
     if (fundings !== undefined) {
@@ -261,7 +303,7 @@ export const updateActivityService = async (
     }
 
     const updateData: Prisma.ActivityUpdateInput = {
-      ...(scalarData as unknown as Prisma.ActivityUpdateInput),
+      ...(cleanScalarData as unknown as Prisma.ActivityUpdateInput),
     };
 
     if (fundings !== undefined && fundings.length > 0) {
