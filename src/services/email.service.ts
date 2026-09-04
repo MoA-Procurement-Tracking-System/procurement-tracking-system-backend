@@ -35,7 +35,8 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
         user: env.SMTP_USER,
         pass: env.SMTP_PASS?.replace(/\s+/g, ''),
       },
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     await transporter.sendMail({
       from:
