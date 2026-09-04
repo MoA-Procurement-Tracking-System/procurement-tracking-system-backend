@@ -30,6 +30,7 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
       host: env.SMTP_HOST,
       port,
       secure,
+      family: 4,
       auth: {
         user: env.SMTP_USER,
         pass: env.SMTP_PASS?.replace(/\s+/g, ''),
