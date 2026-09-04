@@ -24,6 +24,12 @@ export async function getUserHandler(
 ) {
   try {
     const id = typeof req.params.id === 'string' ? req.params.id : '';
+    const currentUserId = req.auth?.user?.id;
+    if (currentUserId && currentUserId === id && req.body.isActive === false) {
+      return res
+        .status(400)
+        .json({ error: 'Administrators cannot deactivate their own account.' });
+    }
     const user = await usersService.getUserById(id);
     res.json({ data: user });
   } catch (err) {
