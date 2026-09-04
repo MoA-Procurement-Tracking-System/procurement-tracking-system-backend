@@ -9,6 +9,12 @@ export type TransactionalEmail = {
   html?: string;
 };
 
+export function isBrevoConfigured(): boolean {
+  return Boolean(
+    env.BREVO_API_KEY && env.BREVO_FROM_EMAIL && env.BREVO_FROM_NAME,
+  );
+}
+
 export function isMailerSendConfigured(): boolean {
   return Boolean(
     env.MAILERSEND_API_TOKEN &&
@@ -22,7 +28,102 @@ export function isSmtpConfigured(): boolean {
 }
 
 export async function sendEmail(message: TransactionalEmail): Promise<void> {
-  // 1. Try SMTP / Nodemailer first (e.g. Gmail SMTP)
+  // 1. Try Brevo API first
+  if (isBrevoConfigured()) {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'api-key': env.BREVO_API_KEY!,
+      },
+      body: JSON.stringify({
+        sender: {
+          email: env.BREVO_FROM_EMAIL,
+          name: env.BREVO_FROM_NAME,
+        },
+        to: [
+          {
+            email: message.to,
+          },
+        ],
+        subject: message.subject,
+        textContent: message.text,
+        ...(message.html ? { htmlContent: message.html } : {}),
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      throw new Error(
+        `Brevo returned HTTP ${response.status}: ${responseText}`,
+      );
+    }
+
+    logger.info(
+      { to: message.to, subject: message.subject },
+      'Email sent successfully via Brevo',
+    );
+
+    return;
+  }
+
+  // 2. Try MailerSend REST API
+  if (isMailerSendConfigured()) {
+    const apiToken = env.MAILERSEND_API_TOKEN;
+    const fromEmail = env.MAILERSEND_FROM_EMAIL;
+    const fromName = env.MAILERSEND_FROM_NAME;
+
+    const response = await fetch('https://api.mailersend.com/v1/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        authorization: `Bearer ${apiToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: { email: fromEmail, name: fromName },
+        to: [{ email: message.to }],
+        subject: message.subject,
+        text: message.text,
+        ...(message.html ? { html: message.html } : {}),
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      const responseText = (await response.text()).slice(0, 500);
+
+      let providerMessage = responseText;
+
+      try {
+        const payload = JSON.parse(responseText) as {
+          message?: unknown;
+        };
+
+        providerMessage =
+          typeof payload.message === 'string' ? payload.message : responseText;
+      } catch {
+        // Keep the plain-text response.
+      }
+
+      throw new Error(
+        `MailerSend returned HTTP ${response.status}${
+          providerMessage ? `: ${providerMessage}` : ''
+        }`,
+      );
+    }
+
+    logger.info(
+      { to: message.to, subject: message.subject },
+      'Email sent successfully via MailerSend',
+    );
+
+    return;
+  }
+
+  // 3. Try SMTP / Nodemailer
   if (isSmtpConfigured()) {
     const port = env.SMTP_PORT ?? 587;
     const secure = env.SMTP_SECURE ?? port === 465;
@@ -53,54 +154,10 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
     return;
   }
 
-  // 2. Try MailerSend REST API
-  if (isMailerSendConfigured()) {
-    const apiToken = env.MAILERSEND_API_TOKEN;
-    const fromEmail = env.MAILERSEND_FROM_EMAIL;
-    const fromName = env.MAILERSEND_FROM_NAME;
-
-    const response = await fetch('https://api.mailersend.com/v1/email', {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${apiToken}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: { email: fromEmail, name: fromName },
-        to: [{ email: message.to }],
-        subject: message.subject,
-        text: message.text,
-        ...(message.html ? { html: message.html } : {}),
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    if (!response.ok) {
-      const responseText = (await response.text()).slice(0, 500);
-      let providerMessage = responseText;
-      try {
-        const payload = JSON.parse(responseText) as { message?: unknown };
-        providerMessage =
-          typeof payload.message === 'string' ? payload.message : responseText;
-      } catch {
-        // Keep MailerSend's plain-text response when it is not JSON.
-      }
-
-      throw new Error(
-        `MailerSend returned HTTP ${response.status}${providerMessage ? `: ${providerMessage}` : ''}`,
-      );
-    }
-    logger.info(
-      { to: message.to, subject: message.subject },
-      'Email sent successfully via MailerSend',
-    );
-    return;
-  }
-
-  // 3. Fallback to Ethereal Mail for local development
+  // 4. Fallback to Ethereal for local development
   if (env.NODE_ENV !== 'production') {
     const testAccount = await nodemailer.createTestAccount();
+
     const transporter = nodemailer.createTransport({
       host: testAccount.smtp.host,
       port: testAccount.smtp.port,
@@ -120,6 +177,7 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
     });
 
     logger.info(`Test Email Sent: ${nodemailer.getTestMessageUrl(info)}`);
+
     return;
   }
 

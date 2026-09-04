@@ -76,6 +76,9 @@ const schema = z
     SMTP_USER: optionalString,
     SMTP_PASS: optionalString,
     SMTP_FROM: optionalString,
+    BREVO_API_KEY: optionalString,
+    BREVO_FROM_EMAIL: optionalEmail,
+    BREVO_FROM_NAME: optionalString,
     MAILERSEND_API_TOKEN: optionalString,
     MAILERSEND_FROM_EMAIL: optionalEmail,
     MAILERSEND_FROM_NAME: optionalString,
@@ -94,6 +97,21 @@ const schema = z
     BACKUP_REMOTE_PATH: optionalString,
   })
   .superRefine((values, context) => {
+    const brevoValues = [
+      values.BREVO_API_KEY,
+      values.BREVO_FROM_EMAIL,
+      values.BREVO_FROM_NAME,
+    ];
+    const configuredBrevo = brevoValues.filter(Boolean).length;
+    if (configuredBrevo > 0 && configuredBrevo < brevoValues.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['BREVO_API_KEY'],
+        message:
+          'BREVO_API_KEY, BREVO_FROM_EMAIL, and BREVO_FROM_NAME must be configured together',
+      });
+    }
+
     const mailerSendValues = [
       values.MAILERSEND_API_TOKEN,
       values.MAILERSEND_FROM_EMAIL,
@@ -117,6 +135,7 @@ const schema = z
     );
     if (
       values.NODE_ENV === 'production' &&
+      configuredBrevo === 0 &&
       configuredMailerSend === 0 &&
       !hasSmtp
     ) {
@@ -124,7 +143,7 @@ const schema = z
         code: 'custom',
         path: ['SMTP_HOST'],
         message:
-          'An email provider (SMTP or MailerSend) configuration is required in production',
+          'An email provider (SMTP, Brevo, or MailerSend) configuration is required in production',
       });
     }
   });
