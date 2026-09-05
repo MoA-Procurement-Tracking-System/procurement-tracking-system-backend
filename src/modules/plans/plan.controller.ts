@@ -176,3 +176,75 @@ export const submitCommitteeVote = async (
     });
   }
 };
+
+export const submitManagementDecision = async (
+  req: Request & { user?: { id: string } },
+  res: Response,
+) => {
+  try {
+    const userId = req.body.userId || req.body.email || req.user?.id || '';
+    const plan = await planService.managementDecisionService(
+      req.params.id as string,
+      req.body.decision,
+      req.body.comment,
+      userId,
+    );
+    res.status(200).json(plan);
+  } catch (error: unknown) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
+export const returnPlanForRevision = async (
+  req: Request & { user?: { id: string } },
+  res: Response,
+) => {
+  try {
+    const userId = req.body.userId || req.user?.id || '';
+    const plan = await planService.returnPlanForRevisionService(
+      req.params.id as string,
+      req.body.comment || '',
+      userId,
+    );
+    res.status(200).json(plan);
+  } catch (error: unknown) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
+export const getPlanComments = async (req: Request, res: Response) => {
+  try {
+    const comments = await planService.getPlanCommentsService(
+      req.params.id as string,
+    );
+    res.status(200).json(comments);
+  } catch (error: unknown) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
+export const addComment = async (
+  req: Request & { user?: { id: string } },
+  res: Response,
+) => {
+  try {
+    const userId = req.body.userId || req.user?.id || '';
+    const comment = await planService.addCommentService(
+      req.body.entityType,
+      req.body.entityId,
+      req.body.body,
+      userId,
+    );
+    res.status(201).json(comment);
+  } catch (error: unknown) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};

@@ -29,6 +29,13 @@ model Plan {
   rejectedAt      DateTime?
   rejectionReason String?
 
+  managementDecision      String?
+  managementComment       String?
+  managementById          String?
+  managementByUser        User?     @relation("PlanManagementDecider", fields: [managementById], references: [id])
+  managementAt            DateTime?
+  directorRevisionComment String?
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -44,6 +51,7 @@ model Plan {
   @@index([createdBy])
   @@index([approvedById])
   @@index([rejectedById])
+  @@index([managementById])
 }
 
 model PlanReview {

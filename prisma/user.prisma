@@ -29,6 +29,7 @@ model User {
   createdPlans        Plan[]                @relation("PlanCreator")
   approvedPlans       Plan[]                @relation("PlanApprover")
   rejectedPlans       Plan[]                @relation("PlanRejector")
+  managementPlans     Plan[]                @relation("PlanManagementDecider")
   planReviews         PlanReview[]
   revisions           Revision[]
   stageRevisions      StageRevision[]

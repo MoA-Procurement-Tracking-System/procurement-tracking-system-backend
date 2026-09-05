@@ -15,6 +15,7 @@ const bridgeAuth: RequestHandler = (req, _res, next) => {
       OFFICER: 'ProcurementOfficer',
       DIRECTOR: 'ProcurementDirector',
       ENDORSING_COMMITTEE: 'ManagementTeam',
+      MANAGEMENT: 'ManagementTeam',
     };
     const userAuthRole = req.auth.user.role;
     (req as unknown as Record<string, unknown>).user = {
