@@ -9,6 +9,12 @@ export type TransactionalEmail = {
   html?: string;
 };
 
+export function isBrevoConfigured(): boolean {
+  return Boolean(
+    env.BREVO_API_KEY && env.BREVO_FROM_EMAIL && env.BREVO_FROM_NAME,
+  );
+}
+
 export function isMailerSendConfigured(): boolean {
   return Boolean(
     env.MAILERSEND_API_TOKEN &&
@@ -22,32 +28,44 @@ export function isSmtpConfigured(): boolean {
 }
 
 export async function sendEmail(message: TransactionalEmail): Promise<void> {
-  // 1. Try SMTP / Nodemailer first (e.g. Gmail SMTP)
-  if (isSmtpConfigured()) {
-    const port = env.SMTP_PORT ?? 587;
-    const secure = env.SMTP_SECURE ?? port === 465;
-    const transporter = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port,
-      secure,
-      auth: {
-        user: env.SMTP_USER,
-        pass: env.SMTP_PASS?.replace(/\s+/g, ''),
+  // 1. Try Brevo API first
+  if (isBrevoConfigured()) {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'api-key': env.BREVO_API_KEY!,
       },
+      body: JSON.stringify({
+        sender: {
+          email: env.BREVO_FROM_EMAIL,
+          name: env.BREVO_FROM_NAME,
+        },
+        to: [
+          {
+            email: message.to,
+          },
+        ],
+        subject: message.subject,
+        textContent: message.text,
+        ...(message.html ? { htmlContent: message.html } : {}),
+      }),
+      signal: AbortSignal.timeout(10_000),
     });
 
-    await transporter.sendMail({
-      from:
-        env.SMTP_FROM || `"MoA Procurement Tracking System" <${env.SMTP_USER}>`,
-      to: message.to,
-      subject: message.subject,
-      text: message.text,
-      ...(message.html ? { html: message.html } : {}),
-    });
+    if (!response.ok) {
+      const responseText = await response.text();
+      throw new Error(
+        `Brevo returned HTTP ${response.status}: ${responseText}`,
+      );
+    }
+
     logger.info(
       { to: message.to, subject: message.subject },
-      'Email sent successfully via SMTP',
+      'Email sent successfully via Brevo',
     );
+
     return;
   }
 
@@ -76,29 +94,70 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
 
     if (!response.ok) {
       const responseText = (await response.text()).slice(0, 500);
+
       let providerMessage = responseText;
+
       try {
-        const payload = JSON.parse(responseText) as { message?: unknown };
+        const payload = JSON.parse(responseText) as {
+          message?: unknown;
+        };
+
         providerMessage =
           typeof payload.message === 'string' ? payload.message : responseText;
       } catch {
-        // Keep MailerSend's plain-text response when it is not JSON.
+        // Keep the plain-text response.
       }
 
       throw new Error(
-        `MailerSend returned HTTP ${response.status}${providerMessage ? `: ${providerMessage}` : ''}`,
+        `MailerSend returned HTTP ${response.status}${
+          providerMessage ? `: ${providerMessage}` : ''
+        }`,
       );
     }
+
     logger.info(
       { to: message.to, subject: message.subject },
       'Email sent successfully via MailerSend',
     );
+
     return;
   }
 
-  // 3. Fallback to Ethereal Mail for local development
+  // 3. Try SMTP / Nodemailer
+  if (isSmtpConfigured()) {
+    const port = env.SMTP_PORT ?? 587;
+    const secure = env.SMTP_SECURE ?? port === 465;
+    const transporter = nodemailer.createTransport({
+      host: env.SMTP_HOST,
+      port,
+      secure,
+      family: 4,
+      auth: {
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASS?.replace(/\s+/g, ''),
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    await transporter.sendMail({
+      from:
+        env.SMTP_FROM || `"MoA Procurement Tracking System" <${env.SMTP_USER}>`,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      ...(message.html ? { html: message.html } : {}),
+    });
+    logger.info(
+      { to: message.to, subject: message.subject },
+      'Email sent successfully via SMTP',
+    );
+    return;
+  }
+
+  // 4. Fallback to Ethereal for local development
   if (env.NODE_ENV !== 'production') {
     const testAccount = await nodemailer.createTestAccount();
+
     const transporter = nodemailer.createTransport({
       host: testAccount.smtp.host,
       port: testAccount.smtp.port,
@@ -118,6 +177,7 @@ export async function sendEmail(message: TransactionalEmail): Promise<void> {
     });
 
     logger.info(`Test Email Sent: ${nodemailer.getTestMessageUrl(info)}`);
+
     return;
   }
 
