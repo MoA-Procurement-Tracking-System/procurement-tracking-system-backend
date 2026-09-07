@@ -59,13 +59,15 @@ export class ExcelController {
   }
 
   async importActivities(req: Request, res: Response): Promise<void> {
-    if (!req.file) {
+    const file =
+      req.file || (Array.isArray(req.files) ? req.files[0] : undefined);
+    if (!file) {
       res.status(400).json({ error: 'No file uploaded.' });
       return;
     }
 
     try {
-      const stats = await excelService.importActivities(req.file.path);
+      const stats = await excelService.importActivities(file.path);
       res.status(200).json({
         message: 'Activities imported successfully.',
         ...stats,
@@ -74,18 +76,27 @@ export class ExcelController {
       const msg = error instanceof Error ? error.message : String(error);
       res.status(400).json({ error: `Import failed: ${msg}` });
     } finally {
-      this.cleanupUploadedFile(req.file.path);
+      this.cleanupUploadedFile(file.path);
     }
   }
 
   async importContracts(req: Request, res: Response): Promise<void> {
-    if (!req.file) {
+    const file =
+      req.file || (Array.isArray(req.files) ? req.files[0] : undefined);
+    if (!file) {
       res.status(400).json({ error: 'No file uploaded.' });
       return;
     }
 
+    const userId = req.auth?.user?.id;
+    const userRole = req.auth?.user?.role;
+
     try {
-      const stats = await excelService.importContracts(req.file.path);
+      const stats = await excelService.importContracts(
+        file.path,
+        userId,
+        userRole,
+      );
       res.status(200).json({
         message: 'Contracts imported successfully.',
         ...stats,
@@ -94,18 +105,20 @@ export class ExcelController {
       const msg = error instanceof Error ? error.message : String(error);
       res.status(400).json({ error: `Import failed: ${msg}` });
     } finally {
-      this.cleanupUploadedFile(req.file.path);
+      this.cleanupUploadedFile(file.path);
     }
   }
 
   async importSuppliers(req: Request, res: Response): Promise<void> {
-    if (!req.file) {
+    const file =
+      req.file || (Array.isArray(req.files) ? req.files[0] : undefined);
+    if (!file) {
       res.status(400).json({ error: 'No file uploaded.' });
       return;
     }
 
     try {
-      const stats = await excelService.importSuppliers(req.file.path);
+      const stats = await excelService.importSuppliers(file.path);
       res.status(200).json({
         message: 'Suppliers imported successfully.',
         ...stats,
@@ -114,18 +127,20 @@ export class ExcelController {
       const msg = error instanceof Error ? error.message : String(error);
       res.status(400).json({ error: `Import failed: ${msg}` });
     } finally {
-      this.cleanupUploadedFile(req.file.path);
+      this.cleanupUploadedFile(file.path);
     }
   }
 
   async importProjects(req: Request, res: Response): Promise<void> {
-    if (!req.file) {
+    const file =
+      req.file || (Array.isArray(req.files) ? req.files[0] : undefined);
+    if (!file) {
       res.status(400).json({ error: 'No file uploaded.' });
       return;
     }
 
     try {
-      const stats = await excelService.importProjects(req.file.path);
+      const stats = await excelService.importProjects(file.path);
       res.status(200).json({
         message: 'Projects imported successfully.',
         ...stats,
@@ -134,12 +149,14 @@ export class ExcelController {
       const msg = error instanceof Error ? error.message : String(error);
       res.status(400).json({ error: `Import failed: ${msg}` });
     } finally {
-      this.cleanupUploadedFile(req.file.path);
+      this.cleanupUploadedFile(file.path);
     }
   }
 
   async importPlans(req: Request, res: Response): Promise<void> {
-    if (!req.file) {
+    const file =
+      req.file || (Array.isArray(req.files) ? req.files[0] : undefined);
+    if (!file) {
       res.status(400).json({ error: 'No file uploaded.' });
       return;
     }
@@ -151,7 +168,7 @@ export class ExcelController {
     }
 
     try {
-      const stats = await excelService.importPlans(req.file.path, creatorId);
+      const stats = await excelService.importPlans(file.path, creatorId);
       res.status(200).json({
         message: 'Plans imported successfully.',
         ...stats,
@@ -160,7 +177,7 @@ export class ExcelController {
       const msg = error instanceof Error ? error.message : String(error);
       res.status(400).json({ error: `Import failed: ${msg}` });
     } finally {
-      this.cleanupUploadedFile(req.file.path);
+      this.cleanupUploadedFile(file.path);
     }
   }
 
