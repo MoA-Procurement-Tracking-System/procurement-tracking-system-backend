@@ -1,8 +1,12 @@
 import { Router } from 'express';
+import multer from 'multer';
+import os from 'os';
 import { reportsController } from './reports.controller.js';
 import { loadSession, requireAuthenticated } from '../auth/auth.routes.js';
+import { excelController } from '../excel/excel.controller.js';
 
 const router = Router();
+const upload = multer({ dest: os.tmpdir() });
 
 // Secure all report endpoints using the project's cookie session middlewares
 router.use(loadSession, requireAuthenticated);
@@ -531,6 +535,37 @@ router.get('/project-officer-summary', (req, res) =>
  */
 router.get('/activity-milestone', (req, res) =>
   reportsController.activityMilestone(req, res),
+);
+
+/**
+ * @openapi
+ * /api/reports/import/contracts:
+ *   post:
+ *     summary: Import contract report spreadsheet from local disk
+ *     tags: [Reports]
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Success response with import counts
+ *       400:
+ *         description: Import parsing or validation error
+ */
+router.post('/import/contracts', upload.any(), (req, res) =>
+  excelController.importContracts(req, res),
+);
+router.post('/import-contracts', upload.any(), (req, res) =>
+  excelController.importContracts(req, res),
+);
+router.post('/import-report', upload.any(), (req, res) =>
+  excelController.importContracts(req, res),
 );
 
 export default router;
