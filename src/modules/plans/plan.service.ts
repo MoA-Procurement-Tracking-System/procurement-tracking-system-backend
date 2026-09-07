@@ -39,6 +39,7 @@ export const getPlansService = async () => {
         },
         committeeVotes: true,
         reviews: true,
+        managementByUser: true,
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -58,6 +59,35 @@ export const getPlansService = async () => {
       orderBy: { createdAt: 'asc' },
     }),
   ]);
+
+  const planIds = plans.map((p) => p.id);
+  const allActivityIds = plans.flatMap((p) =>
+    (p.activities || []).map((a) => a.id),
+  );
+  const planComments = await prisma.comment.findMany({
+    where: {
+      OR: [
+        { entityType: 'PLAN', entityId: { in: planIds } },
+        ...(allActivityIds.length > 0
+          ? [{ entityType: 'ACTIVITY', entityId: { in: allActivityIds } }]
+          : []),
+      ],
+      isActive: true,
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          displayName: true,
+          email: true,
+          role: true,
+          authRole: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
 
   const voterIds = Array.from(
     new Set(
@@ -79,6 +109,11 @@ export const getPlansService = async () => {
 
   return plans.map((p) => ({
     ...p,
+    comments: planComments.filter(
+      (c) =>
+        c.entityId === p.id ||
+        (p.activities || []).some((a) => a.id === c.entityId),
+    ),
     committeeMembers: committeeUsers,
     committeeVotes: (p.committeeVotes || []).map((v) => {
       const u = userMap.get(v.memberId);
@@ -122,6 +157,7 @@ export const getPlanByIdService = async (id: string) => {
         },
         committeeVotes: true,
         reviews: true,
+        managementByUser: true,
       },
     }),
     prisma.user.findMany({
@@ -157,8 +193,39 @@ export const getPlanByIdService = async (id: string) => {
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
 
+  const singlePlanComments = await prisma.comment.findMany({
+    where: {
+      OR: [
+        { entityType: 'PLAN', entityId: plan.id },
+        ...((plan.activities || []).map((a) => a.id).length > 0
+          ? [
+              {
+                entityType: 'ACTIVITY',
+                entityId: { in: (plan.activities || []).map((a) => a.id) },
+              },
+            ]
+          : []),
+      ],
+      isActive: true,
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          displayName: true,
+          email: true,
+          role: true,
+          authRole: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
   return {
     ...plan,
+    comments: singlePlanComments,
     committeeMembers: committeeUsers,
     committeeVotes: (plan.committeeVotes || []).map((v) => {
       const u = userMap.get(v.memberId);
@@ -364,6 +431,11 @@ export const sendToCommitteeService = async (
         data: {
           status: PlanStatus.WITH_COMMITTEE,
           committeeRound: oldPlan.committeeRound + 1,
+          managementDecision: null,
+          managementComment: null,
+          managementById: null,
+          managementAt: null,
+          directorRevisionComment: null,
           ...(committeeVoteDeadline !== undefined
             ? { committeeVoteDeadline }
             : {}),
@@ -604,12 +676,15 @@ export const submitCommitteeVoteService = async (
       // 2. If at least 3 members vote REJECT, the plan is REJECTED (majority rejection).
       // 3. Otherwise (fewer than 3 approvals and fewer than 3 rejections), the plan stays in WITH_COMMITTEE (Pending Approval).
       if (approveCount >= 3) {
+        const targetStatus =
+          oldPlan.status === PlanStatus.WITH_COMMITTEE
+            ? PlanStatus.AWAITING_MANAGEMENT_APPROVAL
+            : oldPlan.status;
+
         plan = await tx.plan.update({
           where: { id: oldPlan.id },
           data: {
-            status: PlanStatus.APPROVED,
-            approvedById: validUserId,
-            approvedAt: new Date(),
+            status: targetStatus,
           },
           include: {
             project: true,
@@ -622,24 +697,27 @@ export const submitCommitteeVoteService = async (
           await logRevision(
             tx,
             RevisionEntityType.PLAN,
-            RevisionChangeType.APPROVE,
+            RevisionChangeType.UPDATE,
             oldPlan.id,
             validUserId,
             oldPlan,
             plan,
           );
         } catch (auditErr) {
-          console.warn('logRevision vote approve warning:', auditErr);
+          console.warn('logRevision vote endorse warning:', auditErr);
         }
       } else if (rejectCount >= 3) {
+        const targetStatus =
+          oldPlan.status === PlanStatus.WITH_COMMITTEE
+            ? PlanStatus.COMMITTEE_REJECTED
+            : oldPlan.status;
+
         plan = await tx.plan.update({
           where: { id: oldPlan.id },
           data: {
-            status: PlanStatus.REJECTED,
-            rejectedById: validUserId,
+            status: targetStatus,
             rejectionReason:
               comment || 'Rejected by majority Endorsement Committee vote.',
-            rejectedAt: new Date(),
           },
           include: {
             project: true,
@@ -884,4 +962,254 @@ export const approvePlanUpdateService = async (id: string, userId: string) => {
 
     return plan;
   });
+};
+
+export const managementDecisionService = async (
+  id: string,
+  decision: 'APPROVE' | 'REJECT',
+  comment: string | undefined,
+  userId: string,
+) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const oldPlan = await tx.plan.findFirst({
+      where: { OR: [{ id }, { title: id }] },
+      include: { activities: true, committeeVotes: true },
+    });
+    if (!oldPlan) {
+      throw new Error(`Plan not found with id: ${id}`);
+    }
+
+    let validUserId = userId;
+    const user = await tx.user.findFirst({
+      where: { OR: [{ id: userId }, { email: userId }] },
+    });
+    if (user) {
+      validUserId = user.id;
+    } else {
+      const fallback = await tx.user.findFirst({
+        where: { OR: [{ authRole: 'MANAGEMENT' }, { role: 'ManagementTeam' }] },
+      });
+      if (fallback) validUserId = fallback.id;
+    }
+
+    const newStatus =
+      decision === 'APPROVE'
+        ? PlanStatus.MANAGEMENT_APPROVED
+        : PlanStatus.MANAGEMENT_REJECTED;
+
+    const plan = await tx.plan.update({
+      where: { id: oldPlan.id },
+      data: {
+        status: newStatus,
+        managementDecision: decision,
+        managementComment: comment || null,
+        managementById: validUserId,
+        managementAt: new Date(),
+        ...(decision === 'APPROVE'
+          ? { approvedById: validUserId, approvedAt: new Date() }
+          : {
+              rejectedById: validUserId,
+              rejectedAt: new Date(),
+              rejectionReason: comment || 'Rejected by Management.',
+            }),
+      },
+      include: {
+        project: true,
+        creator: true,
+        activities: true,
+        committeeVotes: true,
+        managementByUser: true,
+      },
+    });
+
+    if (comment && comment.trim()) {
+      await tx.comment.create({
+        data: {
+          entityType: 'PLAN',
+          entityId: oldPlan.id,
+          authorId: validUserId,
+          body: `[Management Decision Comment] ${comment}`,
+        },
+      });
+    }
+
+    try {
+      if (validUserId) {
+        await logRevision(
+          tx,
+          RevisionEntityType.PLAN,
+          decision === 'APPROVE'
+            ? RevisionChangeType.APPROVE
+            : RevisionChangeType.REJECT,
+          oldPlan.id,
+          validUserId,
+          oldPlan,
+          plan,
+        );
+      }
+    } catch (auditErr) {
+      console.warn('logRevision management decision warning:', auditErr);
+    }
+
+    return plan;
+  });
+};
+
+export const returnPlanForRevisionService = async (
+  id: string,
+  comment: string,
+  userId: string,
+) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const oldPlan = await tx.plan.findFirst({
+      where: { OR: [{ id }, { title: id }] },
+      include: { activities: true, committeeVotes: true },
+    });
+    if (!oldPlan) {
+      throw new Error(`Plan not found with id: ${id}`);
+    }
+
+    let validUserId = userId;
+    const user = await tx.user.findFirst({
+      where: { OR: [{ id: userId }, { email: userId }] },
+    });
+    if (user) {
+      validUserId = user.id;
+    } else {
+      const fallback = await tx.user.findFirst({
+        where: {
+          OR: [{ authRole: 'DIRECTOR' }, { role: 'ProcurementDirector' }],
+        },
+      });
+      if (fallback) validUserId = fallback.id;
+    }
+
+    const plan = await tx.plan.update({
+      where: { id: oldPlan.id },
+      data: {
+        status: PlanStatus.RETURNED_FOR_REVISION,
+        directorRevisionComment: comment,
+        rejectedById: validUserId,
+        rejectedAt: new Date(),
+        rejectionReason: comment,
+      },
+      include: {
+        project: true,
+        creator: true,
+        activities: true,
+        committeeVotes: true,
+        managementByUser: true,
+      },
+    });
+
+    if (validUserId) {
+      await tx.comment.create({
+        data: {
+          entityType: 'PLAN',
+          entityId: oldPlan.id,
+          authorId: validUserId,
+          body: `[Director Revision Instructions] ${comment}`,
+        },
+      });
+    }
+
+    try {
+      if (validUserId) {
+        await logRevision(
+          tx,
+          RevisionEntityType.PLAN,
+          RevisionChangeType.UPDATE,
+          oldPlan.id,
+          validUserId,
+          oldPlan,
+          plan,
+        );
+      }
+    } catch (auditErr) {
+      console.warn('logRevision return for revision warning:', auditErr);
+    }
+
+    return plan;
+  });
+};
+
+export const getPlanCommentsService = async (planId: string) => {
+  const plan = await prisma.plan.findFirst({
+    where: { OR: [{ id: planId }, { title: planId }] },
+    include: { activities: { select: { id: true } } },
+  });
+  if (!plan) return [];
+
+  const activityIds = plan.activities.map((a) => a.id);
+  const comments = await prisma.comment.findMany({
+    where: {
+      OR: [
+        { entityType: 'PLAN', entityId: plan.id },
+        ...(activityIds.length > 0
+          ? [{ entityType: 'ACTIVITY', entityId: { in: activityIds } }]
+          : []),
+      ],
+      isActive: true,
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          displayName: true,
+          email: true,
+          role: true,
+          authRole: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return comments;
+};
+
+export const addCommentService = async (
+  entityType: 'PLAN' | 'ACTIVITY',
+  entityId: string,
+  body: string,
+  userId: string,
+) => {
+  let validUserId = userId;
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ id: userId }, { email: userId }] },
+  });
+  if (user) {
+    validUserId = user.id;
+  } else {
+    const fallback = await prisma.user.findFirst({ select: { id: true } });
+    if (fallback) validUserId = fallback.id;
+  }
+
+  if (!validUserId) {
+    throw new Error('Valid user required to post comment');
+  }
+
+  const comment = await prisma.comment.create({
+    data: {
+      entityType,
+      entityId,
+      body,
+      authorId: validUserId,
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          displayName: true,
+          email: true,
+          role: true,
+          authRole: true,
+        },
+      },
+    },
+  });
+
+  return comment;
 };
