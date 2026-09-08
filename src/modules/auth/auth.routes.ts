@@ -108,12 +108,40 @@ const createPasswordSchema = z
 const createUserSchema = z.object({
   email: z.email().max(254),
   displayName: z.string().trim().min(2).max(120),
-  role: z.enum([
-    UserRole.OFFICER,
-    UserRole.DIRECTOR,
-    UserRole.ENDORSING_COMMITTEE,
-    UserRole.MANAGEMENT,
-  ]),
+  role: z
+    .string()
+    .trim()
+    .transform((val) => {
+      const clean = val.replace(/[\s_-]+/g, '').toUpperCase();
+      if (clean === 'MANAGEMENTTEAM' || clean === 'MANAGEMENT') {
+        return UserRole.MANAGEMENT;
+      }
+      if (clean === 'ENDORSINGCOMMITTEE' || clean === 'COMMITTEE') {
+        return UserRole.ENDORSING_COMMITTEE;
+      }
+      if (clean === 'OFFICER' || clean === 'PROCUREMENTOFFICER') {
+        return UserRole.OFFICER;
+      }
+      if (
+        clean === 'DIRECTOR' ||
+        clean === 'PROCUREMENTDIRECTOR' ||
+        clean === 'PROJECTMANAGER'
+      ) {
+        return UserRole.DIRECTOR;
+      }
+      if (clean === 'ADMIN' || clean === 'ADMINISTRATOR') {
+        return UserRole.ADMIN;
+      }
+      return val as UserRole;
+    })
+    .pipe(
+      z.nativeEnum(UserRole, {
+        errorMap: () => ({
+          message:
+            'Role must be OFFICER, DIRECTOR, ENDORSING_COMMITTEE, MANAGEMENT, or ADMIN',
+        }),
+      }),
+    ),
 });
 
 function publicUser(user: PublicUser | PublicUserSource): PublicUser {
