@@ -1,4 +1,58 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
+import { prisma } from '../../config/database.js';
+import { env } from '../../config/env.js';
+import { hashToken } from '../auth/auth.security.js';
+
+function cookieValue(
+  cookieHeader: string | undefined,
+  name: string,
+): string | undefined {
+  if (!cookieHeader) return undefined;
+  const match = cookieHeader
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(name + '='));
+  if (!match) return undefined;
+  return decodeURIComponent(match.slice(name.length + 1));
+}
+
+const optionalLoadSession: RequestHandler = async (req, res, next) => {
+  try {
+    let raw: string | undefined = undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      raw = authHeader.slice(7).trim();
+    }
+    if (!raw) {
+      raw = cookieValue(req.headers.cookie, env.SESSION_COOKIE_NAME);
+    }
+    if (raw) {
+      const session = await prisma.session.findUnique({
+        where: { tokenHash: hashToken(raw) },
+        include: { user: true },
+      });
+      if (session && !session.revokedAt && session.expiresAt > new Date()) {
+        req.auth = {
+          sessionId: session.id,
+          sessionKind: session.kind,
+          sessionExpiresAt: session.expiresAt,
+          user: {
+            id: session.user.id,
+            email: session.user.email,
+            username: session.user.username,
+            displayName: session.user.displayName,
+            role: session.user.authRole,
+            status: session.user.status,
+            passwordHash: session.user.passwordHash,
+          },
+        };
+      }
+    }
+  } catch {
+    // Ignore session load error in optional middleware
+  }
+  next();
+};
 // import { authorize } from '../../middleware/authorize.js';
 import {
   getPlans,
@@ -76,11 +130,7 @@ router.get('/:id', getPlanById);
  *     responses:
  *       201: { description: Plan created }
  */
-router.post(
-  '/',
-  // authorize('Administrator', 'ProjectManager', 'ProcurementOfficer'),
-  createPlan,
-);
+router.post('/', optionalLoadSession, createPlan);
 
 /**
  * @swagger
@@ -113,11 +163,7 @@ router.post(
  *     responses:
  *       200: { description: Plan updated }
  */
-router.patch(
-  '/:id',
-  // authorize('Administrator', 'ProjectManager', 'ProcurementOfficer', 'Director'),
-  updatePlan,
-);
+router.patch('/:id', optionalLoadSession, updatePlan);
 
 /**
  * @swagger
@@ -176,11 +222,7 @@ router.post(
  *     responses:
  *       200: { description: Plan submitted }
  */
-router.post(
-  '/:id/submit',
-  // authorize('ProcurementOfficer'),
-  submitPlan,
-);
+router.post('/:id/submit', optionalLoadSession, submitPlan);
 
 /**
  * @swagger

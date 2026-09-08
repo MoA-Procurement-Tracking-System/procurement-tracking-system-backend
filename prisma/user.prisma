@@ -27,12 +27,15 @@ model User {
   authAuditLogs       AuthAuditLog[]
   comments            Comment[]
   createdPlans        Plan[]                @relation("PlanCreator")
+  updatedPlans        Plan[]                @relation("PlanUpdater")
   approvedPlans       Plan[]                @relation("PlanApprover")
   rejectedPlans       Plan[]                @relation("PlanRejector")
   managementPlans     Plan[]                @relation("PlanManagementDecider")
   planReviews         PlanReview[]
   revisions           Revision[]
   stageRevisions      StageRevision[]
+  createdActivities   Activity[]            @relation("ActivityCreator")
+  updatedActivities   Activity[]            @relation("ActivityUpdater")
   uploadedDocuments   Document[]
   resolvedAlerts      Alert[]
   importBatches       ImportBatch[]

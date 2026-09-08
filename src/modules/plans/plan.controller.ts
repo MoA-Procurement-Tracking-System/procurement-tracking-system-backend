@@ -31,10 +31,16 @@ export const createPlan = async (
   res: Response,
 ) => {
   try {
-    const plan = await planService.createPlanService(
-      req.body,
-      req.user?.id || 'test-user-id',
-    );
+    const userId =
+      req.auth?.user?.id ||
+      req.user?.id ||
+      req.body.userId ||
+      req.body.createdBy ||
+      (typeof req.headers['x-user-id'] === 'string'
+        ? req.headers['x-user-id']
+        : undefined) ||
+      'test-user-id';
+    const plan = await planService.createPlanService(req.body, userId);
     res.status(201).json(plan);
   } catch (error: unknown) {
     res.status(500).json({
@@ -48,10 +54,18 @@ export const updatePlan = async (
   res: Response,
 ) => {
   try {
+    const userId =
+      req.auth?.user?.id ||
+      req.user?.id ||
+      req.body.userId ||
+      (typeof req.headers['x-user-id'] === 'string'
+        ? req.headers['x-user-id']
+        : undefined) ||
+      'test-user-id';
     const plan = await planService.updatePlanService(
       req.params.id as string,
       req.body,
-      req.user?.id || 'test-user-id',
+      userId,
     );
     res.status(200).json(plan);
   } catch (error: unknown) {
@@ -100,9 +114,17 @@ export const submitPlan = async (
   res: Response,
 ) => {
   try {
+    const userId =
+      req.auth?.user?.id ||
+      req.user?.id ||
+      req.body.userId ||
+      (typeof req.headers['x-user-id'] === 'string'
+        ? req.headers['x-user-id']
+        : undefined) ||
+      'test-user-id';
     const plan = await planService.submitPlanService(
       req.params.id as string,
-      req.user?.id || 'test-user-id',
+      userId,
     );
     res.status(200).json(plan);
   } catch (error: unknown) {

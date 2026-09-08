@@ -25,9 +25,12 @@ export const getPlansService = async () => {
           },
         },
         creator: true,
+        updatedByUser: true,
         activities: {
           include: {
             procurementMethod: true,
+            creator: true,
+            updatedByUser: true,
             stages: {
               include: {
                 stageType: true,
@@ -143,9 +146,12 @@ export const getPlanByIdService = async (id: string) => {
           },
         },
         creator: true,
+        updatedByUser: true,
         activities: {
           include: {
             procurementMethod: true,
+            creator: true,
+            updatedByUser: true,
             stages: {
               include: {
                 stageType: true,
@@ -269,10 +275,12 @@ export const createPlanService = async (
         projectId: resolvedProjectId,
         status: PlanStatus.DRAFT,
         createdBy: validUserId,
+        updatedById: validUserId,
       },
       include: {
         project: true,
         creator: true,
+        updatedByUser: true,
         activities: true,
         committeeVotes: true,
       },
@@ -321,10 +329,14 @@ export const updatePlanService = async (
 
     const plan = await tx.plan.update({
       where: { id: oldPlan.id },
-      data,
+      data: {
+        ...data,
+        updatedByUser: { connect: { id: validUserId } },
+      },
       include: {
         project: true,
         creator: true,
+        updatedByUser: true,
         activities: true,
         committeeVotes: true,
       },
