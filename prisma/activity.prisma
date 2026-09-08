@@ -45,6 +45,12 @@ model Activity {
   status                    ActivityStatus @default(PLANNED)
   performancePct            Float?
 
+  createdById               String?
+  creator                   User?          @relation("ActivityCreator", fields: [createdById], references: [id])
+
+  updatedById               String?
+  updatedByUser             User?          @relation("ActivityUpdater", fields: [updatedById], references: [id])
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -60,6 +66,8 @@ model Activity {
   @@index([planId])
   @@index([status])
   @@index([procurementMethodId])
+  @@index([createdById])
+  @@index([updatedById])
   @@index([createdAt, id])
 }
 

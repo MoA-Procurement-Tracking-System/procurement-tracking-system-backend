@@ -20,6 +20,9 @@ model Plan {
   createdBy String
   creator   User   @relation("PlanCreator", fields: [createdBy], references: [id])
 
+  updatedById   String?
+  updatedByUser User?     @relation("PlanUpdater", fields: [updatedById], references: [id])
+
   approvedById   String?
   approvedByUser User?     @relation("PlanApprover", fields: [approvedById], references: [id])
   approvedAt     DateTime?
@@ -49,6 +52,7 @@ model Plan {
   @@index([projectId])
   @@index([status])
   @@index([createdBy])
+  @@index([updatedById])
   @@index([approvedById])
   @@index([rejectedById])
   @@index([managementById])

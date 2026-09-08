@@ -55,6 +55,8 @@ export const getActivitiesService = async (planId?: string) => {
     where,
     include: {
       plan: { include: { project: true } },
+      creator: true,
+      updatedByUser: true,
       lots: true,
       fundings: true,
       components: true,
@@ -75,6 +77,8 @@ export const getActivityByIdService = async (id: string) => {
     where: { id },
     include: {
       plan: true,
+      creator: true,
+      updatedByUser: true,
       lots: true,
       fundings: true,
       components: true,
@@ -172,12 +176,24 @@ export const createActivityService = async (
       }
     ).procurementMethodId;
 
+    let validActUserId: string | undefined = undefined;
+    if (userId) {
+      const u = await tx.user.findUnique({ where: { id: userId } });
+      if (u) validActUserId = u.id;
+    }
+
     const createData: Prisma.ActivityCreateInput = {
       ...(cleanActivityData as unknown as Prisma.ActivityCreateInput),
       reference,
       plan: { connect: { id: plan.id } },
       procurementMethod: { connect: { id: resolvedMethodId } },
       status: ActivityStatus.PLANNED,
+      ...(validActUserId
+        ? {
+            creator: { connect: { id: validActUserId } },
+            updatedByUser: { connect: { id: validActUserId } },
+          }
+        : {}),
     };
 
     if (lots && lots.length > 0) {
@@ -201,7 +217,13 @@ export const createActivityService = async (
 
     const activity = await tx.activity.create({
       data: createData,
-      include: { lots: true, fundings: true, components: true },
+      include: {
+        lots: true,
+        fundings: true,
+        components: true,
+        creator: true,
+        updatedByUser: true,
+      },
     });
 
     // Auto-generate roadmap stages based on procurement method
@@ -304,6 +326,7 @@ export const updateActivityService = async (
 
     const updateData: Prisma.ActivityUpdateInput = {
       ...(cleanScalarData as unknown as Prisma.ActivityUpdateInput),
+      ...(user ? { updatedByUser: { connect: { id: user.id } } } : {}),
     };
 
     if (fundings !== undefined && fundings.length > 0) {
@@ -328,7 +351,13 @@ export const updateActivityService = async (
     const activity = await tx.activity.update({
       where: { id },
       data: updateData,
-      include: { lots: true, fundings: true, components: true },
+      include: {
+        lots: true,
+        fundings: true,
+        components: true,
+        creator: true,
+        updatedByUser: true,
+      },
     });
 
     await logRevision(
