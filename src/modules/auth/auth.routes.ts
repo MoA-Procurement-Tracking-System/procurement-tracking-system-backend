@@ -112,16 +112,18 @@ const createUserSchema = z.object({
     UserRole.OFFICER,
     UserRole.DIRECTOR,
     UserRole.ENDORSING_COMMITTEE,
+    UserRole.MANAGEMENT,
   ]),
 });
 
 function publicUser(user: PublicUser | PublicUserSource): PublicUser {
+  const effectiveRole = 'authRole' in user ? user.authRole : user.role;
   return {
     id: user.id,
     email: user.email,
     username: user.username,
     displayName: user.displayName,
-    role: 'authRole' in user ? user.authRole : user.role,
+    role: effectiveRole,
   };
 }
 
@@ -130,6 +132,7 @@ function procurementRole(role: UserRole): Role {
     case UserRole.DIRECTOR:
       return Role.ProcurementDirector;
     case UserRole.ENDORSING_COMMITTEE:
+    case UserRole.MANAGEMENT:
       return Role.ManagementTeam;
     case UserRole.ADMIN:
       return Role.Administrator;
@@ -220,6 +223,7 @@ async function deliverUserInvitation(values: {
     [UserRole.OFFICER]: 'Procurement Officer',
     [UserRole.DIRECTOR]: 'Procurement Director',
     [UserRole.ENDORSING_COMMITTEE]: 'Endorsement Committee Member',
+    [UserRole.MANAGEMENT]: 'Management',
     [UserRole.ADMIN]: 'System Administrator',
   };
 
@@ -1007,7 +1011,7 @@ adminRouter.use(loadSession, requireAuthenticated, requireRole(UserRole.ADMIN));
  *               displayName: { type: string }
  *               role:
  *                 type: string
- *                 enum: [OFFICER, DIRECTOR, ENDORSING_COMMITTEE]
+ *                 enum: [OFFICER, DIRECTOR, ENDORSING_COMMITTEE, MANAGEMENT]
  *     responses:
  *       201:
  *         description: User created successfully

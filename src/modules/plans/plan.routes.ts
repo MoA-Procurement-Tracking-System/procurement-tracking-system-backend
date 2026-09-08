@@ -11,6 +11,10 @@ import {
   sendToCommittee,
   rejectPlan,
   submitCommitteeVote,
+  submitManagementDecision,
+  returnPlanForRevision,
+  getPlanComments,
+  addComment,
 } from './plan.controller.js';
 
 const router = Router();
@@ -271,5 +275,41 @@ router.post(
   // authorize('ENDORSING_COMMITTEE', 'Administrator'),
   submitCommitteeVote,
 );
+
+/**
+ * @swagger
+ * /api/plans/{id}/management-decision:
+ *   post:
+ *     summary: Record Management executive decision (APPROVE or REJECT)
+ *     tags: [Plans]
+ */
+router.post('/:id/management-decision', submitManagementDecision);
+
+/**
+ * @swagger
+ * /api/plans/{id}/return-to-officer:
+ *   post:
+ *     summary: Return a rejected plan to officer for revision with instructions
+ *     tags: [Plans]
+ */
+router.post('/:id/return-to-officer', returnPlanForRevision);
+
+/**
+ * @swagger
+ * /api/plans/{id}/comments:
+ *   get:
+ *     summary: Get all plan and activity comments
+ *     tags: [Plans]
+ */
+router.get('/:id/comments', getPlanComments);
+
+/**
+ * @swagger
+ * /api/plans/{id}/comments:
+ *   post:
+ *     summary: Add a comment to a plan or activity
+ *     tags: [Plans]
+ */
+router.post('/:id/comments', addComment);
 
 export default router;

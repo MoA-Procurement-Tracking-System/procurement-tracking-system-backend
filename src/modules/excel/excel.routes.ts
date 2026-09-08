@@ -176,7 +176,13 @@ router.post('/import/activities', upload.single('file'), (req, res) =>
  *       400:
  *         description: Import parsing or validation error
  */
-router.post('/import/contracts', upload.single('file'), (req, res) =>
+router.post('/import/contracts', upload.any(), (req, res) =>
+  excelController.importContracts(req, res),
+);
+router.post('/import-contracts', upload.any(), (req, res) =>
+  excelController.importContracts(req, res),
+);
+router.post('/import-report', upload.any(), (req, res) =>
   excelController.importContracts(req, res),
 );
 

@@ -382,8 +382,68 @@ export class ExcelService {
     return { created, updated };
   }
 
+  getCellString(cell: ExcelJS.Cell): string {
+    const val = cell.value;
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object') {
+      if ('result' in val && val.result !== undefined && val.result !== null) {
+        return String(val.result).trim();
+      }
+      if ('text' in val && typeof val.text === 'string') {
+        return val.text.trim();
+      }
+      if ('richText' in val && Array.isArray(val.richText)) {
+        return val.richText
+          .map((t: { text?: string }) => t.text || '')
+          .join('')
+          .trim();
+      }
+    }
+    return String(val).trim();
+  }
+
+  getCellNumber(cell: ExcelJS.Cell | { value: unknown }): number {
+    const val = cell.value;
+    if (val === null || val === undefined) return 0;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'object') {
+      if ('result' in val && val.result !== undefined && val.result !== null) {
+        const num = Number(val.result);
+        return isNaN(num) ? 0 : num;
+      }
+    }
+    const cleanStr = String(val).replace(/[^0-9.-]/g, '');
+    const num = Number(cleanStr);
+    return isNaN(num) ? 0 : num;
+  }
+
+  parseCellDate(val: unknown): Date | null {
+    if (!val) return null;
+    if (val instanceof Date) return val;
+    if (
+      typeof val === 'object' &&
+      val !== null &&
+      'result' in val &&
+      (val as { result: unknown }).result
+    ) {
+      const res = (val as { result: unknown }).result;
+      if (res instanceof Date) return res;
+      val = res;
+    }
+    if (typeof val === 'number') {
+      const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+      return isNaN(date.getTime()) ? null : date;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
   async importContracts(
     filePath: string,
+    officerId?: string,
+    userRole?: string,
   ): Promise<{ created: number; updated: number }> {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(filePath);
@@ -393,23 +453,47 @@ export class ExcelService {
     let created = 0;
     let updated = 0;
 
-    const rowPromises: Promise<void>[] = [];
+    const rowsToProcess: { row: ExcelJS.Row; rowNumber: number }[] = [];
 
     sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber === 1) return; // skip header
+      rowsToProcess.push({ row, rowNumber });
+    });
 
-      const activityRef = row.getCell(2).value?.toString().trim();
-      const supplierName = row.getCell(3).value?.toString().trim();
-      const region = row.getCell(4).value?.toString().trim();
-      const contractNo = row.getCell(5).value?.toString().trim();
+    for (const { row, rowNumber } of rowsToProcess) {
+      const projectNameOrCode = this.getCellString(row.getCell(1));
+      const activityRef = this.getCellString(row.getCell(2));
+      const supplierName = this.getCellString(row.getCell(3));
+      const region = this.getCellString(row.getCell(4));
+      const contractNo = this.getCellString(row.getCell(5));
+
+      if (!contractNo || !supplierName) {
+        continue;
+      }
 
       const awardDateVal = row.getCell(6).value;
       const signatureDateVal = row.getCell(7).value;
       const startDateVal = row.getCell(8).value;
       const plannedEndDateVal = row.getCell(9).value;
-      const rawValue = row.getCell(10).value;
-      const rawFinalAmount = row.getCell(12).value;
-      const status = row.getCell(15).value?.toString().trim();
+
+      const rawValue = this.getCellNumber(row.getCell(10));
+      const rawFinalAmount = this.getCellNumber(row.getCell(12));
+
+      const rawStatus = this.getCellString(row.getCell(15)).toUpperCase();
+      const validStatuses: ContractStatus[] = [
+        'DRAFT',
+        'SIGNED',
+        'ACTIVE',
+        'COMPLETED',
+        'TERMINATED',
+        'PARTIALLY_TERMINATED',
+        'CANCELLED',
+      ];
+      const status: ContractStatus = validStatuses.includes(
+        rawStatus as ContractStatus,
+      )
+        ? (rawStatus as ContractStatus)
+        : 'DRAFT';
 
       // Payments columns
       const advanceVal = row.getCell(16).value;
@@ -419,22 +503,121 @@ export class ExcelService {
       const retentionPaymentVal = row.getCell(20).value;
       const retentionWithholdingVal = row.getCell(21).value;
 
-      if (!contractNo || !activityRef || !supplierName) return;
+      try {
+        // Resolve Activity (with Officer scoping support)
+        let activityId: string | null = null;
+        if (activityRef) {
+          let activity = null;
+          if (userRole === 'OFFICER' && officerId) {
+            activity = await prisma.activity.findFirst({
+              where: {
+                AND: [
+                  {
+                    OR: [
+                      { reference: activityRef },
+                      { description: activityRef },
+                      { id: activityRef },
+                    ],
+                  },
+                  {
+                    OR: [
+                      { plan: { createdBy: officerId } },
+                      {
+                        plan: {
+                          project: {
+                            members: {
+                              some: { userId: officerId },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            });
+          }
 
-      const p = (async () => {
-        // Resolve Activity
-        const activity = await prisma.activity.findUnique({
-          where: { reference: activityRef },
-        });
-        if (!activity)
-          throw new Error(
-            `Activity Reference '${activityRef}' not found at row ${rowNumber}.`,
-          );
+          if (!activity) {
+            activity = await prisma.activity.findFirst({
+              where: {
+                OR: [
+                  { reference: activityRef },
+                  { description: activityRef },
+                  { id: activityRef },
+                ],
+              },
+            });
+          }
+
+          if (activity) {
+            activityId = activity.id;
+          }
+        }
+
+        // Fallback: search activity in project matching Column 1
+        if (!activityId && projectNameOrCode) {
+          let project = null;
+          if (userRole === 'OFFICER' && officerId) {
+            project = await prisma.project.findFirst({
+              where: {
+                AND: [
+                  {
+                    OR: [
+                      { code: projectNameOrCode },
+                      { name: projectNameOrCode },
+                      { id: projectNameOrCode },
+                    ],
+                  },
+                  { members: { some: { userId: officerId } } },
+                ],
+              },
+              include: {
+                plans: {
+                  include: {
+                    activities: true,
+                  },
+                },
+              },
+            });
+          }
+
+          if (!project) {
+            project = await prisma.project.findFirst({
+              where: {
+                OR: [
+                  { code: projectNameOrCode },
+                  { name: projectNameOrCode },
+                  { id: projectNameOrCode },
+                ],
+              },
+              include: {
+                plans: {
+                  include: {
+                    activities: true,
+                  },
+                },
+              },
+            });
+          }
+
+          if (project && project.plans) {
+            const firstAct = project.plans.flatMap(
+              (p: { activities?: unknown[] }) => p.activities || [],
+            )[0] as { id: string } | undefined;
+            if (firstAct) {
+              activityId = firstAct.id;
+            }
+          }
+        }
 
         // Find or create Supplier
         let supplier = await prisma.supplier.findFirst({
-          where: { name: supplierName },
+          where: {
+            OR: [{ name: supplierName }, { tinNumber: supplierName }],
+          },
         });
+
         if (!supplier) {
           supplier = await prisma.supplier.create({
             data: {
@@ -445,8 +628,8 @@ export class ExcelService {
           });
         }
 
-        const totalValue = Number(rawValue) || 0;
-        const finalValue = Number(rawFinalAmount) || totalValue;
+        const totalValue = rawValue || 0;
+        const finalValue = rawFinalAmount || totalValue;
 
         let vatRate = 0;
         if (totalValue > 0 && finalValue > totalValue) {
@@ -455,27 +638,20 @@ export class ExcelService {
 
         const contractAmountWithVat = finalValue;
 
-        const parseDate = (val: unknown): Date | null => {
-          if (!val) return null;
-          if (val instanceof Date) return val;
-          const d = new Date(val.toString());
-          return isNaN(d.getTime()) ? null : d;
-        };
-
-        const awardDate = parseDate(awardDateVal);
-        const signatureDate = parseDate(signatureDateVal);
-        const startDate = parseDate(startDateVal);
-        const plannedEndDate = parseDate(plannedEndDateVal);
+        const awardDate = this.parseCellDate(awardDateVal);
+        const signatureDate = this.parseCellDate(signatureDateVal);
+        const startDate = this.parseCellDate(startDateVal);
+        const plannedEndDate = this.parseCellDate(plannedEndDateVal);
 
         const data = {
-          activityId: activity.id,
+          activityId: activityId ?? null,
           supplierId: supplier.id,
           totalValue,
           vatRate,
           contractAmountWithVat,
           contractNetOfVat: totalValue,
           remainingValue: contractAmountWithVat,
-          region: region ?? null,
+          region: region || null,
           subcomponent: null,
           awardDate: awardDate ?? null,
           signatureDate: signatureDate ?? null,
@@ -483,7 +659,7 @@ export class ExcelService {
           plannedEndDate: plannedEndDate ?? null,
           actualCompletionDate:
             status === 'COMPLETED' ? (plannedEndDate ?? new Date()) : null,
-          status: (status as ContractStatus) || 'DRAFT',
+          status,
         };
 
         const existing = await prisma.contract.findUnique({
@@ -502,7 +678,7 @@ export class ExcelService {
 
         // Upsert payment helper
         const upsertPayment = async (type: PaymentType, val: unknown) => {
-          const amount = Number(val) || 0;
+          const amount = this.getCellNumber({ value: val });
           if (amount <= 0) return;
 
           const existingPayment = await prisma.payment.findFirst({
@@ -524,7 +700,7 @@ export class ExcelService {
                 contractId: contract.id,
                 amount,
                 paymentType: type,
-                paymentDate: new Date(),
+                paymentDate: signatureDate || new Date(),
                 referenceNo: `IMPORT-${contract.contractNo}-${type}`,
                 status: 'PAID',
               },
@@ -533,14 +709,12 @@ export class ExcelService {
         };
 
         // Upsert all 6 payment types
-        await Promise.all([
-          upsertPayment('ADVANCE', advanceVal),
-          upsertPayment('INTERIM_1', interim1Val),
-          upsertPayment('INTERIM_2', interim2Val),
-          upsertPayment('FINAL', finalVal),
-          upsertPayment('RETENTION_PAYMENT', retentionPaymentVal),
-          upsertPayment('RETENTION_WITHHOLDING', retentionWithholdingVal),
-        ]);
+        await upsertPayment('ADVANCE', advanceVal);
+        await upsertPayment('INTERIM_1', interim1Val);
+        await upsertPayment('INTERIM_2', interim2Val);
+        await upsertPayment('FINAL', finalVal);
+        await upsertPayment('RETENTION_PAYMENT', retentionPaymentVal);
+        await upsertPayment('RETENTION_WITHHOLDING', retentionWithholdingVal);
 
         // Recalculate contract totals based on actual PAID payments
         const allPayments = await prisma.payment.findMany({
@@ -561,12 +735,14 @@ export class ExcelService {
             remainingValue,
           },
         });
-      })();
+      } catch (rowErr) {
+        console.error(
+          `Error importing row ${rowNumber} (Contract: ${contractNo}):`,
+          rowErr,
+        );
+      }
+    }
 
-      rowPromises.push(p);
-    });
-
-    await Promise.all(rowPromises);
     return { created, updated };
   }
 

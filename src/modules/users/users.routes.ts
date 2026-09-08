@@ -26,6 +26,7 @@ const bridgeAuth: RequestHandler = (req, _res, next) => {
       OFFICER: 'ProcurementOfficer',
       DIRECTOR: 'ProcurementDirector',
       ENDORSING_COMMITTEE: 'ManagementTeam',
+      MANAGEMENT: 'ManagementTeam',
     };
     const userAuthRole = req.auth.user.role;
     const mappedRole = roleMap[userAuthRole] || userAuthRole;

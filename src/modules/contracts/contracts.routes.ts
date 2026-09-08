@@ -1,7 +1,42 @@
 import { Router } from 'express';
+import multer from 'multer';
+import os from 'os';
 import { contractsController } from './contracts.controller.js';
+import { excelController } from '../excel/excel.controller.js';
 
 const router = Router();
+const upload = multer({ dest: os.tmpdir() });
+
+/**
+ * @openapi
+ * /api/contracts/import:
+ *   post:
+ *     summary: Import contracts/report Excel spreadsheet from local disk
+ *     tags: [Contracts]
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Success response with import counts
+ *       400:
+ *         description: Import parsing or validation error
+ */
+router.post('/import', upload.any(), (req, res) =>
+  excelController.importContracts(req, res),
+);
+router.post('/import-contracts', upload.any(), (req, res) =>
+  excelController.importContracts(req, res),
+);
+router.post('/import-report', upload.any(), (req, res) =>
+  excelController.importContracts(req, res),
+);
 
 /**
  * @openapi
