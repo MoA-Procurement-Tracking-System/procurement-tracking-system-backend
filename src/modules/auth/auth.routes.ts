@@ -131,6 +131,7 @@ function procurementRole(role: UserRole): Role {
   switch (role) {
     case UserRole.DIRECTOR:
       return Role.ProcurementDirector;
+    case UserRole.MANAGEMENT_TEAM:
     case UserRole.ENDORSING_COMMITTEE:
     case UserRole.MANAGEMENT:
       return Role.ManagementTeam;
@@ -1011,7 +1012,7 @@ adminRouter.use(loadSession, requireAuthenticated, requireRole(UserRole.ADMIN));
  *               displayName: { type: string }
  *               role:
  *                 type: string
- *                 enum: [OFFICER, DIRECTOR, ENDORSING_COMMITTEE, MANAGEMENT]
+ *                 enum: [OFFICER, DIRECTOR, ENDORSING_COMMITTEE, MANAGEMENT, ADMIN]
  *     responses:
  *       201:
  *         description: User created successfully

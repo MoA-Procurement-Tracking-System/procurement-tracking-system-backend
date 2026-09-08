@@ -79,6 +79,7 @@ app.use('/api/contracts', contractsRouter);
 app.use('/api/suppliers', supplierRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/alerts', alertsRouter);
+app.use('/alerts', alertsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/excel', excelRouter);
 app.use('/api', protectedRouter);

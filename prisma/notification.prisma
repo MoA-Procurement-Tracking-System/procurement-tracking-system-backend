@@ -1,0 +1,17 @@
+model UserNotification {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  targetRole String?   // "OFFICER", "DIRECTOR", "ENDORSING_COMMITTEE", "MANAGEMENT_TEAM", "ADMIN", or "ALL"
+  title      String
+  message    String
+  type       String    // "PLAN_REVIEW", "CONTRACT_MILESTONE", "ACTIVITY_DEADLINE", "DECISION", "SYSTEM"
+  severity   String    @default("INFO") // "HIGH", "MEDIUM", "LOW", "INFO"
+  link       String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@index([targetRole])
+}

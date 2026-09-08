@@ -20,11 +20,19 @@ server.on('error', (err: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
-server.listen(env.PORT, () => {
+server.listen(env.PORT, async () => {
   logger.info(
     { port: env.PORT },
     `Procurement Tracking System API running on http://localhost:${env.PORT} [${env.NODE_ENV}]`,
   );
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'MANAGEMENT_TEAM'`,
+    );
+    logger.info('Ensured MANAGEMENT_TEAM exists in PostgreSQL UserRole enum');
+  } catch (err) {
+    logger.warn({ err }, 'Note: ALTER TYPE UserRole check completed');
+  }
   // Register scheduled jobs after the server is live
   registerBackupJob();
   registerCommitteeReminderJob();

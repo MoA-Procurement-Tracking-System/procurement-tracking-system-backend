@@ -11,6 +11,7 @@ import { logRevision } from '../../shared/audit/revision.service.js';
 import { sendEmail } from '../../services/email.service.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
+import { createNotification } from '../alerts/alerts.service.js';
 
 export const getPlansService = async () => {
   const [plans, committeeUsers] = await Promise.all([
@@ -363,7 +364,7 @@ export const updatePlanService = async (
 };
 
 export const submitPlanService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const plan = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const oldPlan = await tx.plan.findFirst({
       where: { OR: [{ id }, { title: id }] },
       include: { activities: true, committeeVotes: true },
@@ -408,6 +409,17 @@ export const submitPlanService = async (id: string, userId: string) => {
 
     return plan;
   });
+
+  createNotification({
+    targetRole: 'DIRECTOR',
+    title: `Plan Submitted: ${plan.title}`,
+    message: `Procurement plan "${plan.title}" was submitted and is awaiting director review.`,
+    type: 'PLAN_REVIEW',
+    severity: 'HIGH',
+    link: '/workspace/plan-for-review',
+  }).catch(() => {});
+
+  return plan;
 };
 
 export const sendToCommitteeService = async (
@@ -486,6 +498,7 @@ export const sendToCommitteeService = async (
       where: {
         OR: [
           { role: Role.ManagementTeam },
+          { authRole: 'MANAGEMENT_TEAM' },
           { authRole: 'ENDORSING_COMMITTEE' },
         ],
         isActive: true,
@@ -551,6 +564,15 @@ export const sendToCommitteeService = async (
       'Committee email notification block failed',
     );
   }
+
+  createNotification({
+    targetRole: 'ENDORSING_COMMITTEE',
+    title: `Committee Endorsement Vote: ${plan.title}`,
+    message: `Plan "${plan.title}" has been sent for committee endorsement review. Your vote is required.`,
+    type: 'PLAN_REVIEW',
+    severity: 'HIGH',
+    link: '/workspace/plan-for-review',
+  }).catch(() => {});
 
   return plan;
 };
@@ -643,6 +665,7 @@ export const submitCommitteeVoteService = async (
             where: {
               OR: [
                 { role: Role.ManagementTeam },
+                { authRole: 'MANAGEMENT_TEAM' },
                 { authRole: 'ENDORSING_COMMITTEE' },
               ],
             },
@@ -875,13 +898,26 @@ export const submitCommitteeVoteService = async (
         'Outcome email notification block failed',
       );
     }
+
+    if (plan.creator?.id) {
+      createNotification({
+        userId: plan.creator.id,
+        title: isApproved ? `Plan Approved: ${plan.title}` : `Plan Rejected: ${plan.title}`,
+        message: isApproved
+          ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee.`
+          : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee.`,
+        type: 'DECISION',
+        severity: isApproved ? 'INFO' : 'HIGH',
+        link: '/workspace/plan-management',
+      }).catch(() => {});
+    }
   }
 
   return plan;
 };
 
 export const requestPlanUpdateService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const plan = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const oldPlan = await tx.plan.findFirst({
       where: { OR: [{ id }, { title: id }] },
       include: { activities: true, committeeVotes: true },
@@ -926,6 +962,19 @@ export const requestPlanUpdateService = async (id: string, userId: string) => {
 
     return plan;
   });
+
+  if (plan.creator?.id) {
+    createNotification({
+      userId: plan.creator.id,
+      title: `Revision Requested: ${plan.title}`,
+      message: `Director has requested updates on procurement plan "${plan.title}".`,
+      type: 'DECISION',
+      severity: 'HIGH',
+      link: '/workspace/plan-management',
+    }).catch(() => {});
+  }
+
+  return plan;
 };
 
 export const approvePlanUpdateService = async (id: string, userId: string) => {

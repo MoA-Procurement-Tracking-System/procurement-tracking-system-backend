@@ -57,7 +57,13 @@ export async function listUsers(query: Partial<ListUsersQuery> = {}) {
     } else if (role === 'ProcurementDirector' || role === 'ProjectManager') {
       authRoleVal = UserRole.DIRECTOR;
     } else if (role === 'ManagementTeam') {
-      authRoleVal = UserRole.ENDORSING_COMMITTEE;
+      conditions.push({
+        OR: [
+          { role: 'ManagementTeam' },
+          { authRole: UserRole.MANAGEMENT_TEAM },
+          { authRole: UserRole.ENDORSING_COMMITTEE },
+        ],
+      });
     } else if (role === 'Administrator') {
       authRoleVal = UserRole.ADMIN;
     }
@@ -66,7 +72,7 @@ export async function listUsers(query: Partial<ListUsersQuery> = {}) {
       conditions.push({
         OR: [{ role }, { authRole: authRoleVal }],
       });
-    } else {
+    } else if (role !== 'ManagementTeam') {
       conditions.push({ role });
     }
   }

@@ -41,6 +41,7 @@ model User {
   importBatches       ImportBatch[]
   contractAmendments  ContractAmendment[]   @relation("ContractAmendedBy")
   planStatusChanges   PlanStatusHistory[]   @relation("PlanStatusChangedBy")
+  notifications       UserNotification[]    @relation("UserNotifications")
 
   @@index([role])
   @@index([authRole, status])
