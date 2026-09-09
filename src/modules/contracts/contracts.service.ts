@@ -12,10 +12,10 @@ import type {
 import { createAuditLog } from '../../shared/audit/audit-logger.js';
 
 export interface GetContractsQueryOptions {
-  search?: string;
-  status?: string;
-  page?: number;
-  pageSize?: number;
+  search?: string | undefined;
+  status?: string | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
 }
 
 export class ContractsService {

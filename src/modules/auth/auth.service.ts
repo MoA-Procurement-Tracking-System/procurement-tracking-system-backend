@@ -23,7 +23,7 @@ export class AuthService {
         id: true,
         name: true,
         email: true,
-        role: true,
+        authRole: true,
         passwordHash: true,
         isActive: true,
         mustChangePassword: true,
@@ -47,8 +47,7 @@ export class AuthService {
       throw ApiError.unauthorized('Invalid email or password');
     }
 
-    const userRole =
-      user.authRole || (user as { role?: string }).role || 'OFFICER';
+    const userRole = user.authRole;
     const accessToken = generateAccessToken(user.id, userRole);
 
     const refreshToken = generateRefreshToken(user.id);
@@ -166,7 +165,7 @@ export class AuthService {
         id: true,
         name: true,
         email: true,
-        role: true,
+        authRole: true,
         mustChangePassword: true,
         isActive: true,
         createdAt: true,

@@ -14,10 +14,10 @@ import { logger } from '../../config/logger.js';
 import { createNotification } from '../alerts/alerts.service.js';
 
 export interface GetPlansQueryOptions {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  status?: string;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+  status?: string | undefined;
 }
 
 export const getPlansService = async (options: GetPlansQueryOptions = {}) => {

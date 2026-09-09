@@ -8,10 +8,10 @@ import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
 
 export interface GetProjectsQueryOptions {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  status?: string;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+  status?: string | undefined;
 }
 
 export const getProjectsService = async (
