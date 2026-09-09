@@ -539,6 +539,15 @@ export const sendToCommitteeService = async (
     link: '/workspace/plan-for-review',
   }).catch(() => {});
 
+  createNotification({
+    targetRole: 'MANAGEMENT',
+    title: `Plan Submitted to Committee: ${plan.title}`,
+    message: `Plan "${plan.title}" has been forwarded to the Endorsement Committee for review.`,
+    type: 'PLAN_REVIEW',
+    severity: 'INFO',
+    link: '/workspace/plan-for-review',
+  }).catch(() => {});
+
   return plan;
 };
 
@@ -865,6 +874,51 @@ export const submitCommitteeVoteService = async (
         link: '/workspace/plan-management',
       }).catch(() => {});
     }
+
+    createNotification({
+      targetRole: 'DIRECTOR',
+      title: isApproved
+        ? `Plan Approved by Committee: ${plan.title}`
+        : `Plan Rejected by Committee: ${plan.title}`,
+      message: isApproved
+        ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee (${approveCount} approvals).`
+        : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee (${rejectCount} rejections).`,
+      type: 'DECISION',
+      severity: isApproved ? 'INFO' : 'HIGH',
+      link: '/workspace/plan-for-review',
+    }).catch(() => {});
+
+    createNotification({
+      targetRole: 'MANAGEMENT',
+      title: isApproved
+        ? `Plan Approved: ${plan.title}`
+        : `Plan Rejected: ${plan.title}`,
+      message: isApproved
+        ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee (${approveCount} approvals).`
+        : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee (${rejectCount} rejections).`,
+      type: 'DECISION',
+      severity: isApproved ? 'INFO' : 'HIGH',
+      link: '/workspace/plan-for-review',
+    }).catch(() => {});
+  } else {
+    // Notify Director & Management that a vote was cast (progress update)
+    createNotification({
+      targetRole: 'DIRECTOR',
+      title: `Committee Vote Cast: ${plan.title}`,
+      message: `A committee member voted ${decision} on plan "${plan.title}" (${approveCount} approve, ${rejectCount} reject so far).`,
+      type: 'PLAN_REVIEW',
+      severity: 'LOW',
+      link: '/workspace/plan-for-review',
+    }).catch(() => {});
+
+    createNotification({
+      targetRole: 'MANAGEMENT',
+      title: `Committee Vote Cast: ${plan.title}`,
+      message: `A committee member voted ${decision} on plan "${plan.title}" (${approveCount} approve, ${rejectCount} reject so far).`,
+      type: 'PLAN_REVIEW',
+      severity: 'LOW',
+      link: '/workspace/plan-for-review',
+    }).catch(() => {});
   }
 
   return plan;

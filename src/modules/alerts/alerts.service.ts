@@ -1,4 +1,8 @@
-import { Prisma, PaymentStatus } from '../../generated/prisma/index.js';
+import {
+  Prisma,
+  PaymentStatus,
+  UserRole,
+} from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 import type { CreateAlertDto, UpdateAlertDto } from './alerts.schema.js';
 
@@ -33,7 +37,10 @@ export class AlertsService {
   /**
    * CREATE: Create a new alert
    */
-  async createAlert(data: CreateAlertDto, creatorUserId?: string): Promise<AlertItem[]> {
+  async createAlert(
+    data: CreateAlertDto,
+    _creatorUserId?: string,
+  ): Promise<AlertItem[]> {
     const createdItems: AlertItem[] = [];
     const now = new Date();
     const severity = (data.severity as AlertSeverity) || 'INFO';
@@ -41,14 +48,18 @@ export class AlertsService {
 
     // 1. If UserNotification table exists in DB, persist it
     try {
-      const userNotificationModel = (prisma as unknown as Record<string, unknown>).userNotification as {
-        create: (args: unknown) => Promise<any>;
-        createMany: (args: unknown) => Promise<any>;
-      } | undefined;
+      const userNotificationModel = (
+        prisma as unknown as Record<string, unknown>
+      ).userNotification as
+        | {
+            create: (args: unknown) => Promise<Record<string, unknown>>;
+            createMany: (args: unknown) => Promise<{ count: number }>;
+          }
+        | undefined;
 
       if (userNotificationModel) {
         if (data.userId) {
-          const created = await userNotificationModel.create({
+          const created = (await userNotificationModel.create({
             data: {
               userId: data.userId,
               targetRole: data.targetRole,
@@ -59,27 +70,39 @@ export class AlertsService {
               link: data.link,
               readAt: null,
             },
-          });
-          return [{
-            id: created.id,
-            title: created.title,
-            message: created.message,
-            type: created.type as AlertType,
-            severity: created.severity as AlertSeverity,
-            link: created.link ?? undefined,
-            targetRole: created.targetRole ?? undefined,
-            readAt: null,
-            createdAt: created.createdAt,
-          }];
+          })) as {
+            id: string;
+            title: string;
+            message: string;
+            type: string;
+            severity: string;
+            link?: string;
+            targetRole?: string;
+            createdAt: Date;
+          };
+          return [
+            {
+              id: created.id,
+              title: created.title,
+              message: created.message,
+              type: created.type as AlertType,
+              severity: created.severity as AlertSeverity,
+              link: created.link ?? undefined,
+              targetRole: created.targetRole ?? undefined,
+              readAt: null,
+              createdAt: created.createdAt,
+            },
+          ];
         }
 
         if (data.targetRole && data.targetRole !== 'ALL') {
+          const roleMatch =
+            data.targetRole === 'MANAGEMENT_TEAM'
+              ? 'MANAGEMENT'
+              : data.targetRole;
           const targetUsers = await prisma.user.findMany({
             where: {
-              OR: [
-                { authRole: data.targetRole as any },
-                { role: data.targetRole as any },
-              ],
+              authRole: roleMatch as UserRole,
               isActive: true,
             },
             select: { id: true },
@@ -133,24 +156,32 @@ export class AlertsService {
     unreadOnly?: boolean | undefined;
   }): Promise<AlertItem[]> {
     const { userId, role, region, unreadOnly } = params;
-    const normalizedRole = (role || 'OFFICER').toUpperCase().replace(/[\s-]/g, '_');
+    const normalizedRole = (role || 'OFFICER')
+      .toUpperCase()
+      .replace(/[\s-]/g, '_');
     const alerts: AlertItem[] = [];
 
     // 1. Fetch persisted user notifications from DB
     try {
-      const userNotificationModel = (prisma as unknown as Record<string, unknown>).userNotification as {
-        findMany: (args: unknown) => Promise<Array<{
-          id: string;
-          title: string;
-          message: string;
-          type: string;
-          severity: string;
-          link: string | null;
-          readAt: Date | null;
-          targetRole: string | null;
-          createdAt: Date;
-        }>>;
-      } | undefined;
+      const userNotificationModel = (
+        prisma as unknown as Record<string, unknown>
+      ).userNotification as
+        | {
+            findMany: (args: unknown) => Promise<
+              Array<{
+                id: string;
+                title: string;
+                message: string;
+                type: string;
+                severity: string;
+                link: string | null;
+                readAt: Date | null;
+                targetRole: string | null;
+                createdAt: Date;
+              }>
+            >;
+          }
+        | undefined;
 
       if (userNotificationModel) {
         const persisted = await userNotificationModel.findMany({
@@ -194,7 +225,11 @@ export class AlertsService {
     }
 
     // 3. Generate dynamic event-based alerts
-    const dynamicAlerts = await this.generateDynamicAlerts({ userId, role: normalizedRole, region });
+    const dynamicAlerts = await this.generateDynamicAlerts({
+      userId,
+      role: normalizedRole,
+      region,
+    });
     const userReads = userDynamicReads.get(userId) || new Map<string, Date>();
 
     for (const d of dynamicAlerts) {
@@ -210,7 +245,8 @@ export class AlertsService {
 
     // Sort newest first
     alerts.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
     return alerts;
@@ -221,9 +257,15 @@ export class AlertsService {
    */
   async getAlertById(id: string, userId?: string): Promise<AlertItem | null> {
     try {
-      const userNotificationModel = (prisma as unknown as Record<string, unknown>).userNotification as {
-        findUnique: (args: unknown) => Promise<any>;
-      } | undefined;
+      const userNotificationModel = (
+        prisma as unknown as Record<string, unknown>
+      ).userNotification as
+        | {
+            findUnique: (
+              args: unknown,
+            ) => Promise<Record<string, unknown> | null>;
+          }
+        | undefined;
 
       if (userNotificationModel) {
         const found = await userNotificationModel.findUnique({ where: { id } });
@@ -259,11 +301,19 @@ export class AlertsService {
   /**
    * UPDATE: Update alert by ID
    */
-  async updateAlert(id: string, data: UpdateAlertDto, userId?: string): Promise<AlertItem | null> {
+  async updateAlert(
+    id: string,
+    data: UpdateAlertDto,
+    _userId?: string,
+  ): Promise<AlertItem | null> {
     try {
-      const userNotificationModel = (prisma as unknown as Record<string, unknown>).userNotification as {
-        update: (args: unknown) => Promise<any>;
-      } | undefined;
+      const userNotificationModel = (
+        prisma as unknown as Record<string, unknown>
+      ).userNotification as
+        | {
+            update: (args: unknown) => Promise<Record<string, unknown>>;
+          }
+        | undefined;
 
       if (userNotificationModel) {
         const updated = await userNotificationModel.update({
@@ -303,7 +353,8 @@ export class AlertsService {
       if (data.type) inMem.type = data.type as AlertType;
       if (data.severity) inMem.severity = data.severity as AlertSeverity;
       if (data.link !== undefined) inMem.link = data.link;
-      if (data.readAt !== undefined) inMem.readAt = data.readAt ? new Date(data.readAt) : null;
+      if (data.readAt !== undefined)
+        inMem.readAt = data.readAt ? new Date(data.readAt) : null;
       return inMem;
     }
 
@@ -313,13 +364,17 @@ export class AlertsService {
   /**
    * DELETE: Delete/dismiss alert by ID
    */
-  async deleteAlert(id: string, userId?: string): Promise<boolean> {
+  async deleteAlert(id: string, _userId?: string): Promise<boolean> {
     let deleted = false;
 
     try {
-      const userNotificationModel = (prisma as unknown as Record<string, unknown>).userNotification as {
-        delete: (args: unknown) => Promise<any>;
-      } | undefined;
+      const userNotificationModel = (
+        prisma as unknown as Record<string, unknown>
+      ).userNotification as
+        | {
+            delete: (args: unknown) => Promise<Record<string, unknown>>;
+          }
+        | undefined;
 
       if (userNotificationModel) {
         await userNotificationModel.delete({ where: { id } });
@@ -338,13 +393,20 @@ export class AlertsService {
     return deleted;
   }
 
-  async markAlertAsRead(alertId: string, userId: string): Promise<{ success: boolean; readAt: Date }> {
+  async markAlertAsRead(
+    alertId: string,
+    userId: string,
+  ): Promise<{ success: boolean; readAt: Date }> {
     const now = new Date();
 
     try {
-      const userNotificationModel = (prisma as unknown as Record<string, unknown>).userNotification as {
-        updateMany: (args: unknown) => Promise<{ count: number }>;
-      } | undefined;
+      const userNotificationModel = (
+        prisma as unknown as Record<string, unknown>
+      ).userNotification as
+        | {
+            updateMany: (args: unknown) => Promise<{ count: number }>;
+          }
+        | undefined;
 
       if (userNotificationModel) {
         const updated = await userNotificationModel.updateMany({
@@ -374,13 +436,19 @@ export class AlertsService {
     return { success: true, readAt: now };
   }
 
-  async markAllAlertsAsRead(userId: string): Promise<{ success: boolean; readAt: Date }> {
+  async markAllAlertsAsRead(
+    userId: string,
+  ): Promise<{ success: boolean; readAt: Date }> {
     const now = new Date();
 
     try {
-      const userNotificationModel = (prisma as unknown as Record<string, unknown>).userNotification as {
-        updateMany: (args: unknown) => Promise<{ count: number }>;
-      } | undefined;
+      const userNotificationModel = (
+        prisma as unknown as Record<string, unknown>
+      ).userNotification as
+        | {
+            updateMany: (args: unknown) => Promise<{ count: number }>;
+          }
+        | undefined;
 
       if (userNotificationModel) {
         await userNotificationModel.updateMany({
@@ -418,8 +486,12 @@ export class AlertsService {
     const items: AlertItem[] = [];
     const now = new Date();
 
+    const isDirector = role === 'DIRECTOR';
+    const isManagement = role === 'MANAGEMENT' || role === 'MANAGEMENT_TEAM';
+    const isCommittee = role === 'ENDORSING_COMMITTEE' || isManagement;
+
     // Director alerts: Plans awaiting review
-    if (role === 'DIRECTOR') {
+    if (isDirector) {
       try {
         const pendingPlans = await prisma.plan.findMany({
           where: {
@@ -435,7 +507,8 @@ export class AlertsService {
         });
 
         for (const plan of pendingPlans) {
-          const author = plan.creator?.displayName || plan.creator?.name || 'Officer';
+          const author =
+            plan.creator?.displayName || plan.creator?.name || 'Officer';
           items.push({
             id: `alert-plan-sub-${plan.id}`,
             title: `Plan Awaiting Review: ${plan.title}`,
@@ -453,8 +526,102 @@ export class AlertsService {
       }
     }
 
-    // Committee Member alerts: Plans in WITH_COMMITTEE status
-    if (role === 'ENDORSING_COMMITTEE' || role === 'MANAGEMENT_TEAM') {
+    // Director & Management alerts: Track plans in WITH_COMMITTEE status & voting progress
+    if (isDirector || isManagement) {
+      try {
+        const committeeCount = await prisma.user.count({
+          where: {
+            authRole: {
+              in: [UserRole.ENDORSING_COMMITTEE, UserRole.MANAGEMENT],
+            },
+            isActive: true,
+          },
+        });
+
+        const activeWithCommitteePlans = await prisma.plan.findMany({
+          where: {
+            status: 'WITH_COMMITTEE',
+            isActive: true,
+          },
+          include: {
+            project: { select: { name: true } },
+            committeeVotes: true,
+          },
+          take: 10,
+          orderBy: { updatedAt: 'desc' },
+        });
+
+        for (const plan of activeWithCommitteePlans) {
+          const approveVotes = plan.committeeVotes.filter(
+            (v: { decision: string }) => v.decision === 'APPROVE',
+          ).length;
+          const rejectVotes = plan.committeeVotes.filter(
+            (v: { decision: string }) => v.decision === 'REJECT',
+          ).length;
+          const totalVoted = plan.committeeVotes.length;
+          const pendingCount = Math.max(0, committeeCount - totalVoted);
+
+          let message = '';
+          let severity: AlertSeverity = 'MEDIUM';
+
+          if (pendingCount > 0) {
+            severity = 'HIGH';
+            message = `Plan "${plan.title}" is under committee review. ${totalVoted}/${committeeCount} members voted (${approveVotes} approve, ${rejectVotes} reject). ${pendingCount} member(s) have not voted yet.`;
+          } else {
+            message = `All committee members have cast votes on "${plan.title}" (${approveVotes} approve, ${rejectVotes} reject). Ready for final outcome.`;
+          }
+
+          items.push({
+            id: `alert-committee-progress-${plan.id}`,
+            title:
+              pendingCount > 0
+                ? `Pending Committee Votes: ${plan.title}`
+                : `Committee Voting Complete: ${plan.title}`,
+            message,
+            createdAt: plan.updatedAt || plan.createdAt,
+            targetRole: role,
+            readAt: null,
+            type: 'PLAN_REVIEW',
+            severity,
+            link: '/workspace/plan-for-review',
+          });
+        }
+
+        // Also show recently decided plans (Approved or Rejected by committee)
+        const recentlyDecidedPlans = await prisma.plan.findMany({
+          where: {
+            status: { in: ['APPROVED', 'REJECTED'] },
+            isActive: true,
+          },
+          take: 5,
+          orderBy: { updatedAt: 'desc' },
+        });
+
+        for (const plan of recentlyDecidedPlans) {
+          const isApproved = plan.status === 'APPROVED';
+          items.push({
+            id: `alert-decision-${plan.id}`,
+            title: isApproved
+              ? `Plan Approved: ${plan.title}`
+              : `Plan Rejected: ${plan.title}`,
+            message: isApproved
+              ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee.`
+              : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee${plan.rejectionReason ? `: ${plan.rejectionReason}` : '.'}`,
+            createdAt: plan.updatedAt,
+            targetRole: role,
+            readAt: null,
+            type: 'DECISION',
+            severity: isApproved ? 'INFO' : 'HIGH',
+            link: '/workspace/plan-for-review',
+          });
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    // Committee Member alerts: Plans in WITH_COMMITTEE status requiring their vote
+    if (isCommittee) {
       try {
         const committeePlans = await prisma.plan.findMany({
           where: {
@@ -470,14 +637,15 @@ export class AlertsService {
         });
 
         for (const plan of committeePlans) {
-          const hasVoted = plan.committeeVotes && plan.committeeVotes.length > 0;
+          const hasVoted =
+            plan.committeeVotes && plan.committeeVotes.length > 0;
           if (!hasVoted) {
             items.push({
               id: `alert-vote-${plan.id}`,
               title: `Committee Endorsement Vote: ${plan.title}`,
               message: `Plan "${plan.title}" is currently open for committee vote and requires your decision.`,
               createdAt: plan.createdAt,
-              targetRole: 'ENDORSING_COMMITTEE',
+              targetRole: role,
               readAt: null,
               type: 'PLAN_REVIEW',
               severity: 'HIGH',
@@ -563,7 +731,7 @@ export class AlertsService {
         for (const payment of contract.payments) {
           const daysPending = Math.floor(
             (now.getTime() - new Date(payment.createdAt).getTime()) /
-            (1000 * 60 * 60 * 24),
+              (1000 * 60 * 60 * 24),
           );
 
           if (daysPending > 30) {
@@ -583,7 +751,11 @@ export class AlertsService {
           }
         }
 
-        if (totalVal > 0 && paidVal / totalVal >= 0.9 && paidVal / totalVal < 1.0) {
+        if (
+          totalVal > 0 &&
+          paidVal / totalVal >= 0.9 &&
+          paidVal / totalVal < 1.0
+        ) {
           items.push({
             id: `alert-completion-${contract.id}`,
             title: `Contract Near Completion: ${contract.contractNo}`,
@@ -629,13 +801,16 @@ export async function createNotification(params: {
   };
 
   try {
-    const userNotificationModel = (prisma as unknown as Record<string, unknown>).userNotification as {
-      create: (args: unknown) => Promise<unknown>;
-      createMany: (args: unknown) => Promise<unknown>;
-    } | undefined;
+    const userNotificationModel = (prisma as unknown as Record<string, unknown>)
+      .userNotification as
+      | {
+          create: (args: unknown) => Promise<unknown>;
+          createMany: (args: unknown) => Promise<unknown>;
+        }
+      | undefined;
 
     if (!userNotificationModel) {
-      alertsService.createAlert(alertPayload).catch(() => { });
+      alertsService.createAlert(alertPayload).catch(() => {});
       return;
     }
 
@@ -656,12 +831,13 @@ export async function createNotification(params: {
     }
 
     if (params.targetRole) {
+      const roleMatch =
+        params.targetRole === 'MANAGEMENT_TEAM'
+          ? 'MANAGEMENT'
+          : params.targetRole;
       const users = await prisma.user.findMany({
         where: {
-          OR: [
-            { authRole: params.targetRole as any },
-            { role: params.targetRole as any },
-          ],
+          authRole: roleMatch as UserRole,
           isActive: true,
         },
         select: { id: true },
@@ -683,7 +859,7 @@ export async function createNotification(params: {
       }
     }
   } catch {
-    alertsService.createAlert(alertPayload).catch(() => { });
+    alertsService.createAlert(alertPayload).catch(() => {});
   }
 }
 
