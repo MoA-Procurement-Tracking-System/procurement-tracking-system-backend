@@ -13,11 +13,21 @@ const contractsService = new ContractsService();
 export class ContractsController {
   async getContracts(req: Request, res: Response): Promise<void> {
     try {
-      const { search, status } = req.query;
-      const contracts = await contractsService.getContracts(
-        search as string,
-        status as string,
-      );
+      const search = req.query.search as string | undefined;
+      const status = req.query.status as string | undefined;
+      const page = req.query.page
+        ? parseInt(String(req.query.page), 10)
+        : undefined;
+      const pageSize = req.query.pageSize
+        ? parseInt(String(req.query.pageSize), 10)
+        : undefined;
+
+      const contracts = await contractsService.getContracts({
+        search,
+        status,
+        page,
+        pageSize,
+      });
       res.json(contracts);
     } catch (error: unknown) {
       const message =

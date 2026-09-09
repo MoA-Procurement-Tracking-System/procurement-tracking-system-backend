@@ -11,8 +11,36 @@ import type {
 } from './contracts.schema.js';
 import { createAuditLog } from '../../shared/audit/audit-logger.js';
 
+export interface GetContractsQueryOptions {
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 export class ContractsService {
-  async getContracts(search?: string, status?: string) {
+  async getContracts(
+    optionsOrSearch?: string | GetContractsQueryOptions,
+    maybeStatus?: string,
+  ) {
+    let search: string | undefined;
+    let status: string | undefined;
+    let page: number | undefined;
+    let pageSize: number | undefined;
+
+    if (typeof optionsOrSearch === 'object' && optionsOrSearch !== null) {
+      search = optionsOrSearch.search;
+      status = optionsOrSearch.status;
+      page = optionsOrSearch.page;
+      pageSize = optionsOrSearch.pageSize;
+    } else {
+      search = optionsOrSearch;
+      status = maybeStatus;
+    }
+
+    const isPaginated =
+      typeof page === 'number' || typeof pageSize === 'number';
+
     const where: Prisma.ContractWhereInput = {
       deletedAt: null,
     };
@@ -31,10 +59,36 @@ export class ContractsService {
       ];
     }
 
-    return await prisma.contract.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
+    const take =
+      pageSize && pageSize > 0
+        ? Math.min(pageSize, 100)
+        : isPaginated
+          ? 20
+          : 100;
+
+    const [contracts, totalCount] = await Promise.all([
+      prisma.contract.findMany({
+        where,
+        take,
+        ...(page && page > 0 ? { skip: (page - 1) * take } : {}),
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.contract.count({ where }),
+    ]);
+
+    if (isPaginated) {
+      return {
+        items: contracts,
+        pagination: {
+          total: totalCount,
+          page: page || 1,
+          pageSize: take,
+          totalPages: Math.ceil(totalCount / take),
+        },
+      };
+    }
+
+    return contracts;
   }
 
   async createContract(data: CreateContractDto, userId?: string) {

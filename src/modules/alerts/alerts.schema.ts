@@ -13,6 +13,7 @@ export const createAlertSchema = z.object({
       'OFFICER',
       'DIRECTOR',
       'ENDORSING_COMMITTEE',
+      'MANAGEMENT',
       'MANAGEMENT_TEAM',
       'ADMIN',
       'ALL',
@@ -57,5 +58,3 @@ export const updateAlertSchema = z.object({
 export type AlertsQueryDto = z.infer<typeof alertsQuerySchema>;
 export type CreateAlertDto = z.infer<typeof createAlertSchema>;
 export type UpdateAlertDto = z.infer<typeof updateAlertSchema>;
-
-

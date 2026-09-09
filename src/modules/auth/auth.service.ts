@@ -47,7 +47,9 @@ export class AuthService {
       throw ApiError.unauthorized('Invalid email or password');
     }
 
-    const accessToken = generateAccessToken(user.id, user.role);
+    const userRole =
+      user.authRole || (user as { role?: string }).role || 'OFFICER';
+    const accessToken = generateAccessToken(user.id, userRole);
 
     const refreshToken = generateRefreshToken(user.id);
 
@@ -66,7 +68,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: userRole,
+        authRole: userRole,
         mustChangePassword: user.mustChangePassword,
       },
       tokens: {

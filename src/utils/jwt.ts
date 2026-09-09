@@ -1,21 +1,27 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
-type Role =
+export type JwtRole =
+  | 'OFFICER'
+  | 'DIRECTOR'
+  | 'ENDORSING_COMMITTEE'
+  | 'MANAGEMENT'
+  | 'ADMIN'
   | 'ProcurementOfficer'
   | 'ProcurementDirector'
   | 'Administrator'
   | 'ManagementTeam'
-  | 'ProjectManager';
+  | 'ProjectManager'
+  | string;
 
-type AccessTokenPayload = { sub: string; role: Role; type: 'access' };
+type AccessTokenPayload = { sub: string; role: JwtRole; type: 'access' };
 type RefreshTokenPayload = { sub: string; type: 'refresh' };
 
 function signOptions(expiresIn: string): SignOptions {
   return { expiresIn: expiresIn as unknown as number };
 }
 
-export function generateAccessToken(userId: string, role: Role): string {
+export function generateAccessToken(userId: string, role: JwtRole): string {
   return jwt.sign(
     { sub: userId, role, type: 'access' } satisfies AccessTokenPayload,
     env.JWT_ACCESS_SECRET,

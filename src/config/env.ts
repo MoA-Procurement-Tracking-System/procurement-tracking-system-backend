@@ -146,6 +146,33 @@ const schema = z
           'An email provider (SMTP, Brevo, or MailerSend) configuration is required in production',
       });
     }
+
+    if (values.NODE_ENV === 'production') {
+      if (
+        values.JWT_ACCESS_SECRET ===
+          'default_access_secret_change_in_production' ||
+        values.JWT_ACCESS_SECRET.length < 32
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['JWT_ACCESS_SECRET'],
+          message:
+            'JWT_ACCESS_SECRET must be set to a secure key of at least 32 characters in production',
+        });
+      }
+      if (
+        values.JWT_REFRESH_SECRET ===
+          'default_refresh_secret_change_in_production' ||
+        values.JWT_REFRESH_SECRET.length < 32
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['JWT_REFRESH_SECRET'],
+          message:
+            'JWT_REFRESH_SECRET must be set to a secure key of at least 32 characters in production',
+        });
+      }
+    }
   });
 
 const result = schema.safeParse(process.env);

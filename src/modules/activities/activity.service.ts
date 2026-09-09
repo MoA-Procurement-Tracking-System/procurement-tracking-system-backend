@@ -5,7 +5,7 @@ import {
   StageStatus,
   RevisionEntityType,
   RevisionChangeType,
-  Role,
+  UserRole,
 } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
@@ -287,7 +287,11 @@ export const updateActivityService = async (
     });
     const user = await tx.user.findUnique({ where: { id: userId } });
 
-    if (user && user.role === Role.ProcurementOfficer) {
+    if (
+      user &&
+      (user.authRole === UserRole.OFFICER ||
+        (user as { role?: string }).role === 'ProcurementOfficer')
+    ) {
       const assignment = await tx.userProject.findUnique({
         where: {
           userId_projectId: { userId, projectId: oldActivity.plan.projectId },

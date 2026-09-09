@@ -12,7 +12,6 @@ import { logger } from '../../config/logger.js';
 import { ApiError } from '../../utils/errors.js';
 import {
   Prisma,
-  Role,
   SessionKind,
   UserRole,
   UserStatus,
@@ -108,38 +107,52 @@ const createPasswordSchema = z
 const createUserSchema = z.object({
   email: z.email().max(254),
   displayName: z.string().trim().min(2).max(120),
-  role: z.enum([
-    UserRole.OFFICER,
-    UserRole.DIRECTOR,
-    UserRole.ENDORSING_COMMITTEE,
-    UserRole.MANAGEMENT,
-  ]),
+  role: z
+    .string()
+    .trim()
+    .transform((val) => {
+      const clean = val.replace(/[\s_-]+/g, '').toUpperCase();
+      if (clean === 'MANAGEMENTTEAM' || clean === 'MANAGEMENT') {
+        return UserRole.MANAGEMENT;
+      }
+      if (clean === 'ENDORSINGCOMMITTEE') {
+        return UserRole.ENDORSING_COMMITTEE;
+      }
+      if (clean === 'OFFICER' || clean === 'PROCUREMENTOFFICER') {
+        return UserRole.OFFICER;
+      }
+      if (
+        clean === 'DIRECTOR' ||
+        clean === 'PROCUREMENTDIRECTOR' ||
+        clean === 'PROJECTMANAGER'
+      ) {
+        return UserRole.DIRECTOR;
+      }
+      if (clean === 'ADMIN' || clean === 'ADMINISTRATOR') {
+        return UserRole.ADMIN;
+      }
+      return val as UserRole;
+    })
+    .pipe(
+      z.nativeEnum(UserRole, {
+        message:
+          'Role must be OFFICER, DIRECTOR, ENDORSING_COMMITTEE, MANAGEMENT, or ADMIN',
+      }),
+    ),
 });
 
 function publicUser(user: PublicUser | PublicUserSource): PublicUser {
-  const effectiveRole = 'authRole' in user ? user.authRole : user.role;
   return {
     id: user.id,
     email: user.email,
     username: user.username,
     displayName: user.displayName,
-    role: effectiveRole,
+    role:
+      'authRole' in user
+        ? user.authRole
+        : (((user as { role?: string }).role as UserRole | undefined) ??
+          UserRole.OFFICER),
   };
-}
-
-function procurementRole(role: UserRole): Role {
-  switch (role) {
-    case UserRole.DIRECTOR:
-      return Role.ProcurementDirector;
-    case UserRole.MANAGEMENT_TEAM:
-    case UserRole.ENDORSING_COMMITTEE:
-    case UserRole.MANAGEMENT:
-      return Role.ManagementTeam;
-    case UserRole.ADMIN:
-      return Role.Administrator;
-    default:
-      return Role.ProcurementOfficer;
-  }
 }
 
 function clientDetails(req: Request) {
@@ -224,7 +237,7 @@ async function deliverUserInvitation(values: {
     [UserRole.OFFICER]: 'Procurement Officer',
     [UserRole.DIRECTOR]: 'Procurement Director',
     [UserRole.ENDORSING_COMMITTEE]: 'Endorsement Committee Member',
-    [UserRole.MANAGEMENT]: 'Management',
+    [UserRole.MANAGEMENT]: 'Management Team',
     [UserRole.ADMIN]: 'System Administrator',
   };
 
@@ -1012,7 +1025,7 @@ adminRouter.use(loadSession, requireAuthenticated, requireRole(UserRole.ADMIN));
  *               displayName: { type: string }
  *               role:
  *                 type: string
- *                 enum: [OFFICER, DIRECTOR, ENDORSING_COMMITTEE, MANAGEMENT, ADMIN]
+ *                 enum: [OFFICER, DIRECTOR, ENDORSING_COMMITTEE, MANAGEMENT_TEAM, ADMIN]
  *     responses:
  *       201:
  *         description: User created successfully
@@ -1052,7 +1065,6 @@ adminRouter.post('/users', async (req, res) => {
         email,
         username: null,
         displayName: parsed.data.displayName,
-        role: procurementRole(parsed.data.role),
         authRole: parsed.data.role,
         status: UserStatus.PENDING_INVITATION,
         isActive: true,
