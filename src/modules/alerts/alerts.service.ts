@@ -29,6 +29,18 @@ export interface AlertItem {
   contractNo?: string | undefined;
 }
 
+interface PersistedNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  severity: string;
+  link: string | null;
+  readAt: Date | null;
+  targetRole: string | null;
+  createdAt: Date;
+}
+
 // In-memory store for user dynamic reads & manual CRUD fallback
 const userDynamicReads = new Map<string, Map<string, Date>>();
 const inMemoryAlerts: AlertItem[] = [];
@@ -52,14 +64,14 @@ export class AlertsService {
         prisma as unknown as Record<string, unknown>
       ).userNotification as
         | {
-            create: (args: unknown) => Promise<Record<string, unknown>>;
+            create: (args: unknown) => Promise<PersistedNotification>;
             createMany: (args: unknown) => Promise<{ count: number }>;
           }
         | undefined;
 
       if (userNotificationModel) {
         if (data.userId) {
-          const created = (await userNotificationModel.create({
+          const created = await userNotificationModel.create({
             data: {
               userId: data.userId,
               targetRole: data.targetRole,
@@ -70,16 +82,7 @@ export class AlertsService {
               link: data.link,
               readAt: null,
             },
-          })) as {
-            id: string;
-            title: string;
-            message: string;
-            type: string;
-            severity: string;
-            link?: string;
-            targetRole?: string;
-            createdAt: Date;
-          };
+          });
           return [
             {
               id: created.id,
@@ -167,19 +170,7 @@ export class AlertsService {
         prisma as unknown as Record<string, unknown>
       ).userNotification as
         | {
-            findMany: (args: unknown) => Promise<
-              Array<{
-                id: string;
-                title: string;
-                message: string;
-                type: string;
-                severity: string;
-                link: string | null;
-                readAt: Date | null;
-                targetRole: string | null;
-                createdAt: Date;
-              }>
-            >;
+            findMany: (args: unknown) => Promise<PersistedNotification[]>;
           }
         | undefined;
 
@@ -263,7 +254,7 @@ export class AlertsService {
         | {
             findUnique: (
               args: unknown,
-            ) => Promise<Record<string, unknown> | null>;
+            ) => Promise<PersistedNotification | null>;
           }
         | undefined;
 
@@ -311,7 +302,7 @@ export class AlertsService {
         prisma as unknown as Record<string, unknown>
       ).userNotification as
         | {
-            update: (args: unknown) => Promise<Record<string, unknown>>;
+            update: (args: unknown) => Promise<PersistedNotification>;
           }
         | undefined;
 
@@ -372,7 +363,7 @@ export class AlertsService {
         prisma as unknown as Record<string, unknown>
       ).userNotification as
         | {
-            delete: (args: unknown) => Promise<Record<string, unknown>>;
+            delete: (args: unknown) => Promise<PersistedNotification>;
           }
         | undefined;
 
