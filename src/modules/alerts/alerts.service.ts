@@ -49,10 +49,7 @@ export class AlertsService {
   /**
    * CREATE: Create a new alert
    */
-  async createAlert(
-    data: CreateAlertDto,
-    _creatorUserId?: string,
-  ): Promise<AlertItem[]> {
+  async createAlert(data: CreateAlertDto): Promise<AlertItem[]> {
     const createdItems: AlertItem[] = [];
     const now = new Date();
     const severity = (data.severity as AlertSeverity) || 'INFO';
@@ -295,7 +292,6 @@ export class AlertsService {
   async updateAlert(
     id: string,
     data: UpdateAlertDto,
-    _userId?: string,
   ): Promise<AlertItem | null> {
     try {
       const userNotificationModel = (
@@ -355,7 +351,7 @@ export class AlertsService {
   /**
    * DELETE: Delete/dismiss alert by ID
    */
-  async deleteAlert(id: string, _userId?: string): Promise<boolean> {
+  async deleteAlert(id: string): Promise<boolean> {
     let deleted = false;
 
     try {

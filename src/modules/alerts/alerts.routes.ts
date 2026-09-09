@@ -7,7 +7,10 @@ import { env } from '../../config/env.js';
 
 const router = Router();
 
-function cookieValue(cookieHeader: string | undefined, name: string): string | undefined {
+function cookieValue(
+  cookieHeader: string | undefined,
+  name: string,
+): string | undefined {
   if (!cookieHeader) return undefined;
   for (const item of cookieHeader.split(';')) {
     const [k, ...rest] = item.trim().split('=');
@@ -44,10 +47,12 @@ const tryLoadSession: RequestHandler = async (req, _res, next) => {
           user: {
             id: session.user.id,
             email: session.user.email,
+            username: session.user.username,
             displayName: session.user.displayName,
             role: session.user.authRole,
             status: session.user.status,
-          } as any,
+            passwordHash: session.user.passwordHash,
+          },
         };
       }
     }
@@ -64,7 +69,9 @@ const tryLoadSession: RequestHandler = async (req, _res, next) => {
  *     summary: Retrieve alerts matching the authenticated user or role
  *     tags: [Alerts]
  */
-router.get('/', tryLoadSession, (req, res) => alertsController.getAlerts(req, res));
+router.get('/', tryLoadSession, (req, res) =>
+  alertsController.getAlerts(req, res),
+);
 
 /**
  * @openapi
@@ -73,7 +80,9 @@ router.get('/', tryLoadSession, (req, res) => alertsController.getAlerts(req, re
  *     summary: Create a new alert
  *     tags: [Alerts]
  */
-router.post('/', tryLoadSession, (req, res) => alertsController.createAlert(req, res));
+router.post('/', tryLoadSession, (req, res) =>
+  alertsController.createAlert(req, res),
+);
 
 /**
  * @openapi
