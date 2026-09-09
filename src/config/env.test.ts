@@ -68,6 +68,8 @@ describe('Email provider environment configuration', () => {
 
   it('accepts a complete SMTP configuration', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('JWT_ACCESS_SECRET', '12345678901234567890123456789012');
+    vi.stubEnv('JWT_REFRESH_SECRET', '12345678901234567890123456789012');
     configureBrevo({ key: '', fromEmail: '', fromName: '' });
     configureMailerSend({ token: '', fromEmail: '', fromName: '' });
     configureSmtp({
