@@ -3,8 +3,7 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import { z } from 'zod';
-import { authenticate } from '../../middleware/authenticate.js';
-import { requirePasswordChange } from '../auth/middleware/requirePasswordChange.js';
+import { authenticate, requirePasswordChange } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import {
   saveDocument,
@@ -17,27 +16,48 @@ import { ApiError } from '../../utils/errors.js';
 const UPLOAD_DIR = path.resolve('uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/png',
+  'image/jpeg',
+]);
+
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.png',
+  '.jpg',
+  '.jpeg',
+]);
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+  filename: (_req, file, cb) => {
+    const sanitized = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, `${Date.now()}-${sanitized}`);
+  },
 });
 
 const upload = multer({
   storage,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
   fileFilter: (_req, file, cb) => {
-    const allowed = [
-      '.pdf',
-      '.doc',
-      '.docx',
-      '.xls',
-      '.xlsx',
-      '.png',
-      '.jpg',
-      '.jpeg',
-    ];
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, allowed.includes(ext));
+    if (ALLOWED_EXTENSIONS.has(ext) && ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(null, true);
+    }
+    cb(
+      new Error(
+        'Invalid file type. Only PDF, Word, Excel, and images (PNG, JPEG) are allowed.',
+      ),
+    );
   },
 });
 

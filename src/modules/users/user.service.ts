@@ -10,13 +10,34 @@ import type {
   SafeUser,
 } from './user.types.js';
 
+export function normalizeToUserRole(role?: string): UserRole {
+  switch (role) {
+    case 'ProcurementOfficer':
+    case 'OFFICER':
+      return UserRole.OFFICER;
+    case 'ProcurementDirector':
+    case 'ProjectManager':
+    case 'DIRECTOR':
+      return UserRole.DIRECTOR;
+    case 'ManagementTeam':
+    case 'MANAGEMENT':
+      return UserRole.MANAGEMENT;
+    case 'ENDORSING_COMMITTEE':
+      return UserRole.ENDORSING_COMMITTEE;
+    case 'Administrator':
+    case 'ADMIN':
+      return UserRole.ADMIN;
+    default:
+      return UserRole.OFFICER;
+  }
+}
+
 const safeSelect = {
   id: true,
   name: true,
   email: true,
   username: true,
   displayName: true,
-  role: true,
   authRole: true,
   status: true,
   isActive: true,
@@ -51,24 +72,8 @@ export async function listUsers(query: Partial<ListUsersQuery> = {}) {
   }
 
   if (role) {
-    let authRoleVal: UserRole | undefined = undefined;
-    if (role === 'ProcurementOfficer') {
-      authRoleVal = UserRole.OFFICER;
-    } else if (role === 'ProcurementDirector' || role === 'ProjectManager') {
-      authRoleVal = UserRole.DIRECTOR;
-    } else if (role === 'ManagementTeam') {
-      authRoleVal = UserRole.ENDORSING_COMMITTEE;
-    } else if (role === 'Administrator') {
-      authRoleVal = UserRole.ADMIN;
-    }
-
-    if (authRoleVal) {
-      conditions.push({
-        OR: [{ role }, { authRole: authRoleVal }],
-      });
-    } else {
-      conditions.push({ role });
-    }
+    const authRoleVal = normalizeToUserRole(role);
+    conditions.push({ authRole: authRoleVal });
   }
 
   if (isActive !== undefined) {
@@ -92,8 +97,9 @@ export async function listUsers(query: Partial<ListUsersQuery> = {}) {
     prisma.user.count({ where }),
   ]);
 
-  const data = rawData.map(({ sessions, ...user }) => ({
+  const data: SafeUser[] = rawData.map(({ sessions, ...user }) => ({
     ...user,
+    role: user.authRole,
     lastLoginAt: sessions[0]?.lastSeenAt ?? null,
   }));
 
@@ -109,7 +115,10 @@ export async function getUserById(id: string): Promise<SafeUser> {
     select: safeSelect,
   });
   if (!user) throw ApiError.notFound('User not found');
-  return user;
+  return {
+    ...user,
+    role: user.authRole,
+  };
 }
 
 export async function createUser(input: CreateUserInput): Promise<SafeUser> {
@@ -122,17 +131,24 @@ export async function createUser(input: CreateUserInput): Promise<SafeUser> {
     ]);
 
   const passwordHash = await hashPassword(input.password);
-  return prisma.user.create({
+  const normalizedRole = normalizeToUserRole(input.authRole || input.role);
+  const user = await prisma.user.create({
     data: {
       name: input.name,
       displayName: input.name,
       email: input.email.toLowerCase(),
       passwordHash,
-      role: input.role,
+      authRole: normalizedRole,
+
       mustChangePassword: true,
     },
     select: safeSelect,
   });
+
+  return {
+    ...user,
+    role: user.authRole,
+  };
 }
 
 export async function updateUser(
@@ -152,12 +168,24 @@ export async function updateUser(
       ]);
   }
 
-  return prisma.user.update({
+  const updateData: Record<string, unknown> = {
+    ...(input.name && { name: input.name, displayName: input.name }),
+    ...(input.email && { email: input.email.toLowerCase() }),
+    ...(input.isActive !== undefined && { isActive: input.isActive }),
+  };
+
+  if (input.authRole || input.role) {
+    updateData.authRole = normalizeToUserRole(input.authRole || input.role);
+  }
+
+  const user = await prisma.user.update({
     where: { id },
-    data: {
-      ...input,
-      ...(input.email && { email: input.email.toLowerCase() }),
-    },
+    data: updateData as Parameters<typeof prisma.user.update>[0]['data'],
     select: safeSelect,
   });
+
+  return {
+    ...user,
+    role: user.authRole,
+  };
 }

@@ -3,7 +3,7 @@ import {
   PlanStatus,
   RevisionEntityType,
   RevisionChangeType,
-  Role,
+  UserRole,
   VoteDecision,
 } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
@@ -11,11 +11,41 @@ import { logRevision } from '../../shared/audit/revision.service.js';
 import { sendEmail } from '../../services/email.service.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
+import { createNotification } from '../alerts/alerts.service.js';
 
-export const getPlansService = async () => {
-  const [plans, committeeUsers] = await Promise.all([
+export interface GetPlansQueryOptions {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+  status?: string | undefined;
+}
+
+export const getPlansService = async (options: GetPlansQueryOptions = {}) => {
+  const { page, pageSize, search, status } = options;
+  const isPaginated = typeof page === 'number' || typeof pageSize === 'number';
+
+  const where: Prisma.PlanWhereInput = {
+    isActive: true,
+    ...(status ? { status: status as PlanStatus } : {}),
+    ...(search
+      ? {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+            { budgetYear: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+
+  const take =
+    pageSize && pageSize > 0 ? Math.min(pageSize, 100) : isPaginated ? 20 : 100;
+
+  const [plans, committeeUsers, totalCount] = await Promise.all([
     prisma.plan.findMany({
-      where: { isActive: true },
+      where,
+      take,
+      ...(page && page > 0 ? { skip: (page - 1) * take } : {}),
       include: {
         project: {
           include: {
@@ -25,12 +55,9 @@ export const getPlansService = async () => {
           },
         },
         creator: true,
-        updatedByUser: true,
         activities: {
           include: {
             procurementMethod: true,
-            creator: true,
-            updatedByUser: true,
             stages: {
               include: {
                 stageType: true,
@@ -42,13 +69,12 @@ export const getPlansService = async () => {
         },
         committeeVotes: true,
         reviews: true,
-        managementByUser: true,
       },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.user.findMany({
       where: {
-        OR: [{ role: 'ManagementTeam' }, { authRole: 'ENDORSING_COMMITTEE' }],
+        authRole: { in: [UserRole.MANAGEMENT, UserRole.ENDORSING_COMMITTEE] },
         isActive: true,
       },
       select: {
@@ -56,41 +82,12 @@ export const getPlansService = async () => {
         name: true,
         displayName: true,
         email: true,
-        role: true,
         authRole: true,
       },
       orderBy: { createdAt: 'asc' },
     }),
+    prisma.plan.count({ where }),
   ]);
-
-  const planIds = plans.map((p) => p.id);
-  const allActivityIds = plans.flatMap((p) =>
-    (p.activities || []).map((a) => a.id),
-  );
-  const planComments = await prisma.comment.findMany({
-    where: {
-      OR: [
-        { entityType: 'PLAN', entityId: { in: planIds } },
-        ...(allActivityIds.length > 0
-          ? [{ entityType: 'ACTIVITY', entityId: { in: allActivityIds } }]
-          : []),
-      ],
-      isActive: true,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          displayName: true,
-          email: true,
-          role: true,
-          authRole: true,
-        },
-      },
-    },
-    orderBy: { createdAt: 'asc' },
-  });
 
   const voterIds = Array.from(
     new Set(
@@ -104,19 +101,13 @@ export const getPlansService = async () => {
       name: true,
       displayName: true,
       email: true,
-      role: true,
       authRole: true,
     },
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
 
-  return plans.map((p) => ({
+  const mappedPlans = plans.map((p) => ({
     ...p,
-    comments: planComments.filter(
-      (c) =>
-        c.entityId === p.id ||
-        (p.activities || []).some((a) => a.id === c.entityId),
-    ),
     committeeMembers: committeeUsers,
     committeeVotes: (p.committeeVotes || []).map((v) => {
       const u = userMap.get(v.memberId);
@@ -128,6 +119,20 @@ export const getPlansService = async () => {
       };
     }),
   }));
+
+  if (isPaginated) {
+    return {
+      items: mappedPlans,
+      pagination: {
+        total: totalCount,
+        page: page || 1,
+        pageSize: take,
+        totalPages: Math.ceil(totalCount / take),
+      },
+    };
+  }
+
+  return mappedPlans;
 };
 
 export const getPlanByIdService = async (id: string) => {
@@ -146,12 +151,9 @@ export const getPlanByIdService = async (id: string) => {
           },
         },
         creator: true,
-        updatedByUser: true,
         activities: {
           include: {
             procurementMethod: true,
-            creator: true,
-            updatedByUser: true,
             stages: {
               include: {
                 stageType: true,
@@ -163,12 +165,11 @@ export const getPlanByIdService = async (id: string) => {
         },
         committeeVotes: true,
         reviews: true,
-        managementByUser: true,
       },
     }),
     prisma.user.findMany({
       where: {
-        OR: [{ role: 'ManagementTeam' }, { authRole: 'ENDORSING_COMMITTEE' }],
+        authRole: { in: [UserRole.MANAGEMENT, UserRole.ENDORSING_COMMITTEE] },
         isActive: true,
       },
       select: {
@@ -176,7 +177,6 @@ export const getPlanByIdService = async (id: string) => {
         name: true,
         displayName: true,
         email: true,
-        role: true,
         authRole: true,
       },
       orderBy: { createdAt: 'asc' },
@@ -193,45 +193,13 @@ export const getPlanByIdService = async (id: string) => {
       name: true,
       displayName: true,
       email: true,
-      role: true,
       authRole: true,
     },
   });
   const userMap = new Map(users.map((u) => [u.id, u]));
 
-  const singlePlanComments = await prisma.comment.findMany({
-    where: {
-      OR: [
-        { entityType: 'PLAN', entityId: plan.id },
-        ...((plan.activities || []).map((a) => a.id).length > 0
-          ? [
-              {
-                entityType: 'ACTIVITY',
-                entityId: { in: (plan.activities || []).map((a) => a.id) },
-              },
-            ]
-          : []),
-      ],
-      isActive: true,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          displayName: true,
-          email: true,
-          role: true,
-          authRole: true,
-        },
-      },
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-
   return {
     ...plan,
-    comments: singlePlanComments,
     committeeMembers: committeeUsers,
     committeeVotes: (plan.committeeVotes || []).map((v) => {
       const u = userMap.get(v.memberId);
@@ -262,12 +230,11 @@ export const createPlanService = async (
     }
 
     // 2. Resolve creator user
-    let validUserId = userId;
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) {
-      const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-      if (fallbackUser) validUserId = fallbackUser.id;
+      throw new Error(`Authenticated user not found with id: ${userId}`);
     }
+    const validUserId = user.id;
 
     const plan = await tx.plan.create({
       data: {
@@ -275,12 +242,10 @@ export const createPlanService = async (
         projectId: resolvedProjectId,
         status: PlanStatus.DRAFT,
         createdBy: validUserId,
-        updatedById: validUserId,
       },
       include: {
         project: true,
         creator: true,
-        updatedByUser: true,
         activities: true,
         committeeVotes: true,
       },
@@ -312,31 +277,31 @@ export const updatePlanService = async (
   userId: string,
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan = await tx.plan.findFirst({
-      where: { OR: [{ id }, { title: id }] },
-      include: { activities: true, committeeVotes: true },
-    });
+    const oldPlan =
+      (await tx.plan.findUnique({
+        where: { id },
+        include: { activities: true, committeeVotes: true },
+      })) ||
+      (await tx.plan.findFirst({
+        where: { title: id },
+        include: { activities: true, committeeVotes: true },
+      }));
     if (!oldPlan) {
       throw new Error(`Plan not found with id: ${id}`);
     }
 
-    let validUserId = userId;
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) {
-      const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-      if (fallbackUser) validUserId = fallbackUser.id;
+      throw new Error(`Authenticated user not found with id: ${userId}`);
     }
+    const validUserId = user.id;
 
     const plan = await tx.plan.update({
       where: { id: oldPlan.id },
-      data: {
-        ...data,
-        updatedByUser: { connect: { id: validUserId } },
-      },
+      data,
       include: {
         project: true,
         creator: true,
-        updatedByUser: true,
         activities: true,
         committeeVotes: true,
       },
@@ -363,51 +328,68 @@ export const updatePlanService = async (
 };
 
 export const submitPlanService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan = await tx.plan.findFirst({
-      where: { OR: [{ id }, { title: id }] },
-      include: { activities: true, committeeVotes: true },
-    });
-    if (!oldPlan) {
-      throw new Error(`Plan not found with id: ${id}`);
-    }
-
-    let validUserId = userId;
-    const user = await tx.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-      if (fallbackUser) validUserId = fallbackUser.id;
-    }
-
-    const plan = await tx.plan.update({
-      where: { id: oldPlan.id },
-      data: { status: PlanStatus.SUBMITTED },
-      include: {
-        project: true,
-        creator: true,
-        activities: true,
-        committeeVotes: true,
-      },
-    });
-
-    try {
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PLAN,
-          RevisionChangeType.UPDATE,
-          oldPlan.id,
-          validUserId,
-          oldPlan,
-          plan,
-        );
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, committeeVotes: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, committeeVotes: true },
+        }));
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
       }
-    } catch (auditErr) {
-      console.warn('logRevision submit plan warning:', auditErr);
-    }
 
-    return plan;
-  });
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new Error(`Authenticated user not found with id: ${userId}`);
+      }
+      const validUserId = user.id;
+
+      const plan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: { status: PlanStatus.SUBMITTED },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (validUserId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.UPDATE,
+            oldPlan.id,
+            validUserId,
+            oldPlan,
+            plan,
+          );
+        }
+      } catch (auditErr) {
+        console.warn('logRevision submit plan warning:', auditErr);
+      }
+
+      return plan;
+    },
+  );
+
+  createNotification({
+    targetRole: 'DIRECTOR',
+    title: `Plan Submitted: ${plan.title}`,
+    message: `Procurement plan "${plan.title}" was submitted and is awaiting director review.`,
+    type: 'PLAN_REVIEW',
+    severity: 'HIGH',
+    link: '/workspace/plan-for-review',
+  }).catch(() => {});
+
+  return plan;
 };
 
 export const sendToCommitteeService = async (
@@ -417,20 +399,24 @@ export const sendToCommitteeService = async (
 ) => {
   const { plan, committeeVoteDeadline } = await prisma.$transaction(
     async (tx: Prisma.TransactionClient) => {
-      const oldPlan = await tx.plan.findFirst({
-        where: { OR: [{ id }, { title: id }] },
-        include: { activities: true, committeeVotes: true },
-      });
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, committeeVotes: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, committeeVotes: true },
+        }));
       if (!oldPlan) {
         throw new Error(`Plan not found with id: ${id}`);
       }
 
-      let validUserId = userId;
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) {
-        const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-        if (fallbackUser) validUserId = fallbackUser.id;
+        throw new Error(`Authenticated user not found with id: ${userId}`);
       }
+      const validUserId = user.id;
 
       // Compute vote deadline if the director specified hours
       const committeeVoteDeadline =
@@ -443,11 +429,6 @@ export const sendToCommitteeService = async (
         data: {
           status: PlanStatus.WITH_COMMITTEE,
           committeeRound: oldPlan.committeeRound + 1,
-          managementDecision: null,
-          managementComment: null,
-          managementById: null,
-          managementAt: null,
-          directorRevisionComment: null,
           ...(committeeVoteDeadline !== undefined
             ? { committeeVoteDeadline }
             : {}),
@@ -484,10 +465,7 @@ export const sendToCommitteeService = async (
   try {
     const committeeMembers = await prisma.user.findMany({
       where: {
-        OR: [
-          { role: Role.ManagementTeam },
-          { authRole: 'ENDORSING_COMMITTEE' },
-        ],
+        authRole: { in: [UserRole.MANAGEMENT, UserRole.ENDORSING_COMMITTEE] },
         isActive: true,
       },
       select: { id: true, name: true, displayName: true, email: true },
@@ -552,6 +530,24 @@ export const sendToCommitteeService = async (
     );
   }
 
+  createNotification({
+    targetRole: 'ENDORSING_COMMITTEE',
+    title: `Committee Endorsement Vote: ${plan.title}`,
+    message: `Plan "${plan.title}" has been sent for committee endorsement review. Your vote is required.`,
+    type: 'PLAN_REVIEW',
+    severity: 'HIGH',
+    link: '/workspace/plan-for-review',
+  }).catch(() => {});
+
+  createNotification({
+    targetRole: 'MANAGEMENT',
+    title: `Plan Submitted to Committee: ${plan.title}`,
+    message: `Plan "${plan.title}" has been forwarded to the Endorsement Committee for review.`,
+    type: 'PLAN_REVIEW',
+    severity: 'INFO',
+    link: '/workspace/plan-for-review',
+  }).catch(() => {});
+
   return plan;
 };
 
@@ -561,20 +557,24 @@ export const rejectPlanService = async (
   userId: string,
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan = await tx.plan.findFirst({
-      where: { OR: [{ id }, { title: id }] },
-      include: { activities: true, committeeVotes: true },
-    });
+    const oldPlan =
+      (await tx.plan.findUnique({
+        where: { id },
+        include: { activities: true, committeeVotes: true },
+      })) ||
+      (await tx.plan.findFirst({
+        where: { title: id },
+        include: { activities: true, committeeVotes: true },
+      }));
     if (!oldPlan) {
       throw new Error(`Plan not found with id: ${id}`);
     }
 
-    let validUserId = userId;
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) {
-      const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-      if (fallbackUser) validUserId = fallbackUser.id;
+      throw new Error(`Authenticated user not found with id: ${userId}`);
     }
+    const validUserId = user.id;
 
     const plan = await tx.plan.update({
       where: { id: oldPlan.id },
@@ -620,36 +620,26 @@ export const submitCommitteeVoteService = async (
 ) => {
   const { plan, approveCount, rejectCount } = await prisma.$transaction(
     async (tx: Prisma.TransactionClient) => {
-      const oldPlan = await tx.plan.findFirst({
-        where: { OR: [{ id }, { title: id }] },
-        include: { committeeVotes: true, creator: true },
-      });
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { committeeVotes: true, creator: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { committeeVotes: true, creator: true },
+        }));
       if (!oldPlan) {
         throw new Error(`Plan not found with id: ${id}`);
       }
 
-      let validUserId = userId;
-      const user = await tx.user.findFirst({
-        where: {
-          OR: [{ id: userId }, { email: userId }],
-        },
+      const user = await tx.user.findUnique({
+        where: { id: userId },
       });
-
-      if (user) {
-        validUserId = user.id;
-      } else {
-        const fallbackUser =
-          (await tx.user.findFirst({
-            where: {
-              OR: [
-                { role: Role.ManagementTeam },
-                { authRole: 'ENDORSING_COMMITTEE' },
-              ],
-            },
-            select: { id: true },
-          })) || (await tx.user.findFirst({ select: { id: true } }));
-        if (fallbackUser) validUserId = fallbackUser.id;
+      if (!user) {
+        throw new Error(`Committee voter not found with id: ${userId}`);
       }
+      const validUserId = user.id;
 
       // Record the vote
       await tx.committeeVote.upsert({
@@ -688,15 +678,12 @@ export const submitCommitteeVoteService = async (
       // 2. If at least 3 members vote REJECT, the plan is REJECTED (majority rejection).
       // 3. Otherwise (fewer than 3 approvals and fewer than 3 rejections), the plan stays in WITH_COMMITTEE (Pending Approval).
       if (approveCount >= 3) {
-        const targetStatus =
-          oldPlan.status === PlanStatus.WITH_COMMITTEE
-            ? PlanStatus.AWAITING_MANAGEMENT_APPROVAL
-            : oldPlan.status;
-
         plan = await tx.plan.update({
           where: { id: oldPlan.id },
           data: {
-            status: targetStatus,
+            status: PlanStatus.APPROVED,
+            approvedById: validUserId,
+            approvedAt: new Date(),
           },
           include: {
             project: true,
@@ -709,27 +696,24 @@ export const submitCommitteeVoteService = async (
           await logRevision(
             tx,
             RevisionEntityType.PLAN,
-            RevisionChangeType.UPDATE,
+            RevisionChangeType.APPROVE,
             oldPlan.id,
             validUserId,
             oldPlan,
             plan,
           );
         } catch (auditErr) {
-          console.warn('logRevision vote endorse warning:', auditErr);
+          console.warn('logRevision vote approve warning:', auditErr);
         }
       } else if (rejectCount >= 3) {
-        const targetStatus =
-          oldPlan.status === PlanStatus.WITH_COMMITTEE
-            ? PlanStatus.COMMITTEE_REJECTED
-            : oldPlan.status;
-
         plan = await tx.plan.update({
           where: { id: oldPlan.id },
           data: {
-            status: targetStatus,
+            status: PlanStatus.REJECTED,
+            rejectedById: validUserId,
             rejectionReason:
               comment || 'Rejected by majority Endorsement Committee vote.',
+            rejectedAt: new Date(),
           },
           include: {
             project: true,
@@ -875,75 +859,158 @@ export const submitCommitteeVoteService = async (
         'Outcome email notification block failed',
       );
     }
+
+    if (plan.creator?.id) {
+      createNotification({
+        userId: plan.creator.id,
+        title: isApproved
+          ? `Plan Approved: ${plan.title}`
+          : `Plan Rejected: ${plan.title}`,
+        message: isApproved
+          ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee.`
+          : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee.`,
+        type: 'DECISION',
+        severity: isApproved ? 'INFO' : 'HIGH',
+        link: '/workspace/plan-management',
+      }).catch(() => {});
+    }
+
+    createNotification({
+      targetRole: 'DIRECTOR',
+      title: isApproved
+        ? `Plan Approved by Committee: ${plan.title}`
+        : `Plan Rejected by Committee: ${plan.title}`,
+      message: isApproved
+        ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee (${approveCount} approvals).`
+        : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee (${rejectCount} rejections).`,
+      type: 'DECISION',
+      severity: isApproved ? 'INFO' : 'HIGH',
+      link: '/workspace/plan-for-review',
+    }).catch(() => {});
+
+    createNotification({
+      targetRole: 'MANAGEMENT',
+      title: isApproved
+        ? `Plan Approved: ${plan.title}`
+        : `Plan Rejected: ${plan.title}`,
+      message: isApproved
+        ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee (${approveCount} approvals).`
+        : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee (${rejectCount} rejections).`,
+      type: 'DECISION',
+      severity: isApproved ? 'INFO' : 'HIGH',
+      link: '/workspace/plan-for-review',
+    }).catch(() => {});
+  } else {
+    // Notify Director & Management that a vote was cast (progress update)
+    createNotification({
+      targetRole: 'DIRECTOR',
+      title: `Committee Vote Cast: ${plan.title}`,
+      message: `A committee member voted ${decision} on plan "${plan.title}" (${approveCount} approve, ${rejectCount} reject so far).`,
+      type: 'PLAN_REVIEW',
+      severity: 'LOW',
+      link: '/workspace/plan-for-review',
+    }).catch(() => {});
+
+    createNotification({
+      targetRole: 'MANAGEMENT',
+      title: `Committee Vote Cast: ${plan.title}`,
+      message: `A committee member voted ${decision} on plan "${plan.title}" (${approveCount} approve, ${rejectCount} reject so far).`,
+      type: 'PLAN_REVIEW',
+      severity: 'LOW',
+      link: '/workspace/plan-for-review',
+    }).catch(() => {});
   }
 
   return plan;
 };
 
 export const requestPlanUpdateService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan = await tx.plan.findFirst({
-      where: { OR: [{ id }, { title: id }] },
-      include: { activities: true, committeeVotes: true },
-    });
-    if (!oldPlan) {
-      throw new Error(`Plan not found with id: ${id}`);
-    }
-
-    let validUserId = userId;
-    const user = await tx.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-      if (fallbackUser) validUserId = fallbackUser.id;
-    }
-
-    const plan = await tx.plan.update({
-      where: { id: oldPlan.id },
-      data: { status: PlanStatus.UPDATE_REQUESTED },
-      include: {
-        project: true,
-        creator: true,
-        activities: true,
-        committeeVotes: true,
-      },
-    });
-
-    try {
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PLAN,
-          RevisionChangeType.UPDATE,
-          oldPlan.id,
-          validUserId,
-          oldPlan,
-          plan,
-        );
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, committeeVotes: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, committeeVotes: true },
+        }));
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
       }
-    } catch (auditErr) {
-      console.warn('logRevision requestPlanUpdate warning:', auditErr);
-    }
 
-    return plan;
-  });
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new Error(`Authenticated user not found with id: ${userId}`);
+      }
+      const validUserId = user.id;
+
+      const plan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: { status: PlanStatus.UPDATE_REQUESTED },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (validUserId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.UPDATE,
+            oldPlan.id,
+            validUserId,
+            oldPlan,
+            plan,
+          );
+        }
+      } catch (auditErr) {
+        console.warn('logRevision requestPlanUpdate warning:', auditErr);
+      }
+
+      return plan;
+    },
+  );
+
+  if (plan.creator?.id) {
+    createNotification({
+      userId: plan.creator.id,
+      title: `Revision Requested: ${plan.title}`,
+      message: `Director has requested updates on procurement plan "${plan.title}".`,
+      type: 'DECISION',
+      severity: 'HIGH',
+      link: '/workspace/plan-management',
+    }).catch(() => {});
+  }
+
+  return plan;
 };
 
 export const approvePlanUpdateService = async (id: string, userId: string) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan = await tx.plan.findFirst({
-      where: { OR: [{ id }, { title: id }] },
-      include: { activities: true, committeeVotes: true },
-    });
+    const oldPlan =
+      (await tx.plan.findUnique({
+        where: { id },
+        include: { activities: true, committeeVotes: true },
+      })) ||
+      (await tx.plan.findFirst({
+        where: { title: id },
+        include: { activities: true, committeeVotes: true },
+      }));
     if (!oldPlan) {
       throw new Error(`Plan not found with id: ${id}`);
     }
 
-    let validUserId = userId;
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) {
-      const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-      if (fallbackUser) validUserId = fallbackUser.id;
+      throw new Error(`Authenticated user not found with id: ${userId}`);
     }
+    const validUserId = user.id;
 
     const plan = await tx.plan.update({
       where: { id: oldPlan.id },
@@ -974,254 +1041,4 @@ export const approvePlanUpdateService = async (id: string, userId: string) => {
 
     return plan;
   });
-};
-
-export const managementDecisionService = async (
-  id: string,
-  decision: 'APPROVE' | 'REJECT',
-  comment: string | undefined,
-  userId: string,
-) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan = await tx.plan.findFirst({
-      where: { OR: [{ id }, { title: id }] },
-      include: { activities: true, committeeVotes: true },
-    });
-    if (!oldPlan) {
-      throw new Error(`Plan not found with id: ${id}`);
-    }
-
-    let validUserId = userId;
-    const user = await tx.user.findFirst({
-      where: { OR: [{ id: userId }, { email: userId }] },
-    });
-    if (user) {
-      validUserId = user.id;
-    } else {
-      const fallback = await tx.user.findFirst({
-        where: { OR: [{ authRole: 'MANAGEMENT' }, { role: 'ManagementTeam' }] },
-      });
-      if (fallback) validUserId = fallback.id;
-    }
-
-    const newStatus =
-      decision === 'APPROVE'
-        ? PlanStatus.MANAGEMENT_APPROVED
-        : PlanStatus.MANAGEMENT_REJECTED;
-
-    const plan = await tx.plan.update({
-      where: { id: oldPlan.id },
-      data: {
-        status: newStatus,
-        managementDecision: decision,
-        managementComment: comment || null,
-        managementById: validUserId,
-        managementAt: new Date(),
-        ...(decision === 'APPROVE'
-          ? { approvedById: validUserId, approvedAt: new Date() }
-          : {
-              rejectedById: validUserId,
-              rejectedAt: new Date(),
-              rejectionReason: comment || 'Rejected by Management.',
-            }),
-      },
-      include: {
-        project: true,
-        creator: true,
-        activities: true,
-        committeeVotes: true,
-        managementByUser: true,
-      },
-    });
-
-    if (comment && comment.trim()) {
-      await tx.comment.create({
-        data: {
-          entityType: 'PLAN',
-          entityId: oldPlan.id,
-          authorId: validUserId,
-          body: `[Management Decision Comment] ${comment}`,
-        },
-      });
-    }
-
-    try {
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PLAN,
-          decision === 'APPROVE'
-            ? RevisionChangeType.APPROVE
-            : RevisionChangeType.REJECT,
-          oldPlan.id,
-          validUserId,
-          oldPlan,
-          plan,
-        );
-      }
-    } catch (auditErr) {
-      console.warn('logRevision management decision warning:', auditErr);
-    }
-
-    return plan;
-  });
-};
-
-export const returnPlanForRevisionService = async (
-  id: string,
-  comment: string,
-  userId: string,
-) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan = await tx.plan.findFirst({
-      where: { OR: [{ id }, { title: id }] },
-      include: { activities: true, committeeVotes: true },
-    });
-    if (!oldPlan) {
-      throw new Error(`Plan not found with id: ${id}`);
-    }
-
-    let validUserId = userId;
-    const user = await tx.user.findFirst({
-      where: { OR: [{ id: userId }, { email: userId }] },
-    });
-    if (user) {
-      validUserId = user.id;
-    } else {
-      const fallback = await tx.user.findFirst({
-        where: {
-          OR: [{ authRole: 'DIRECTOR' }, { role: 'ProcurementDirector' }],
-        },
-      });
-      if (fallback) validUserId = fallback.id;
-    }
-
-    const plan = await tx.plan.update({
-      where: { id: oldPlan.id },
-      data: {
-        status: PlanStatus.RETURNED_FOR_REVISION,
-        directorRevisionComment: comment,
-        rejectedById: validUserId,
-        rejectedAt: new Date(),
-        rejectionReason: comment,
-      },
-      include: {
-        project: true,
-        creator: true,
-        activities: true,
-        committeeVotes: true,
-        managementByUser: true,
-      },
-    });
-
-    if (validUserId) {
-      await tx.comment.create({
-        data: {
-          entityType: 'PLAN',
-          entityId: oldPlan.id,
-          authorId: validUserId,
-          body: `[Director Revision Instructions] ${comment}`,
-        },
-      });
-    }
-
-    try {
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PLAN,
-          RevisionChangeType.UPDATE,
-          oldPlan.id,
-          validUserId,
-          oldPlan,
-          plan,
-        );
-      }
-    } catch (auditErr) {
-      console.warn('logRevision return for revision warning:', auditErr);
-    }
-
-    return plan;
-  });
-};
-
-export const getPlanCommentsService = async (planId: string) => {
-  const plan = await prisma.plan.findFirst({
-    where: { OR: [{ id: planId }, { title: planId }] },
-    include: { activities: { select: { id: true } } },
-  });
-  if (!plan) return [];
-
-  const activityIds = plan.activities.map((a) => a.id);
-  const comments = await prisma.comment.findMany({
-    where: {
-      OR: [
-        { entityType: 'PLAN', entityId: plan.id },
-        ...(activityIds.length > 0
-          ? [{ entityType: 'ACTIVITY', entityId: { in: activityIds } }]
-          : []),
-      ],
-      isActive: true,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          displayName: true,
-          email: true,
-          role: true,
-          authRole: true,
-        },
-      },
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  return comments;
-};
-
-export const addCommentService = async (
-  entityType: 'PLAN' | 'ACTIVITY',
-  entityId: string,
-  body: string,
-  userId: string,
-) => {
-  let validUserId = userId;
-  const user = await prisma.user.findFirst({
-    where: { OR: [{ id: userId }, { email: userId }] },
-  });
-  if (user) {
-    validUserId = user.id;
-  } else {
-    const fallback = await prisma.user.findFirst({ select: { id: true } });
-    if (fallback) validUserId = fallback.id;
-  }
-
-  if (!validUserId) {
-    throw new Error('Valid user required to post comment');
-  }
-
-  const comment = await prisma.comment.create({
-    data: {
-      entityType,
-      entityId,
-      body,
-      authorId: validUserId,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          displayName: true,
-          email: true,
-          role: true,
-          authRole: true,
-        },
-      },
-    },
-  });
-
-  return comment;
 };

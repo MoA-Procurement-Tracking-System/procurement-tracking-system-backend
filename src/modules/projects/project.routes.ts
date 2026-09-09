@@ -1,7 +1,11 @@
 import { Router } from 'express';
-// import { authenticate } from '../../middleware/authenticate.js';
-import { authorize } from '../../middleware/authorize.js';
-// import { requirePasswordChange } from '../auth/middleware/requirePasswordChange.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
+import { validate } from '../../middleware/validate.js';
+import {
+  createProjectSchema,
+  updateProjectSchema,
+  assignOfficerSchema,
+} from './project.schema.js';
 import {
   getProjects,
   getProjectById,
@@ -13,8 +17,8 @@ import {
 
 const router = Router();
 
-// Protect all project routes
-// router.use(authenticate, requirePasswordChange);
+// Protect all project routes with authentication
+router.use(authenticate);
 
 /**
  * @swagger
@@ -82,7 +86,8 @@ router.get('/:id', getProjectById);
  */
 router.post(
   '/',
-  // authorize('Administrator', 'ProjectManager'),
+  authorize('Administrator', 'ProjectManager', 'ADMIN'),
+  validate(createProjectSchema),
   createProject,
 );
 
@@ -123,7 +128,8 @@ router.post(
  */
 router.patch(
   '/:id',
-  // authorize('Administrator', 'ProjectManager'),
+  authorize('Administrator', 'ProjectManager', 'ADMIN'),
+  validate(updateProjectSchema),
   updateProject,
 );
 
@@ -154,7 +160,8 @@ router.patch(
  */
 router.post(
   '/:id/officers',
-  // authorize('Administrator', 'ProjectManager'),
+  authorize('Administrator', 'ProjectManager', 'ADMIN'),
+  validate(assignOfficerSchema),
   assignOfficer,
 );
 
@@ -179,7 +186,7 @@ router.post(
  */
 router.delete(
   '/:id/officers/:officerId',
-  authorize('Administrator', 'ProjectManager'),
+  authorize('Administrator', 'ProjectManager', 'ADMIN'),
   removeOfficer,
 );
 

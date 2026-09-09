@@ -29,7 +29,7 @@ COPY package*.json ./
 COPY prisma.config.ts ./
 COPY prisma/ ./prisma/
 
-# Install production-only dependencies (skip postinstall/prisma generate — already done in builder)
+# Install production-only dependencies
 RUN npm ci --omit=dev --ignore-scripts
 
 # Copy generated Prisma Client and compiled assets from build stage
@@ -37,8 +37,16 @@ COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/src/generated ./src/generated
 COPY --from=builder /usr/src/app/src/generated ./dist/generated
 
+# Create uploads directory and assign ownership to node user
+RUN mkdir -p uploads && chown -R node:node /usr/src/app
+
+USER node
+
 # Expose server port
 EXPOSE 5000
 
-# Start server (resolve any failed migrations, then apply pending ones, then start)
-CMD npx prisma migrate resolve --rolled-back 20260825191228_add_pending_invitation_status 2>/dev/null || true && npx prisma migrate deploy && node dist/server.js
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1
+
+# Start server: apply pending migrations, then start node server
+CMD npx prisma migrate deploy && node dist/server.js

@@ -7,19 +7,68 @@ import {
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
 
-export const getProjectsService = async () => {
-  return prisma.project.findMany({
-    where: { isActive: true },
-    include: {
-      fundingSource: true,
-      sector: true,
-      members: {
-        include: {
-          user: true,
+export interface GetProjectsQueryOptions {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+  status?: string | undefined;
+}
+
+export const getProjectsService = async (
+  options: GetProjectsQueryOptions = {},
+) => {
+  const { page, pageSize, search, status } = options;
+  const isPaginated = typeof page === 'number' || typeof pageSize === 'number';
+
+  const where: Prisma.ProjectWhereInput = {
+    isActive: true,
+    ...(status ? { status: status as ProjectStatus } : {}),
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { code: { contains: search, mode: 'insensitive' } },
+            { sapIdentificationNo: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+
+  const take =
+    pageSize && pageSize > 0 ? Math.min(pageSize, 100) : isPaginated ? 20 : 100;
+
+  const [projects, totalCount] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      take,
+      ...(page && page > 0 ? { skip: (page - 1) * take } : {}),
+      include: {
+        fundingSource: true,
+        sector: true,
+        members: {
+          include: {
+            user: true,
+          },
         },
       },
-    },
-  });
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.project.count({ where }),
+  ]);
+
+  if (isPaginated) {
+    return {
+      items: projects,
+      pagination: {
+        total: totalCount,
+        page: page || 1,
+        pageSize: take,
+        totalPages: Math.ceil(totalCount / take),
+      },
+    };
+  }
+
+  return projects;
 };
 
 export const getProjectByIdService = async (id: string) => {
@@ -42,6 +91,11 @@ export const createProjectService = async (
   userId: string,
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const userExists = await tx.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      throw new Error(`Authenticated user not found with id: ${userId}`);
+    }
+
     const project = await tx.project.create({
       data: {
         ...data,
@@ -59,23 +113,15 @@ export const createProjectService = async (
     });
 
     try {
-      let validUserId = userId;
-      const userExists = await tx.user.findUnique({ where: { id: userId } });
-      if (!userExists) {
-        const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-        if (fallbackUser) validUserId = fallbackUser.id;
-      }
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PROJECT,
-          RevisionChangeType.CREATE,
-          project.id,
-          validUserId,
-          null,
-          project,
-        );
-      }
+      await logRevision(
+        tx,
+        RevisionEntityType.PROJECT,
+        RevisionChangeType.CREATE,
+        project.id,
+        userExists.id,
+        null,
+        project,
+      );
     } catch (auditErr) {
       console.warn('logRevision warning:', auditErr);
     }
@@ -90,6 +136,11 @@ export const updateProjectService = async (
   userId: string,
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const userExists = await tx.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      throw new Error(`Authenticated user not found with id: ${userId}`);
+    }
+
     const oldProject = await tx.project.findUniqueOrThrow({ where: { id } });
 
     const project = await tx.project.update({
@@ -107,23 +158,15 @@ export const updateProjectService = async (
     });
 
     try {
-      let validUserId = userId;
-      const userExists = await tx.user.findUnique({ where: { id: userId } });
-      if (!userExists) {
-        const fallbackUser = await tx.user.findFirst({ select: { id: true } });
-        if (fallbackUser) validUserId = fallbackUser.id;
-      }
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PROJECT,
-          RevisionChangeType.UPDATE,
-          id,
-          validUserId,
-          oldProject,
-          project,
-        );
-      }
+      await logRevision(
+        tx,
+        RevisionEntityType.PROJECT,
+        RevisionChangeType.UPDATE,
+        id,
+        userExists.id,
+        oldProject,
+        project,
+      );
     } catch (auditErr) {
       console.warn('logRevision warning:', auditErr);
     }

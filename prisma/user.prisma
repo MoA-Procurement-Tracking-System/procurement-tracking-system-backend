@@ -5,7 +5,6 @@ model User {
   username              String?    @unique
   displayName           String
   passwordHash          String
-  role                  Role
   authRole              UserRole   @default(OFFICER)
   status                UserStatus @default(ACTIVE)
   isActive              Boolean    @default(true)
@@ -41,8 +40,8 @@ model User {
   importBatches       ImportBatch[]
   contractAmendments  ContractAmendment[]   @relation("ContractAmendedBy")
   planStatusChanges   PlanStatusHistory[]   @relation("PlanStatusChangedBy")
+  notifications       UserNotification[]    @relation("UserNotifications")
 
-  @@index([role])
   @@index([authRole, status])
   @@index([isActive])
 }

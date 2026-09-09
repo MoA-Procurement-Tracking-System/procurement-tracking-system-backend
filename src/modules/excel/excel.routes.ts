@@ -1,14 +1,25 @@
+import path from 'path';
 import { Router } from 'express';
 import multer from 'multer';
 import os from 'os';
 import { excelController } from './excel.controller.js';
-import { loadSession, requireAuthenticated } from '../auth/auth.routes.js';
+import { authenticate } from '../../middleware/auth.js';
 
 const router = Router();
-const upload = multer({ dest: os.tmpdir() });
+const upload = multer({
+  dest: os.tmpdir(),
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.xlsx' || ext === '.xls') {
+      return cb(null, true);
+    }
+    cb(new Error('Only Excel files (.xlsx, .xls) are allowed'));
+  },
+});
 
-// Secure all template and import routes using cookie session middlewares
-router.use(loadSession, requireAuthenticated);
+// Secure all template and import routes using unified authentication
+router.use(authenticate);
 
 /**
  * @openapi

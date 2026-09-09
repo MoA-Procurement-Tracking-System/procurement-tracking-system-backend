@@ -4,4 +4,4 @@ enum UserRole {
   ENDORSING_COMMITTEE
   MANAGEMENT
   ADMIN
-}
+}

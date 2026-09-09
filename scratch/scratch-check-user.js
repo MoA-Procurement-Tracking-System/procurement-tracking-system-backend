@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { prisma } from './src/config/database.js';
 import { verifyPassword } from './src/modules/auth/auth.security.js';
 

@@ -28,9 +28,33 @@ import reportsRouter from './modules/reports/reports.routes.js';
 import contractsRouter from './modules/contracts/contracts.routes.js';
 import excelRouter from './modules/excel/excel.routes.js';
 
+import { rateLimit } from 'express-rate-limit';
+
 const app = express();
 app.disable('x-powered-by');
 if (env.NODE_ENV === 'production') app.set('trust proxy', 1);
+
+const globalLimiter = rateLimit({
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 429,
+    message: 'Too many requests from this IP, please try again later.',
+  },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 429,
+    message: 'Too many authentication attempts, please try again later.',
+  },
+});
 
 app.use(
   cors({
@@ -40,7 +64,7 @@ app.use(
       if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -57,12 +81,24 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(pinoHttp({ logger }));
 
+// Rate limiters — only active in production to avoid blocking local dev
+if (env.NODE_ENV === 'production') {
+  app.use(globalLimiter);
+  app.use('/api/auth/login', authLimiter);
+  app.use('/api/auth/forgot-password', authLimiter);
+}
+
 // Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Health check route
-app.get('/', (_req, res) => {
-  res.json({ message: 'Procurement Tracking System API is running' });
+// Health check routes
+app.get(['/', '/api/health'], (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'Procurement Tracking System API',
+    environment: env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Mount module routes
@@ -79,6 +115,7 @@ app.use('/api/contracts', contractsRouter);
 app.use('/api/suppliers', supplierRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/alerts', alertsRouter);
+app.use('/alerts', alertsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/excel', excelRouter);
 app.use('/api', protectedRouter);

@@ -3,7 +3,7 @@ import { prisma } from '../config/database.js';
 import { sendEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
-import { PlanStatus, Role } from '../generated/prisma/index.js';
+import { PlanStatus, UserRole } from '../generated/prisma/index.js';
 
 async function sendCommitteeReminders(): Promise<void> {
   const now = new Date();
@@ -25,7 +25,7 @@ async function sendCommitteeReminders(): Promise<void> {
 
   const committeeMembers = await prisma.user.findMany({
     where: {
-      OR: [{ role: Role.ManagementTeam }, { authRole: 'ENDORSING_COMMITTEE' }],
+      authRole: { in: [UserRole.ENDORSING_COMMITTEE, UserRole.MANAGEMENT] },
       isActive: true,
     },
     select: { id: true, name: true, displayName: true, email: true },

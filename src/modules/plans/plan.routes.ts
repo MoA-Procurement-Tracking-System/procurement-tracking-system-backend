@@ -1,59 +1,12 @@
-import { Router, type RequestHandler } from 'express';
-import { prisma } from '../../config/database.js';
-import { env } from '../../config/env.js';
-import { hashToken } from '../auth/auth.security.js';
-
-function cookieValue(
-  cookieHeader: string | undefined,
-  name: string,
-): string | undefined {
-  if (!cookieHeader) return undefined;
-  const match = cookieHeader
-    .split(';')
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(name + '='));
-  if (!match) return undefined;
-  return decodeURIComponent(match.slice(name.length + 1));
-}
-
-const optionalLoadSession: RequestHandler = async (req, res, next) => {
-  try {
-    let raw: string | undefined = undefined;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      raw = authHeader.slice(7).trim();
-    }
-    if (!raw) {
-      raw = cookieValue(req.headers.cookie, env.SESSION_COOKIE_NAME);
-    }
-    if (raw) {
-      const session = await prisma.session.findUnique({
-        where: { tokenHash: hashToken(raw) },
-        include: { user: true },
-      });
-      if (session && !session.revokedAt && session.expiresAt > new Date()) {
-        req.auth = {
-          sessionId: session.id,
-          sessionKind: session.kind,
-          sessionExpiresAt: session.expiresAt,
-          user: {
-            id: session.user.id,
-            email: session.user.email,
-            username: session.user.username,
-            displayName: session.user.displayName,
-            role: session.user.authRole,
-            status: session.user.status,
-            passwordHash: session.user.passwordHash,
-          },
-        };
-      }
-    }
-  } catch {
-    // Ignore session load error in optional middleware
-  }
-  next();
-};
-// import { authorize } from '../../middleware/authorize.js';
+import { Router } from 'express';
+import { authenticate, authorize } from '../../middleware/auth.js';
+import { validate } from '../../middleware/validate.js';
+import {
+  createPlanSchema,
+  updatePlanSchema,
+  rejectPlanSchema,
+  committeeVoteSchema,
+} from './plan.schema.js';
 import {
   getPlans,
   getPlanById,
@@ -65,13 +18,12 @@ import {
   sendToCommittee,
   rejectPlan,
   submitCommitteeVote,
-  submitManagementDecision,
-  returnPlanForRevision,
-  getPlanComments,
-  addComment,
 } from './plan.controller.js';
 
 const router = Router();
+
+// Protect all plan routes with authentication
+router.use(authenticate);
 
 /**
  * @swagger
@@ -130,7 +82,18 @@ router.get('/:id', getPlanById);
  *     responses:
  *       201: { description: Plan created }
  */
-router.post('/', optionalLoadSession, createPlan);
+router.post(
+  '/',
+  authorize(
+    'Administrator',
+    'ProjectManager',
+    'ProcurementOfficer',
+    'OFFICER',
+    'ADMIN',
+  ),
+  validate(createPlanSchema),
+  createPlan,
+);
 
 /**
  * @swagger
@@ -163,7 +126,19 @@ router.post('/', optionalLoadSession, createPlan);
  *     responses:
  *       200: { description: Plan updated }
  */
-router.patch('/:id', optionalLoadSession, updatePlan);
+router.patch(
+  '/:id',
+  authorize(
+    'Administrator',
+    'ProjectManager',
+    'ProcurementOfficer',
+    'ProcurementDirector',
+    'DIRECTOR',
+    'ADMIN',
+  ),
+  validate(updatePlanSchema),
+  updatePlan,
+);
 
 /**
  * @swagger
@@ -182,7 +157,7 @@ router.patch('/:id', optionalLoadSession, updatePlan);
  */
 router.post(
   '/:id/request-update',
-  // authorize('ProcurementOfficer'),
+  authorize('ProcurementOfficer', 'OFFICER', 'Administrator', 'ADMIN'),
   requestPlanUpdate,
 );
 
@@ -203,7 +178,7 @@ router.post(
  */
 router.post(
   '/:id/approve-update',
-  // authorize('Director', 'Administrator'),
+  authorize('ProcurementDirector', 'DIRECTOR', 'Administrator', 'ADMIN'),
   approvePlanUpdate,
 );
 
@@ -222,7 +197,11 @@ router.post(
  *     responses:
  *       200: { description: Plan submitted }
  */
-router.post('/:id/submit', optionalLoadSession, submitPlan);
+router.post(
+  '/:id/submit',
+  authorize('ProcurementOfficer', 'OFFICER', 'Administrator', 'ADMIN'),
+  submitPlan,
+);
 
 /**
  * @swagger
@@ -253,7 +232,7 @@ router.post('/:id/submit', optionalLoadSession, submitPlan);
  */
 router.post(
   '/:id/send-to-committee',
-  // authorize('Director', 'Administrator'),
+  authorize('ProcurementDirector', 'DIRECTOR', 'Administrator', 'ADMIN'),
   sendToCommittee,
 );
 
@@ -283,7 +262,8 @@ router.post(
  */
 router.post(
   '/:id/reject',
-  // authorize('Director', 'Administrator'),
+  authorize('ProcurementDirector', 'DIRECTOR', 'Administrator', 'ADMIN'),
+  validate(rejectPlanSchema),
   rejectPlan,
 );
 
@@ -314,44 +294,15 @@ router.post(
  */
 router.post(
   '/:id/vote',
-  // authorize('ENDORSING_COMMITTEE', 'Administrator'),
+  authorize(
+    'ENDORSING_COMMITTEE',
+    'ManagementTeam',
+    'MANAGEMENT',
+    'Administrator',
+    'ADMIN',
+  ),
+  validate(committeeVoteSchema),
   submitCommitteeVote,
 );
-
-/**
- * @swagger
- * /api/plans/{id}/management-decision:
- *   post:
- *     summary: Record Management executive decision (APPROVE or REJECT)
- *     tags: [Plans]
- */
-router.post('/:id/management-decision', submitManagementDecision);
-
-/**
- * @swagger
- * /api/plans/{id}/return-to-officer:
- *   post:
- *     summary: Return a rejected plan to officer for revision with instructions
- *     tags: [Plans]
- */
-router.post('/:id/return-to-officer', returnPlanForRevision);
-
-/**
- * @swagger
- * /api/plans/{id}/comments:
- *   get:
- *     summary: Get all plan and activity comments
- *     tags: [Plans]
- */
-router.get('/:id/comments', getPlanComments);
-
-/**
- * @swagger
- * /api/plans/{id}/comments:
- *   post:
- *     summary: Add a comment to a plan or activity
- *     tags: [Plans]
- */
-router.post('/:id/comments', addComment);
 
 export default router;

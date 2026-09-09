@@ -5,6 +5,16 @@ afterEach(() => {
   vi.resetModules();
 });
 
+function configureBrevo(values: {
+  key: string;
+  fromEmail: string;
+  fromName: string;
+}) {
+  vi.stubEnv('BREVO_API_KEY', values.key);
+  vi.stubEnv('BREVO_FROM_EMAIL', values.fromEmail);
+  vi.stubEnv('BREVO_FROM_NAME', values.fromName);
+}
+
 function configureMailerSend(values: {
   token: string;
   fromEmail: string;
@@ -26,9 +36,25 @@ function configureSmtp(values: {
 }
 
 describe('Email provider environment configuration', () => {
+  it('accepts a complete Brevo configuration', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+    configureSmtp({ host: '', user: '', pass: '' });
+    configureMailerSend({ token: '', fromEmail: '', fromName: '' });
+    configureBrevo({
+      key: 'test-key',
+      fromEmail: 'noreply@example.com',
+      fromName: 'MoA Procurement Tracking System',
+    });
+
+    const { env } = await import('./env.js');
+
+    expect(env.BREVO_API_KEY).toBe('test-key');
+  });
+
   it('accepts a complete MailerSend configuration', async () => {
     vi.stubEnv('NODE_ENV', 'test');
     configureSmtp({ host: '', user: '', pass: '' });
+    configureBrevo({ key: '', fromEmail: '', fromName: '' });
     configureMailerSend({
       token: 'test-token',
       fromEmail: 'noreply@example.com',
@@ -42,6 +68,9 @@ describe('Email provider environment configuration', () => {
 
   it('accepts a complete SMTP configuration', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('JWT_ACCESS_SECRET', '12345678901234567890123456789012');
+    vi.stubEnv('JWT_REFRESH_SECRET', '12345678901234567890123456789012');
+    configureBrevo({ key: '', fromEmail: '', fromName: '' });
     configureMailerSend({ token: '', fromEmail: '', fromName: '' });
     configureSmtp({
       host: 'smtp.gmail.com',
@@ -57,6 +86,7 @@ describe('Email provider environment configuration', () => {
   it('rejects a partial MailerSend configuration', async () => {
     vi.stubEnv('NODE_ENV', 'test');
     configureSmtp({ host: '', user: '', pass: '' });
+    configureBrevo({ key: '', fromEmail: '', fromName: '' });
     configureMailerSend({
       token: 'test-token',
       fromEmail: '',
@@ -70,11 +100,12 @@ describe('Email provider environment configuration', () => {
 
   it('requires an email provider in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    configureBrevo({ key: '', fromEmail: '', fromName: '' });
     configureMailerSend({ token: '', fromEmail: '', fromName: '' });
     configureSmtp({ host: '', user: '', pass: '' });
 
     await expect(import('./env.js')).rejects.toThrow(
-      'An email provider (SMTP or MailerSend) configuration is required in production',
+      'An email provider (SMTP, Brevo, or MailerSend) configuration is required in production',
     );
   });
 });

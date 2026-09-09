@@ -1,4 +1,8 @@
+export type UserRoleType =
+  'OFFICER' | 'DIRECTOR' | 'ENDORSING_COMMITTEE' | 'MANAGEMENT' | 'ADMIN';
+
 export type Role =
+  | UserRoleType
   | 'ProcurementOfficer'
   | 'ProcurementDirector'
   | 'Administrator'
@@ -9,13 +13,15 @@ export interface CreateUserInput {
   name: string;
   email: string;
   password: string;
-  role: Role;
+  role?: Role;
+  authRole?: UserRoleType;
 }
 
 export interface UpdateUserInput {
   name?: string;
   email?: string;
   role?: Role;
+  authRole?: UserRoleType;
   isActive?: boolean;
 }
 
@@ -24,6 +30,7 @@ export interface ListUsersQuery {
   pageSize: number;
   search?: string;
   role?: Role;
+  authRole?: UserRoleType;
   isActive?: boolean;
 }
 
@@ -32,7 +39,9 @@ export interface SafeUser {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  displayName?: string;
+  role: string;
+  authRole: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
