@@ -81,10 +81,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(pinoHttp({ logger }));
 
-// Rate limiters
-app.use(globalLimiter);
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/forgot-password', authLimiter);
+// Rate limiters — only active in production to avoid blocking local dev
+if (env.NODE_ENV === 'production') {
+  app.use(globalLimiter);
+  app.use('/api/auth/login', authLimiter);
+  app.use('/api/auth/forgot-password', authLimiter);
+}
 
 // Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
