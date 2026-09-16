@@ -136,7 +136,9 @@ export type MonthlySummaryQuery = z.infer<typeof monthlySummarySchema>;
 // ─── Report #6: Quarterly Procurement Summary (P0) ────────────────────────────
 export const quarterlySummarySchema = z.object({
   quarter: z.coerce.number().int().min(1).max(4).optional(),
-  periodType: z.enum(['QUARTER', 'SIX_MONTH', 'SEVEN_MONTH', 'ANNUAL']).optional(),
+  periodType: z
+    .enum(['QUARTER', 'SIX_MONTH', 'SEVEN_MONTH', 'ANNUAL'])
+    .optional(),
   year: z.coerce.number().int().positive().optional(),
   fiscalYear: z.string().optional(),
   budgetYear: z.string().optional(),
@@ -174,7 +176,9 @@ export type QuarterlyDetailedQuery = z.infer<typeof quarterlyDetailedSchema>;
 
 // Legacy alias
 export const detailedProcurementSchema = quarterlyDetailedSchema;
-export type DetailedProcurementQuery = z.infer<typeof detailedProcurementSchema>;
+export type DetailedProcurementQuery = z.infer<
+  typeof detailedProcurementSchema
+>;
 
 // ─── Report #8: Contract Register (P0) ────────────────────────────────────────
 export const contractRegisterSchema = z.object({
@@ -227,7 +231,9 @@ export const regionalSectorSummarySchema = z.object({
   currency: z.string().optional(),
   ...pageParams,
 });
-export type RegionalSectorSummaryQuery = z.infer<typeof regionalSectorSummarySchema>;
+export type RegionalSectorSummaryQuery = z.infer<
+  typeof regionalSectorSummarySchema
+>;
 
 // ─── Report #11: Project Summary (P0) ─────────────────────────────────────────
 export const projectSummarySchema = z.object({
@@ -263,7 +269,9 @@ export type OfficerSummaryQuery = z.infer<typeof officerSummarySchema>;
 
 // Legacy alias
 export const projectOfficerSummarySchema = officerSummarySchema;
-export type ProjectOfficerSummaryQuery = z.infer<typeof projectOfficerSummarySchema>;
+export type ProjectOfficerSummaryQuery = z.infer<
+  typeof projectOfficerSummarySchema
+>;
 
 // ─── Report #13: Committee / Approval Progress Report (P0) ────────────────────
 export const committeeApprovalSchema = z.object({
@@ -289,7 +297,9 @@ export const supplierPerformanceSchema = z.object({
   ...dateRangeParams,
   ...pageParams,
 });
-export type SupplierPerformanceQuery = z.infer<typeof supplierPerformanceSchema>;
+export type SupplierPerformanceQuery = z.infer<
+  typeof supplierPerformanceSchema
+>;
 
 // Legacy alias
 export const activityMilestoneSchema = z.object({

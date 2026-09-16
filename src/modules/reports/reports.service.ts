@@ -162,10 +162,7 @@ export class ReportsService {
   }
 
   // Report #14 (P1)
-  streamSupplierPerformance(
-    res: Response,
-    query: SupplierPerformanceQuery,
-  ) {
+  streamSupplierPerformance(res: Response, query: SupplierPerformanceQuery) {
     return streamSupplierPerformance(res, query);
   }
 

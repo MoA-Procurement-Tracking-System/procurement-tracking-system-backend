@@ -1,10 +1,9 @@
 import type { Response } from 'express';
-import type { PlanStatus } from '../../../generated/prisma/index.js';
+import type { ActivityStatus } from '../../../generated/prisma/index.js';
 import { prisma } from '../../../config/database.js';
 import { excelService } from '../../excel/excel.service.js';
 import type {
   MonthlyProcurementQuery,
-  MonthlySummaryQuery,
   QuarterlySummaryQuery,
   RegionalSectorSummaryQuery,
   ProjectSummaryQuery,
@@ -39,7 +38,10 @@ export async function streamMonthlyProcurementReport(
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
 
-  const monthLabel = startDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const monthLabel = startDate.toLocaleString('default', {
+    month: 'long',
+    year: 'numeric',
+  });
 
   const where = {
     isActive: true,
@@ -55,7 +57,7 @@ export async function streamMonthlyProcurementReport(
         ...(sector ? { sector: { label: sector } } : {}),
       },
     },
-    ...(status ? { status: status as any } : {}),
+    ...(status ? { status: status as ActivityStatus } : {}),
   };
 
   const activities = await prisma.activity.findMany({
@@ -250,7 +252,10 @@ export async function streamQuarterlyProcurementSummary(
   for (const a of activities) {
     const met = a.procurementMethod.label;
     const cat = a.plan.procurementCategory || 'Uncategorized';
-    const fund = a.plan.project.fundingType || a.plan.project.fundingSource.label || 'Treasury';
+    const fund =
+      a.plan.project.fundingType ||
+      a.plan.project.fundingSource.label ||
+      'Treasury';
     const cur = a.currency || 'ETB';
 
     const key = `${met}:::${cat}:::${fund}:::${cur}`;
@@ -299,7 +304,7 @@ export async function streamRegionalSectorSummary(
     where: {
       isActive: true,
       ...(methodId ? { procurementMethodId: methodId } : {}),
-      ...(status ? { status: status as any } : {}),
+      ...(status ? { status: status as ActivityStatus } : {}),
       plan: {
         ...(targetYear ? { budgetYear: targetYear } : {}),
         ...(projectId ? { projectId } : {}),
@@ -312,7 +317,11 @@ export async function streamRegionalSectorSummary(
     include: {
       stages: {
         where: { isNotApplicable: false },
-        select: { status: true, currentTargetEndDate: true, actualEndDate: true },
+        select: {
+          status: true,
+          currentTargetEndDate: true,
+          actualEndDate: true,
+        },
       },
       contracts: {
         where: { deletedAt: null },
@@ -404,10 +413,18 @@ export async function streamRegionalSectorSummary(
 
     // Check delayed
     const isDelayed = a.stages.some((st) => {
-      if (st.status === 'COMPLETED' && st.actualEndDate && st.currentTargetEndDate) {
+      if (
+        st.status === 'COMPLETED' &&
+        st.actualEndDate &&
+        st.currentTargetEndDate
+      ) {
         return st.actualEndDate > st.currentTargetEndDate;
       }
-      return st.status !== 'COMPLETED' && st.currentTargetEndDate && st.currentTargetEndDate < today;
+      return (
+        st.status !== 'COMPLETED' &&
+        st.currentTargetEndDate &&
+        st.currentTargetEndDate < today
+      );
     });
     if (isDelayed) s.delayed += 1;
 
@@ -487,13 +504,17 @@ export async function streamProjectSummary(
             where: {
               isActive: true,
               ...(methodId ? { procurementMethodId: methodId } : {}),
-              ...(status ? { status: status as any } : {}),
+              ...(status ? { status: status as ActivityStatus } : {}),
               ...(region ? { contracts: { some: { region } } } : {}),
             },
             include: {
               stages: {
                 where: { isNotApplicable: false },
-                select: { status: true, currentTargetEndDate: true, actualEndDate: true },
+                select: {
+                  status: true,
+                  currentTargetEndDate: true,
+                  actualEndDate: true,
+                },
               },
               contracts: {
                 where: { deletedAt: null },
@@ -536,17 +557,27 @@ export async function streamProjectSummary(
     if (allActivities.length === 0) continue;
 
     const totalCount = allActivities.length;
-    const completedCount = allActivities.filter((a) => a.status === 'COMPLETED').length;
+    const completedCount = allActivities.filter(
+      (a) => a.status === 'COMPLETED',
+    ).length;
     const ongoingCount = allActivities.filter(
       (a) => a.status === 'PLANNED' || a.status === 'IN_PROGRESS',
     ).length;
 
     const delayedCount = allActivities.filter((a) =>
       a.stages.some((st) => {
-        if (st.status === 'COMPLETED' && st.actualEndDate && st.currentTargetEndDate) {
+        if (
+          st.status === 'COMPLETED' &&
+          st.actualEndDate &&
+          st.currentTargetEndDate
+        ) {
           return st.actualEndDate > st.currentTargetEndDate;
         }
-        return st.status !== 'COMPLETED' && st.currentTargetEndDate && st.currentTargetEndDate < today;
+        return (
+          st.status !== 'COMPLETED' &&
+          st.currentTargetEndDate &&
+          st.currentTargetEndDate < today
+        );
       }),
     ).length;
 
@@ -562,16 +593,22 @@ export async function streamProjectSummary(
     );
     const finalContractTotal = allContracts
       .filter((c) => c.status === 'COMPLETED')
-      .reduce((sum, c) => sum + Number(c.contractAmountWithVat || c.totalValue), 0);
+      .reduce(
+        (sum, c) => sum + Number(c.contractAmountWithVat || c.totalValue),
+        0,
+      );
 
     const totalPaid = allContracts.reduce(
-      (sum, c) => sum + c.payments.reduce((pSum, p) => pSum + Number(p.amount), 0),
+      (sum, c) =>
+        sum + c.payments.reduce((pSum, p) => pSum + Number(p.amount), 0),
       0,
     );
 
     const remaining = Math.max(0, contractedTotal - totalPaid);
     const progressPct =
-      totalCount > 0 ? ((completedCount / totalCount) * 100).toFixed(1) + '%' : '0.0%';
+      totalCount > 0
+        ? ((completedCount / totalCount) * 100).toFixed(1) + '%'
+        : '0.0%';
 
     sheet.addRow([
       `${p.code} - ${p.name}`,
@@ -623,6 +660,7 @@ export async function streamOfficerSummary(
           ...(targetYear ? { budgetYear: targetYear } : {}),
           ...(projectId ? { projectId } : {}),
           ...(category ? { procurementCategory: category } : {}),
+          ...(sector ? { project: { sector: { label: sector } } } : {}),
         },
       },
     },
@@ -633,13 +671,14 @@ export async function streamOfficerSummary(
           ...(targetYear ? { budgetYear: targetYear } : {}),
           ...(projectId ? { projectId } : {}),
           ...(category ? { procurementCategory: category } : {}),
+          ...(sector ? { project: { sector: { label: sector } } } : {}),
         },
         include: {
           activities: {
             where: {
               isActive: true,
               ...(methodId ? { procurementMethodId: methodId } : {}),
-              ...(status ? { status: status as any } : {}),
+              ...(status ? { status: status as ActivityStatus } : {}),
               ...(region ? { contracts: { some: { region } } } : {}),
             },
             include: {
@@ -704,7 +743,11 @@ export async function streamOfficerSummary(
         if (st.status === 'IN_PROGRESS') {
           activeStageSet.add(st.stageType.label);
         }
-        if (st.status === 'COMPLETED' && st.actualEndDate && st.currentTargetEndDate) {
+        if (
+          st.status === 'COMPLETED' &&
+          st.actualEndDate &&
+          st.currentTargetEndDate
+        ) {
           if (st.actualEndDate > st.currentTargetEndDate) isActDelayed = true;
         } else if (
           st.status !== 'COMPLETED' &&
@@ -729,7 +772,8 @@ export async function streamOfficerSummary(
     );
 
     const paid = contracts.reduce(
-      (sum, c) => sum + c.payments.reduce((pSum, p) => pSum + Number(p.amount), 0),
+      (sum, c) =>
+        sum + c.payments.reduce((pSum, p) => pSum + Number(p.amount), 0),
       0,
     );
 

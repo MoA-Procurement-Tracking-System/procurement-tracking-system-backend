@@ -151,7 +151,9 @@ export async function streamContractRegister(
         ? Number(c.contractAmountWithVat)
         : Number(c.totalValue) * (1 + (c.vatRate ?? 0) / 100);
 
-    const priceAdj = c.priceAdjustmentAmount ? Number(c.priceAdjustmentAmount) : 0;
+    const priceAdj = c.priceAdjustmentAmount
+      ? Number(c.priceAdjustmentAmount)
+      : 0;
     const effectiveAmount = currentAmount + priceAdj;
     const remaining = Math.max(0, effectiveAmount - totalPaid);
 
@@ -164,7 +166,9 @@ export async function streamContractRegister(
       c.contractNo,
       c.activity?.reference ?? '',
       c.activity?.description ?? '',
-      c.activity?.plan?.project ? `${c.activity.plan.project.code} - ${c.activity.plan.project.name}` : '',
+      c.activity?.plan?.project
+        ? `${c.activity.plan.project.code} - ${c.activity.plan.project.name}`
+        : '',
       c.supplier.name,
       c.region ?? 'National',
       c.activity?.procurementMethod?.label ?? '',
@@ -333,12 +337,18 @@ export async function streamContractPayment(
 
     const remaining = Math.max(0, currentAmount - totalPaid);
     const paymentPct =
-      currentAmount > 0 ? ((totalPaid / currentAmount) * 100).toFixed(1) + '%' : '0.0%';
+      currentAmount > 0
+        ? ((totalPaid / currentAmount) * 100).toFixed(1) + '%'
+        : '0.0%';
 
     sheet.addRow([
       c.contractNo,
-      c.activity?.reference ? `${c.activity.reference} - ${c.activity.description ?? ''}` : '',
-      c.activity?.plan?.project ? `${c.activity.plan.project.code} - ${c.activity.plan.project.name}` : '',
+      c.activity?.reference
+        ? `${c.activity.reference} - ${c.activity.description ?? ''}`
+        : '',
+      c.activity?.plan?.project
+        ? `${c.activity.plan.project.code} - ${c.activity.plan.project.name}`
+        : '',
       c.supplier.name,
       c.region ?? 'National',
       c.currency,
@@ -389,7 +399,9 @@ export async function streamSupplierPerformance(
           deletedAt: null,
           ...(region ? { region } : {}),
           ...(currency ? { currency } : {}),
-          ...(contractStatus ? { status: contractStatus as ContractStatus } : {}),
+          ...(contractStatus
+            ? { status: contractStatus as ContractStatus }
+            : {}),
           ...(sector ? { sector } : {}),
           ...(dateFrom || dateTo
             ? {
@@ -445,7 +457,11 @@ export async function streamSupplierPerformance(
     let delayedCount = 0;
 
     for (const c of s.contracts) {
-      if (c.status === 'COMPLETED' && c.actualCompletionDate && c.plannedEndDate) {
+      if (
+        c.status === 'COMPLETED' &&
+        c.actualCompletionDate &&
+        c.plannedEndDate
+      ) {
         if (c.actualCompletionDate <= c.plannedEndDate) {
           onTimeCount++;
         } else {

@@ -120,7 +120,8 @@ export async function streamProcurementSteps(
     let delayDays = '';
     if (s.status === 'COMPLETED' && s.actualEndDate && s.currentTargetEndDate) {
       if (s.actualEndDate > s.currentTargetEndDate) {
-        const diff = s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
+        const diff =
+          s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
         delayDays = String(Math.round(diff / 86_400_000));
       }
     } else if (
@@ -251,7 +252,13 @@ export async function streamDelayedProcurement(
           fundings: { select: { fundingSource: true } },
           plan: {
             include: {
-              project: { select: { code: true, name: true, fundingSource: { select: { label: true } } } },
+              project: {
+                select: {
+                  code: true,
+                  name: true,
+                  fundingSource: { select: { label: true } },
+                },
+              },
               creator: { select: { displayName: true } },
             },
           },

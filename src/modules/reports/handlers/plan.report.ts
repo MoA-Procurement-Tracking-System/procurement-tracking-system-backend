@@ -149,7 +149,10 @@ export async function streamAnnualProcurementPlan(
 
       const actCurrency = a.currency || 'ETB';
       const curSum = currencyTotals.get(actCurrency) || 0;
-      currencyTotals.set(curSum !== undefined ? actCurrency : 'ETB', curSum + Number(a.estimatedBudget));
+      currencyTotals.set(
+        curSum !== undefined ? actCurrency : 'ETB',
+        curSum + Number(a.estimatedBudget),
+      );
 
       detailSheet.addRow([
         `${plan.project.code} - ${plan.project.name}`,
@@ -316,7 +319,8 @@ export async function streamPlanVsActual(
     let delayDays = '';
     if (s.status === 'COMPLETED' && s.actualEndDate && s.currentTargetEndDate) {
       if (s.actualEndDate > s.currentTargetEndDate) {
-        const diff = s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
+        const diff =
+          s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
         delayDays = String(Math.round(diff / 86_400_000));
       }
     } else if (
@@ -340,7 +344,8 @@ export async function streamPlanVsActual(
       s.activity.procurementMethod.label,
       s.stageType.label,
       fmtDate(s.plannedEndDate),
-      s.currentTargetEndDate && s.plannedEndDate?.getTime() !== s.currentTargetEndDate.getTime()
+      s.currentTargetEndDate &&
+      s.plannedEndDate?.getTime() !== s.currentTargetEndDate.getTime()
         ? fmtDate(s.currentTargetEndDate)
         : '',
       fmtDate(s.actualEndDate),
