@@ -20,26 +20,31 @@ model Contract {
   supplierId String
   supplier   Supplier  @relation(fields: [supplierId], references: [id])
 
+  purchaseOrderNo       String?  // Purchase Order Number where applicable (PO/PV)
+
   // --- Financial values ---
   totalValue            Decimal  @db.Decimal(15, 2)       // original contract amount (no VAT)
   vatRate               Float?                             // e.g. 15.0 (%)
   contractAmountWithVat Decimal? @db.Decimal(15, 2)       // totalValue + VAT
   contractNetOfVat      Decimal? @db.Decimal(15, 2)       // net of VAT (for migrated records)
+  priceAdjustmentAmount Decimal? @db.Decimal(15, 2)       // approved price adjustment amount
   paidAmount            Decimal  @default(0.00) @db.Decimal(15, 2)
   remainingValue        Decimal  @db.Decimal(15, 2)
   currency              String   @default("ETB")
 
   // --- Contract dates ---
-  awardDate            DateTime? // Contract Award Date
-  signatureDate        DateTime? // Contract Signature Date (= Signed Contract milestone)
-  startDate            DateTime? // Implementation start date
-  plannedEndDate       DateTime? // Planned Completion / End Date
-  actualCompletionDate DateTime? // Actual Completion Date
+  awardDate             DateTime? // Contract Award Date
+  signatureDate         DateTime? // Contract Signature Date (= Signed Contract milestone)
+  startDate             DateTime? // Implementation start date
+  plannedEndDate        DateTime? // Planned Completion / End Date
+  revisedCompletionDate DateTime? // Latest revised completion target
+  actualCompletionDate  DateTime? // Actual Completion Date
 
   // --- Classification ---
-  region      String?
-  sector      String?
+  region       String?
+  sector       String?
   subcomponent String? // inherited from activity/project; stored for reporting
+  budgetType   String? // CAPITAL or RECURRENT where maintained
 
   status    ContractStatus @default(DRAFT)
   remarks   String?

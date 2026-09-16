@@ -3,49 +3,210 @@ import type { PlanStatus } from '../../../generated/prisma/index.js';
 import { prisma } from '../../../config/database.js';
 import { excelService } from '../../excel/excel.service.js';
 import type {
+  MonthlyProcurementQuery,
   MonthlySummaryQuery,
-  ProjectOfficerSummaryQuery,
+  QuarterlySummaryQuery,
+  RegionalSectorSummaryQuery,
+  ProjectSummaryQuery,
+  OfficerSummaryQuery,
 } from '../reports.schema.js';
 
-const { createStreamingWorkbook, fmtDate } = excelService;
+const { createStreamingWorkbook, fmtDecimal, fmtDate } = excelService;
 
-// ─── Report #5: Monthly Summary ───────────────────────────────────────────────
-export async function streamMonthlySummary(
+// ─── Report #5: Monthly Procurement Report (P0) ───────────────────────────────
+export async function streamMonthlyProcurementReport(
   res: Response,
-  query: MonthlySummaryQuery,
+  query: MonthlyProcurementQuery,
 ): Promise<void> {
   const {
-    year,
-    quarter,
+    year = new Date().getFullYear(),
+    month = new Date().getMonth() + 1,
+    budgetYear,
+    fiscalYear,
     projectId,
+    sector,
+    region,
     category,
     methodId,
     fundingSourceId,
-    region,
     officerId,
+    status,
+    page,
+    limit,
   } = query;
 
-  const planFilter = {
-    ...(projectId ? { projectId } : {}),
-    ...(category ? { procurementCategory: category } : {}),
-    ...(officerId ? { createdBy: officerId } : {}),
-    project: {
-      ...(fundingSourceId ? { fundingSourceId } : {}),
-    },
-  };
+  const targetYear = budgetYear || fiscalYear;
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
 
-  const activityWhere = {
-    plan: planFilter,
+  const monthLabel = startDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const where = {
+    isActive: true,
     ...(methodId ? { procurementMethodId: methodId } : {}),
     ...(region ? { contracts: { some: { region } } } : {}),
-    createdAt: {
-      gte: new Date(`${year}-01-01`),
-      lte: new Date(`${year}-12-31`),
+    plan: {
+      ...(targetYear ? { budgetYear: targetYear } : {}),
+      ...(projectId ? { projectId } : {}),
+      ...(category ? { procurementCategory: category } : {}),
+      ...(officerId ? { createdBy: officerId } : {}),
+      project: {
+        ...(fundingSourceId ? { fundingSourceId } : {}),
+        ...(sector ? { sector: { label: sector } } : {}),
+      },
+    },
+    ...(status ? { status: status as any } : {}),
+  };
+
+  const activities = await prisma.activity.findMany({
+    where,
+    include: {
+      procurementMethod: { select: { label: true } },
+      plan: {
+        select: {
+          title: true,
+          procurementCategory: true,
+          creator: { select: { displayName: true } },
+          project: { select: { code: true, name: true } },
+        },
+      },
+      contracts: {
+        where: { deletedAt: null },
+        select: { totalValue: true, currency: true },
+      },
+      stages: {
+        where: { isNotApplicable: false },
+        include: { stageType: { select: { label: true } } },
+        orderBy: { sequence: 'asc' },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    skip: (page - 1) * limit,
+    take: limit,
+  });
+
+  const filename = `monthly_procurement_report_${year}_m${month}_p${page}.xlsx`;
+  const { addSheet, finalize } = createStreamingWorkbook(res, filename);
+
+  const sheet = addSheet('Monthly Procurement Progress', [
+    'Reporting Month',
+    'Activity Reference',
+    'Activity Description',
+    'Project',
+    'Category',
+    'Procurement Method',
+    'Responsible Officer',
+    'Current Status',
+    'Achievement / Completed Stage',
+    'Procurement Value',
+    'Delay (Days / Reason)',
+    'Remarks / Next Activity',
+  ]);
+
+  const today = new Date();
+
+  for (const a of activities) {
+    // Completed stage during this reporting month
+    const completedThisMonth = a.stages.filter(
+      (s) =>
+        s.status === 'COMPLETED' &&
+        s.actualEndDate &&
+        s.actualEndDate >= startDate &&
+        s.actualEndDate <= endDate,
+    );
+
+    const achievementStr =
+      completedThisMonth.length > 0
+        ? completedThisMonth.map((s) => s.stageType.label).join('; ')
+        : 'None in period';
+
+    // Value (contract value if awarded, else estimated)
+    const primaryContract = a.contracts[0];
+    const valueStr = primaryContract
+      ? `${primaryContract.currency} ${fmtDecimal(primaryContract.totalValue)}`
+      : `${a.currency || 'ETB'} ${fmtDecimal(a.estimatedBudget)}`;
+
+    // Delay calculation
+    let delayInfo = 'On Track';
+    const overdueStage = a.stages.find(
+      (s) =>
+        s.status !== 'COMPLETED' &&
+        s.currentTargetEndDate &&
+        s.currentTargetEndDate < today,
+    );
+    if (overdueStage && overdueStage.currentTargetEndDate) {
+      const diff = Math.round(
+        (today.getTime() - overdueStage.currentTargetEndDate.getTime()) /
+          86_400_000,
+      );
+      delayInfo = `${diff} days overdue (${overdueStage.stageType.label})`;
+    }
+
+    // Next scheduled activity/stage
+    const nextStage = a.stages.find((s) => s.status !== 'COMPLETED');
+    const nextStr = nextStage
+      ? `Next: ${nextStage.stageType.label} (Target: ${fmtDate(nextStage.currentTargetEndDate)})`
+      : a.remarks || 'All stages completed';
+
+    sheet.addRow([
+      monthLabel,
+      a.reference,
+      a.description ?? '',
+      `${a.plan.project.code} - ${a.plan.project.name}`,
+      a.plan.procurementCategory ?? '',
+      a.procurementMethod.label,
+      a.plan.creator.displayName,
+      a.status,
+      achievementStr,
+      valueStr,
+      delayInfo,
+      nextStr,
+    ]);
+  }
+
+  await (sheet as unknown as { commit: () => Promise<void> }).commit();
+  await finalize();
+}
+
+// ─── Report #6: Quarterly Procurement Summary (P0) ────────────────────────────
+export async function streamQuarterlyProcurementSummary(
+  res: Response,
+  query: QuarterlySummaryQuery,
+): Promise<void> {
+  const {
+    quarter,
+    year = new Date().getFullYear(),
+    budgetYear,
+    fiscalYear,
+    projectId,
+    sector,
+    region,
+    fundingSourceId,
+    fundingType,
+    category,
+    methodId,
+  } = query;
+
+  const targetYear = budgetYear || fiscalYear;
+
+  const where = {
+    isActive: true,
+    ...(methodId ? { procurementMethodId: methodId } : {}),
+    ...(region ? { contracts: { some: { region } } } : {}),
+    plan: {
+      ...(targetYear ? { budgetYear: targetYear } : {}),
+      ...(projectId ? { projectId } : {}),
+      ...(category ? { procurementCategory: category } : {}),
+      project: {
+        ...(fundingSourceId ? { fundingSourceId } : {}),
+        ...(fundingType ? { fundingType } : {}),
+        ...(sector ? { sector: { label: sector } } : {}),
+      },
     },
   };
 
   const activities = await prisma.activity.findMany({
-    where: activityWhere,
+    where,
     include: {
       procurementMethod: { select: { label: true } },
       plan: {
@@ -53,11 +214,105 @@ export async function streamMonthlySummary(
           procurementCategory: true,
           project: {
             select: {
+              code: true,
               name: true,
-              fundingSource: { select: { label: true, code: true } },
+              fundingType: true,
+              fundingSource: { select: { label: true } },
             },
           },
         },
+      },
+      contracts: {
+        where: { deletedAt: null },
+        select: { totalValue: true, currency: true },
+      },
+    },
+  });
+
+  const periodLabel = quarter ? `Q${quarter} ${year}` : `${year} Annual`;
+  const filename = `quarterly_procurement_summary_${year}${quarter ? '_Q' + quarter : ''}.xlsx`;
+  const { addSheet, finalize } = createStreamingWorkbook(res, filename);
+
+  const sheet = addSheet('Quarterly Summary Matrix', [
+    'Procurement Method',
+    'Category',
+    'Funding Type',
+    'Package / Order Count',
+    'Total Value',
+    'Currency',
+    'Reporting Period',
+  ]);
+
+  // Aggregate key: Method::Category::FundingType::Currency
+  type AggEntry = { count: number; value: number };
+  const matrix = new Map<string, AggEntry>();
+
+  for (const a of activities) {
+    const met = a.procurementMethod.label;
+    const cat = a.plan.procurementCategory || 'Uncategorized';
+    const fund = a.plan.project.fundingType || a.plan.project.fundingSource.label || 'Treasury';
+    const cur = a.currency || 'ETB';
+
+    const key = `${met}:::${cat}:::${fund}:::${cur}`;
+    const curr = matrix.get(key) || { count: 0, value: 0 };
+    curr.count += 1;
+    curr.value += Number(a.estimatedBudget);
+    matrix.set(key, curr);
+  }
+
+  for (const [key, val] of matrix.entries()) {
+    const [met, cat, fund, cur] = key.split(':::');
+    sheet.addRow([
+      met,
+      cat,
+      fund,
+      val.count,
+      fmtDecimal(val.value),
+      cur,
+      periodLabel,
+    ]);
+  }
+
+  await (sheet as unknown as { commit: () => Promise<void> }).commit();
+  await finalize();
+}
+
+// ─── Report #10: Regional / Sector Summary (P0) ───────────────────────────────
+export async function streamRegionalSectorSummary(
+  res: Response,
+  query: RegionalSectorSummaryQuery,
+): Promise<void> {
+  const {
+    fiscalYear,
+    budgetYear,
+    groupBy = 'REGION',
+    projectId,
+    fundingSourceId,
+    status,
+    category,
+    methodId,
+  } = query;
+
+  const targetYear = budgetYear || fiscalYear;
+
+  const activities = await prisma.activity.findMany({
+    where: {
+      isActive: true,
+      ...(methodId ? { procurementMethodId: methodId } : {}),
+      ...(status ? { status: status as any } : {}),
+      plan: {
+        ...(targetYear ? { budgetYear: targetYear } : {}),
+        ...(projectId ? { projectId } : {}),
+        ...(category ? { procurementCategory: category } : {}),
+        project: {
+          ...(fundingSourceId ? { fundingSourceId } : {}),
+        },
+      },
+    },
+    include: {
+      stages: {
+        where: { isNotApplicable: false },
+        select: { status: true, currentTargetEndDate: true, actualEndDate: true },
       },
       contracts: {
         where: { deletedAt: null },
@@ -68,329 +323,439 @@ export async function streamMonthlySummary(
           },
         },
       },
-      stages: {
-        where: { isNotApplicable: false },
+      plan: {
         select: {
-          status: true,
-          currentTargetEndDate: true,
-          actualEndDate: true,
+          project: {
+            select: {
+              organization: true,
+              sector: { select: { label: true } },
+            },
+          },
         },
       },
     },
   });
 
-  let filtered = activities;
-  if (quarter) {
-    const qStart = (quarter - 1) * 3;
-    const qEnd = qStart + 2;
-    filtered = activities.filter((a) => {
-      const m = a.createdAt.getMonth();
-      return m >= qStart && m <= qEnd;
-    });
-  }
-
-  const filename = `monthly_summary_${year}${quarter ? '_Q' + quarter : ''}.xlsx`;
+  const filename = `regional_sector_summary_${groupBy.toLowerCase()}_${targetYear ?? 'all'}.xlsx`;
   const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
-  // KPI calculations
-  const totalPlanned = filtered.reduce(
-    (s, a) => s + Number(a.estimatedBudget),
-    0,
-  );
-  const contracts = filtered.flatMap((a) => a.contracts);
-  const totalContractVal = contracts.reduce(
-    (s, c) => s + Number(c.contractAmountWithVat || c.totalValue),
-    0,
-  );
-  const totalPaid = contracts.reduce(
-    (s, c) => s + c.payments.reduce((sum, p) => sum + Number(p.amount), 0),
-    0,
-  );
-  const remaining = totalContractVal - totalPaid;
-
-  const allStages = filtered.flatMap((a) => a.stages);
-  const completedCount = allStages.filter(
-    (s) => s.status === 'COMPLETED',
-  ).length;
-  const ongoingCount = allStages.filter(
-    (s) => s.status === 'IN_PROGRESS' || s.status === 'NOT_STARTED',
-  ).length;
-  const delayedCount = allStages.filter((s) => {
-    const today = new Date();
-    return (
-      (s.status === 'COMPLETED' &&
-        s.actualEndDate &&
-        s.currentTargetEndDate &&
-        s.actualEndDate > s.currentTargetEndDate) ||
-      (s.status !== 'COMPLETED' &&
-        s.currentTargetEndDate &&
-        s.currentTargetEndDate < today)
-    );
-  }).length;
-
-  // Sheet 1: Dashboard KPIs
-  const kpiSheet = addSheet('Dashboard KPIs', ['Metric', 'Value']);
-  kpiSheet.addRow(['Total Activities', filtered.length]);
-  kpiSheet.addRow(['Total Planned Value (ETB)', totalPlanned.toFixed(2)]);
-  kpiSheet.addRow(['Total Contract Value (ETB)', totalContractVal.toFixed(2)]);
-  kpiSheet.addRow(['Total Paid (ETB)', totalPaid.toFixed(2)]);
-  kpiSheet.addRow(['Remaining Balance (ETB)', remaining.toFixed(2)]);
-  kpiSheet.addRow(['Completed Stages', completedCount]);
-  kpiSheet.addRow(['Ongoing Stages', ongoingCount]);
-  kpiSheet.addRow(['Delayed Stages', delayedCount]);
-
-  // Sheet 2: Category & Method
-  const catMethodSheet = addSheet('Category & Method', [
-    'Category',
-    'Method',
-    '# Activities',
-    'Planned Value',
+  const sheet = addSheet('Organizational Summary', [
+    'Organization / Sector / Region',
+    'Total Activities',
+    'Completed',
+    'In Progress / Ongoing',
+    'Delayed',
+    'Cancelled',
+    'Estimated Amount (ETB)',
+    'Contracted Amount (ETB)',
+    'Paid Amount (ETB)',
+    'Remaining Balance (ETB)',
+    'Progress %',
+    'Delay Measure',
   ]);
-  const catMethodMap = new Map<string, { count: number; value: number }>();
-  for (const a of filtered) {
-    const key = `${a.plan.procurementCategory || 'N/A'}::${a.procurementMethod.label}`;
-    const entry = catMethodMap.get(key) || { count: 0, value: 0 };
-    entry.count += 1;
-    entry.value += a.estimatedBudget;
-    catMethodMap.set(key, entry);
-  }
-  for (const [key, val] of catMethodMap.entries()) {
-    const [cat, met] = key.split('::');
-    catMethodSheet.addRow([cat, met, val.count, val.value.toFixed(2)]);
-  }
 
-  // Sheet 3: Funding Sources
-  const fundingSheet = addSheet('Funding Sources', [
-    'Funding Group',
-    '# Activities',
-    'Planned Value',
-  ]);
-  const fundingMap = new Map<string, { count: number; value: number }>();
-  for (const a of filtered) {
-    const label = a.plan.project.fundingSource.label || 'Other';
-    const entry = fundingMap.get(label) || { count: 0, value: 0 };
-    entry.count += 1;
-    entry.value += a.estimatedBudget;
-    fundingMap.set(label, entry);
-  }
-  for (const [label, val] of fundingMap.entries()) {
-    fundingSheet.addRow([label, val.count, val.value.toFixed(2)]);
-  }
-
-  // Sheet 4: Monthly Breakdown
-  const monthlySheet = addSheet('Monthly Breakdown', [
-    'Month',
-    '# Activities',
-    'Planned Budget',
-    'Total Paid',
-  ]);
-  const monthlyMap = new Map<
-    number,
-    { count: number; planned: number; paid: number }
-  >();
-  for (let m = 0; m < 12; m++) {
-    monthlyMap.set(m, { count: 0, planned: 0, paid: 0 });
-  }
-  for (const a of filtered) {
-    const m = a.createdAt.getMonth();
-    const entry = monthlyMap.get(m)!;
-    entry.count += 1;
-    entry.planned += a.estimatedBudget;
-    entry.paid += a.contracts.reduce(
-      (sum, c) =>
-        sum + c.payments.reduce((pSum, p) => pSum + Number(p.amount), 0),
-      0,
-    );
-  }
-  for (let m = 0; m < 12; m++) {
-    const entry = monthlyMap.get(m)!;
-    if (quarter) {
-      const qStart = (quarter - 1) * 3;
-      const qEnd = qStart + 2;
-      if (m < qStart || m > qEnd) continue;
-    }
-    const monthLabel = new Date(year, m, 1).toLocaleString('default', {
-      month: 'long',
-    });
-    monthlySheet.addRow([
-      monthLabel,
-      entry.count,
-      entry.planned.toFixed(2),
-      entry.paid.toFixed(2),
-    ]);
-  }
-
-  await (kpiSheet as unknown as { commit: () => Promise<void> }).commit();
-  await (catMethodSheet as unknown as { commit: () => Promise<void> }).commit();
-  await (fundingSheet as unknown as { commit: () => Promise<void> }).commit();
-  await (monthlySheet as unknown as { commit: () => Promise<void> }).commit();
-  await finalize();
-}
-
-// ─── Report #8: Project & Officer Summary ─────────────────────────────────────
-export async function streamProjectOfficerSummary(
-  res: Response,
-  query: ProjectOfficerSummaryQuery,
-): Promise<void> {
-  const {
-    projectId,
-    officerId,
-    region,
-    budgetYear,
-    category,
-    methodId,
-    fundingSourceId,
-    status,
-    page,
-    limit,
-  } = query;
-
-  const where = {
-    isActive: true,
-    ...(budgetYear ? { budgetYear } : {}),
-    ...(projectId ? { projectId } : {}),
-    ...(officerId ? { createdBy: officerId } : {}),
-    ...(category ? { procurementCategory: category } : {}),
-    ...(status ? { status: status as PlanStatus } : {}),
-    project: {
-      ...(fundingSourceId ? { fundingSourceId } : {}),
-    },
-    ...(region || methodId
-      ? {
-          activities: {
-            some: {
-              ...(methodId ? { procurementMethodId: methodId } : {}),
-              ...(region ? { contracts: { some: { region } } } : {}),
-            },
-          },
-        }
-      : {}),
+  type OrgStats = {
+    name: string;
+    total: number;
+    completed: number;
+    ongoing: number;
+    delayed: number;
+    cancelled: number;
+    estimated: number;
+    contracted: number;
+    paid: number;
+    delayDaysSum: number;
+    delayCount: number;
   };
 
-  const plans = await prisma.plan.findMany({
-    where,
-    include: {
-      creator: { select: { displayName: true } },
-      project: { select: { id: true, code: true, name: true } },
-      activities: {
-        include: {
-          stages: {
-            where: { isNotApplicable: false },
-            select: {
-              status: true,
-              currentTargetEndDate: true,
-              actualEndDate: true,
-            },
-          },
-          contracts: {
-            where: { deletedAt: null },
-            select: {
-              totalValue: true,
-              contractAmountWithVat: true,
-              vatRate: true,
-              payments: {
-                where: { deletedAt: null, status: 'PAID' },
-                select: { amount: true },
-              },
-            },
-          },
-        },
-      },
-    },
-    orderBy: [{ createdBy: 'asc' }, { createdAt: 'desc' }],
-  });
+  const groups = new Map<string, OrgStats>();
+  const today = new Date();
 
-  // Group plans by officer
-  type GroupKey = string;
-  const groups = new Map<GroupKey, typeof plans>();
-  for (const plan of plans) {
-    const key = plan.createdBy;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(plan);
+  for (const a of activities) {
+    let groupKey = 'National / Central';
+    if (groupBy === 'SECTOR') {
+      groupKey = a.plan.project.sector.label || 'Other Sector';
+    } else if (groupBy === 'ORGANIZATION') {
+      groupKey = a.plan.project.organization || 'Ministry Head Office';
+    } else {
+      // REGION
+      const contractRegion = a.contracts[0]?.region;
+      groupKey = contractRegion || a.plan.project.organization || 'Addis Ababa';
+    }
+
+    const s = groups.get(groupKey) || {
+      name: groupKey,
+      total: 0,
+      completed: 0,
+      ongoing: 0,
+      delayed: 0,
+      cancelled: 0,
+      estimated: 0,
+      contracted: 0,
+      paid: 0,
+      delayDaysSum: 0,
+      delayCount: 0,
+    };
+
+    s.total += 1;
+    if (a.status === 'COMPLETED') s.completed += 1;
+    else if (a.status === 'CANCELLED') s.cancelled += 1;
+    else s.ongoing += 1;
+
+    // Check delayed
+    const isDelayed = a.stages.some((st) => {
+      if (st.status === 'COMPLETED' && st.actualEndDate && st.currentTargetEndDate) {
+        return st.actualEndDate > st.currentTargetEndDate;
+      }
+      return st.status !== 'COMPLETED' && st.currentTargetEndDate && st.currentTargetEndDate < today;
+    });
+    if (isDelayed) s.delayed += 1;
+
+    s.estimated += Number(a.estimatedBudget);
+
+    for (const c of a.contracts) {
+      const cVal = Number(c.contractAmountWithVat || c.totalValue);
+      s.contracted += cVal;
+      const cPaid = c.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+      s.paid += cPaid;
+    }
+
+    groups.set(groupKey, s);
   }
 
-  const officerGroups = Array.from(groups.values());
-  const paginated = officerGroups.slice((page - 1) * limit, page * limit);
-
-  const filename = `project_officer_summary_${fmtDate(new Date())}_p${page}.xlsx`;
-  const { addSheet, finalize } = createStreamingWorkbook(res, filename);
-
-  const sheet = addSheet('Project & Officer Summary', [
-    'Officer',
-    'Projects Assigned',
-    'Plans',
-    'Activities',
-    'Planned Value',
-    'Awarded Value',
-    'Contract Value',
-    'Completed',
-    'In Progress',
-    'Delayed',
-    'Total Paid',
-    'Remaining Balance',
-  ]);
-
-  for (const groupPlans of paginated) {
-    const first = groupPlans[0]!;
-    const uniqueProjects = new Set(groupPlans.map((p) => p.project.code));
-    const allActivities = groupPlans.flatMap((p) => p.activities);
-    const allStages = allActivities.flatMap((a) => a.stages);
-
-    const completedCount = allStages.filter(
-      (s) => s.status === 'COMPLETED',
-    ).length;
-    const inProgressCount = allStages.filter(
-      (s) => s.status === 'IN_PROGRESS' || s.status === 'NOT_STARTED',
-    ).length;
-
-    const today = new Date();
-    const delayedCount = allStages.filter((s) => {
-      return (
-        (s.status === 'COMPLETED' &&
-          s.actualEndDate &&
-          s.currentTargetEndDate &&
-          s.actualEndDate > s.currentTargetEndDate) ||
-        (s.status !== 'COMPLETED' &&
-          s.currentTargetEndDate &&
-          s.currentTargetEndDate < today)
-      );
-    }).length;
-
-    const plannedValue = allActivities.reduce(
-      (s, a) => s + Number(a.estimatedBudget),
-      0,
-    );
-    const allContracts = allActivities.flatMap((a) => a.contracts);
-    const awardedValue = allContracts.reduce(
-      (s, c) => s + Number(c.totalValue),
-      0,
-    );
-    const contractValue = allContracts.reduce((s, c) => {
-      const val = c.contractAmountWithVat
-        ? Number(c.contractAmountWithVat)
-        : Number(c.totalValue) * (1 + (c.vatRate ?? 0) / 100);
-      return s + val;
-    }, 0);
-    const totalPaid = allContracts.reduce((s, c) => {
-      return s + c.payments.reduce((sum, p) => sum + Number(p.amount), 0);
-    }, 0);
+  for (const s of groups.values()) {
+    const remaining = Math.max(0, s.contracted - s.paid);
+    const progressPct =
+      s.total > 0 ? ((s.completed / s.total) * 100).toFixed(1) + '%' : '0.0%';
+    const delayMeasure = `${s.delayed} packages overdue`;
 
     sheet.addRow([
-      first.creator.displayName,
-      uniqueProjects.size,
-      groupPlans.length,
-      allActivities.length,
-      plannedValue.toFixed(2),
-      awardedValue.toFixed(2),
-      contractValue.toFixed(2),
-      completedCount,
-      inProgressCount,
-      delayedCount,
-      totalPaid.toFixed(2),
-      (contractValue - totalPaid).toFixed(2),
+      s.name,
+      s.total,
+      s.completed,
+      s.ongoing,
+      s.delayed,
+      s.cancelled,
+      s.estimated.toFixed(2),
+      s.contracted.toFixed(2),
+      s.paid.toFixed(2),
+      remaining.toFixed(2),
+      progressPct,
+      delayMeasure,
     ]);
   }
 
   await (sheet as unknown as { commit: () => Promise<void> }).commit();
   await finalize();
 }
+
+// ─── Report #11: Project Summary (P0) ─────────────────────────────────────────
+export async function streamProjectSummary(
+  res: Response,
+  query: ProjectSummaryQuery,
+): Promise<void> {
+  const {
+    fiscalYear,
+    budgetYear,
+    projectId,
+    region,
+    sector,
+    fundingSourceId,
+    category,
+    methodId,
+    status,
+  } = query;
+
+  const targetYear = budgetYear || fiscalYear;
+
+  const projects = await prisma.project.findMany({
+    where: {
+      isActive: true,
+      ...(projectId ? { id: projectId } : {}),
+      ...(fundingSourceId ? { fundingSourceId } : {}),
+      ...(sector ? { sector: { label: sector } } : {}),
+    },
+    include: {
+      plans: {
+        where: {
+          isActive: true,
+          ...(targetYear ? { budgetYear: targetYear } : {}),
+          ...(category ? { procurementCategory: category } : {}),
+        },
+        include: {
+          activities: {
+            where: {
+              isActive: true,
+              ...(methodId ? { procurementMethodId: methodId } : {}),
+              ...(status ? { status: status as any } : {}),
+              ...(region ? { contracts: { some: { region } } } : {}),
+            },
+            include: {
+              stages: {
+                where: { isNotApplicable: false },
+                select: { status: true, currentTargetEndDate: true, actualEndDate: true },
+              },
+              contracts: {
+                where: { deletedAt: null },
+                include: {
+                  payments: {
+                    where: { deletedAt: null, status: 'PAID' },
+                    select: { amount: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { code: 'asc' },
+  });
+
+  const filename = `project_summary_${targetYear ?? 'all'}.xlsx`;
+  const { addSheet, finalize } = createStreamingWorkbook(res, filename);
+
+  const sheet = addSheet('Project Procurement Summary', [
+    'Project Code & Name',
+    'Activities / Packages',
+    'Completed',
+    'Ongoing',
+    'Delayed',
+    'Estimated Amount (ETB)',
+    'Contracted Amount (ETB)',
+    'Final Contract Amount (ETB)',
+    'Paid Amount (ETB)',
+    'Remaining Balance (ETB)',
+    'Current Progress %',
+  ]);
+
+  const today = new Date();
+
+  for (const p of projects) {
+    const allActivities = p.plans.flatMap((pl) => pl.activities);
+    if (allActivities.length === 0) continue;
+
+    const totalCount = allActivities.length;
+    const completedCount = allActivities.filter((a) => a.status === 'COMPLETED').length;
+    const ongoingCount = allActivities.filter(
+      (a) => a.status === 'PLANNED' || a.status === 'IN_PROGRESS',
+    ).length;
+
+    const delayedCount = allActivities.filter((a) =>
+      a.stages.some((st) => {
+        if (st.status === 'COMPLETED' && st.actualEndDate && st.currentTargetEndDate) {
+          return st.actualEndDate > st.currentTargetEndDate;
+        }
+        return st.status !== 'COMPLETED' && st.currentTargetEndDate && st.currentTargetEndDate < today;
+      }),
+    ).length;
+
+    const totalEstimated = allActivities.reduce(
+      (sum, a) => sum + Number(a.estimatedBudget),
+      0,
+    );
+
+    const allContracts = allActivities.flatMap((a) => a.contracts);
+    const contractedTotal = allContracts.reduce(
+      (sum, c) => sum + Number(c.contractAmountWithVat || c.totalValue),
+      0,
+    );
+    const finalContractTotal = allContracts
+      .filter((c) => c.status === 'COMPLETED')
+      .reduce((sum, c) => sum + Number(c.contractAmountWithVat || c.totalValue), 0);
+
+    const totalPaid = allContracts.reduce(
+      (sum, c) => sum + c.payments.reduce((pSum, p) => pSum + Number(p.amount), 0),
+      0,
+    );
+
+    const remaining = Math.max(0, contractedTotal - totalPaid);
+    const progressPct =
+      totalCount > 0 ? ((completedCount / totalCount) * 100).toFixed(1) + '%' : '0.0%';
+
+    sheet.addRow([
+      `${p.code} - ${p.name}`,
+      totalCount,
+      completedCount,
+      ongoingCount,
+      delayedCount,
+      totalEstimated.toFixed(2),
+      contractedTotal.toFixed(2),
+      finalContractTotal.toFixed(2),
+      totalPaid.toFixed(2),
+      remaining.toFixed(2),
+      progressPct,
+    ]);
+  }
+
+  await (sheet as unknown as { commit: () => Promise<void> }).commit();
+  await finalize();
+}
+
+// ─── Report #12: Officer Summary (P0) ─────────────────────────────────────────
+export async function streamOfficerSummary(
+  res: Response,
+  query: OfficerSummaryQuery,
+): Promise<void> {
+  const {
+    budgetYear,
+    fiscalYear,
+    officerId,
+    projectId,
+    sector,
+    region,
+    status,
+    category,
+    methodId,
+    page,
+    limit,
+  } = query;
+
+  const targetYear = budgetYear || fiscalYear;
+
+  const users = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      ...(officerId ? { id: officerId } : {}),
+      createdPlans: {
+        some: {
+          isActive: true,
+          ...(targetYear ? { budgetYear: targetYear } : {}),
+          ...(projectId ? { projectId } : {}),
+          ...(category ? { procurementCategory: category } : {}),
+        },
+      },
+    },
+    include: {
+      createdPlans: {
+        where: {
+          isActive: true,
+          ...(targetYear ? { budgetYear: targetYear } : {}),
+          ...(projectId ? { projectId } : {}),
+          ...(category ? { procurementCategory: category } : {}),
+        },
+        include: {
+          activities: {
+            where: {
+              isActive: true,
+              ...(methodId ? { procurementMethodId: methodId } : {}),
+              ...(status ? { status: status as any } : {}),
+              ...(region ? { contracts: { some: { region } } } : {}),
+            },
+            include: {
+              stages: {
+                where: { isNotApplicable: false },
+                include: { stageType: { select: { label: true } } },
+              },
+              contracts: {
+                where: { deletedAt: null },
+                include: {
+                  payments: {
+                    where: { deletedAt: null, status: 'PAID' },
+                    select: { amount: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { displayName: 'asc' },
+    skip: (page - 1) * limit,
+    take: limit,
+  });
+
+  const filename = `officer_summary_${targetYear ?? 'all'}_p${page}.xlsx`;
+  const { addSheet, finalize } = createStreamingWorkbook(res, filename);
+
+  const sheet = addSheet('Officer Workload Summary', [
+    'Responsible Officer',
+    'Assigned Activities',
+    'Completed',
+    'Ongoing',
+    'Delayed',
+    'Current Active Stages',
+    'Estimated Amount (ETB)',
+    'Contracted Amount (ETB)',
+    'Paid Amount (ETB)',
+    'Remaining Balance (ETB)',
+    'Delay Measure',
+  ]);
+
+  const today = new Date();
+
+  for (const u of users) {
+    const activities = u.createdPlans.flatMap((p) => p.activities);
+    if (activities.length === 0) continue;
+
+    const totalAssigned = activities.length;
+    const completed = activities.filter((a) => a.status === 'COMPLETED').length;
+    const ongoing = activities.filter(
+      (a) => a.status === 'PLANNED' || a.status === 'IN_PROGRESS',
+    ).length;
+
+    let delayed = 0;
+    const activeStageSet = new Set<string>();
+
+    for (const a of activities) {
+      let isActDelayed = false;
+      for (const st of a.stages) {
+        if (st.status === 'IN_PROGRESS') {
+          activeStageSet.add(st.stageType.label);
+        }
+        if (st.status === 'COMPLETED' && st.actualEndDate && st.currentTargetEndDate) {
+          if (st.actualEndDate > st.currentTargetEndDate) isActDelayed = true;
+        } else if (
+          st.status !== 'COMPLETED' &&
+          st.currentTargetEndDate &&
+          st.currentTargetEndDate < today
+        ) {
+          isActDelayed = true;
+        }
+      }
+      if (isActDelayed) delayed++;
+    }
+
+    const estimated = activities.reduce(
+      (sum, a) => sum + Number(a.estimatedBudget),
+      0,
+    );
+
+    const contracts = activities.flatMap((a) => a.contracts);
+    const contracted = contracts.reduce(
+      (sum, c) => sum + Number(c.contractAmountWithVat || c.totalValue),
+      0,
+    );
+
+    const paid = contracts.reduce(
+      (sum, c) => sum + c.payments.reduce((pSum, p) => pSum + Number(p.amount), 0),
+      0,
+    );
+
+    const balance = Math.max(0, contracted - paid);
+    const stageSummary =
+      Array.from(activeStageSet).slice(0, 3).join(', ') || 'Various';
+
+    sheet.addRow([
+      u.displayName,
+      totalAssigned,
+      completed,
+      ongoing,
+      delayed,
+      stageSummary,
+      estimated.toFixed(2),
+      contracted.toFixed(2),
+      paid.toFixed(2),
+      balance.toFixed(2),
+      `${delayed} overdue`,
+    ]);
+  }
+
+  await (sheet as unknown as { commit: () => Promise<void> }).commit();
+  await finalize();
+}
+
+// ─── Legacy Wrappers ──────────────────────────────────────────────────────────
+export const streamMonthlySummary = streamMonthlyProcurementReport;
+export const streamProjectOfficerSummary = streamOfficerSummary;

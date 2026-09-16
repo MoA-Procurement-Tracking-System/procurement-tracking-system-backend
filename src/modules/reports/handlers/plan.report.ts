@@ -5,11 +5,15 @@ import type {
 } from '../../../generated/prisma/index.js';
 import { prisma } from '../../../config/database.js';
 import { excelService } from '../../excel/excel.service.js';
-import type { AnnualPlanQuery, PlanVsActualQuery } from '../reports.schema.js';
+import type {
+  AnnualPlanQuery,
+  PlanVsActualQuery,
+  CommitteeApprovalQuery,
+} from '../reports.schema.js';
 
 const { createStreamingWorkbook, fmtDecimal, fmtDate } = excelService;
 
-// ─── Report #1: Annual Procurement Plan ────────────────────────────────────────
+// ─── Report #1: Annual Procurement Plan (P0) ──────────────────────────────────
 export async function streamAnnualProcurementPlan(
   res: Response,
   query: AnnualPlanQuery,
@@ -18,23 +22,29 @@ export async function streamAnnualProcurementPlan(
 ): Promise<void> {
   const {
     budgetYear,
+    fiscalYear,
     projectId,
     planId,
     category,
     methodId,
     fundingSourceId,
+    fundingType,
     region,
+    sector,
     officerId,
     status,
+    currency,
     minAmount,
     maxAmount,
     page,
     limit,
   } = query;
 
+  const targetYear = budgetYear || fiscalYear;
+
   const where = {
-    budgetYear,
     isActive: true,
+    ...(targetYear ? { budgetYear: targetYear } : {}),
     ...(isDirector ? {} : { createdBy: userId }),
     ...(projectId ? { projectId } : {}),
     ...(planId ? { id: planId } : {}),
@@ -42,12 +52,15 @@ export async function streamAnnualProcurementPlan(
     ...(status ? { status: status as PlanStatus } : {}),
     ...(officerId ? { createdBy: officerId } : {}),
     ...(fundingSourceId ? { project: { fundingSourceId } } : {}),
+    ...(fundingType ? { project: { fundingType } } : {}),
+    ...(sector ? { project: { sector: { label: sector } } } : {}),
     ...(region
       ? { activities: { some: { contracts: { some: { region } } } } }
       : {}),
     ...(methodId
       ? { activities: { some: { procurementMethodId: methodId } } }
       : {}),
+    ...(currency ? { activities: { some: { currency } } } : {}),
     ...(minAmount || maxAmount
       ? {
           activities: {
@@ -69,17 +82,26 @@ export async function streamAnnualProcurementPlan(
         select: {
           code: true,
           name: true,
+          fundingType: true,
           fundingSource: { select: { label: true } },
+          sector: { select: { label: true } },
         },
       },
       creator: { select: { displayName: true } },
       approvedByUser: { select: { displayName: true } },
       activities: {
+        where: {
+          isActive: true,
+          ...(methodId ? { procurementMethodId: methodId } : {}),
+          ...(currency ? { currency } : {}),
+        },
         include: {
+          creator: { select: { displayName: true } },
           procurementMethod: { select: { label: true } },
           stages: { orderBy: { sequence: 'asc' } },
-          contracts: { select: { totalValue: true } },
+          fundings: { select: { fundingSource: true } },
         },
+        orderBy: { createdAt: 'desc' },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -87,101 +109,81 @@ export async function streamAnnualProcurementPlan(
     take: limit,
   });
 
-  const filename = `annual_procurement_plan_${budgetYear}_p${page}.xlsx`;
+  const filename = `annual_procurement_plan_${targetYear ?? 'all'}_p${page}.xlsx`;
   const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
-  const summarySheet = addSheet('Plan Summary', [
-    'Plan Title',
-    'Project Code',
-    'Project Name',
-    'Budget Year',
-    'Category',
-    '# Activities',
-    'Total Estimated Budget',
-    'Period Start',
-    'Period End',
-    'Status',
-    'Approved By',
-    'Approved Date',
-    'Created By',
-  ]);
-
-  const detailSheet = addSheet('Activity Detail', [
+  const detailSheet = addSheet('Annual Plan Activities', [
     'Project',
     'Plan',
     'Activity Reference',
     'Activity Description',
     'Category',
-    'Method',
+    'Procurement Method',
+    'Financing Source',
     'Estimated Amount',
     'Currency',
-    'Funding Source',
-    'Officer',
-    'Original Planned Dates',
-    'Current Target Dates',
-    'Status',
+    'Responsible Officer',
+    'Planned Start Date',
+    'Planned Completion Date',
+    'Current Status',
   ]);
 
+  const currencyTotals = new Map<string, number>();
+
   for (const plan of plans) {
-    const totalBudget = plan.activities.reduce(
-      (sum, a) => sum + Number(a.estimatedBudget),
-      0,
-    );
-
-    summarySheet.addRow([
-      plan.title,
-      plan.project.code,
-      plan.project.name,
-      plan.budgetYear ?? '',
-      plan.procurementCategory ?? '',
-      plan.activities.length,
-      totalBudget.toFixed(2),
-      fmtDate(plan.periodStart),
-      fmtDate(plan.periodEnd),
-      plan.status,
-      plan.approvedByUser?.displayName ?? '',
-      fmtDate(plan.approvedAt),
-      plan.creator.displayName,
-    ]);
-
     for (const a of plan.activities) {
       const firstStage = a.stages[0];
       const lastStage = a.stages[a.stages.length - 1];
 
-      const origDates =
-        firstStage?.plannedStartDate && lastStage?.plannedEndDate
-          ? `${fmtDate(firstStage.plannedStartDate)} to ${fmtDate(lastStage.plannedEndDate)}`
-          : '';
+      const plannedStart = firstStage?.plannedStartDate
+        ? fmtDate(firstStage.plannedStartDate)
+        : '';
+      const plannedEnd = lastStage?.plannedEndDate
+        ? fmtDate(lastStage.plannedEndDate)
+        : '';
 
-      const targetDates =
-        firstStage?.currentTargetStartDate && lastStage?.currentTargetEndDate
-          ? `${fmtDate(firstStage.currentTargetStartDate)} to ${fmtDate(lastStage.currentTargetEndDate)}`
-          : '';
+      const fundingLabel =
+        a.fundings.length > 0
+          ? a.fundings.map((f) => f.fundingSource).join(', ')
+          : plan.project.fundingSource.label;
+
+      const actCurrency = a.currency || 'ETB';
+      const curSum = currencyTotals.get(actCurrency) || 0;
+      currencyTotals.set(curSum !== undefined ? actCurrency : 'ETB', curSum + Number(a.estimatedBudget));
 
       detailSheet.addRow([
-        plan.project.name,
+        `${plan.project.code} - ${plan.project.name}`,
         plan.title,
         a.reference,
         a.description ?? '',
         plan.procurementCategory ?? '',
         a.procurementMethod.label,
+        fundingLabel,
         fmtDecimal(a.estimatedBudget),
-        a.currency ?? '',
-        plan.project.fundingSource.label,
-        plan.creator.displayName,
-        origDates,
-        targetDates,
+        actCurrency,
+        a.creator?.displayName ?? plan.creator.displayName,
+        plannedStart,
+        plannedEnd,
         a.status,
       ]);
     }
   }
 
-  await (summarySheet as unknown as { commit: () => Promise<void> }).commit();
+  // Totals sheet grouped strictly by currency (no mixed-currency total)
+  const totalsSheet = addSheet('Budget Totals by Currency', [
+    'Currency',
+    'Total Estimated Budget',
+  ]);
+  for (const [cur, total] of currencyTotals.entries()) {
+    totalsSheet.addRow([cur, total.toFixed(2)]);
+  }
+
   await (detailSheet as unknown as { commit: () => Promise<void> }).commit();
+  await (totalsSheet as unknown as { commit: () => Promise<void> }).commit();
   await finalize();
 }
 
-// ─── Report #2: Plan vs Actual ─────────────────────────────────────────────────
+// ─── Report #2: Plan vs Actual Progress (P0) ──────────────────────────────────
 export async function streamPlanVsActual(
   res: Response,
   query: PlanVsActualQuery,
@@ -196,6 +198,7 @@ export async function streamPlanVsActual(
     methodId,
     officerId,
     region,
+    sector,
     fundingSourceId,
     stageTypeId,
     stageStatus,
@@ -232,6 +235,7 @@ export async function streamPlanVsActual(
         ...(officerId ? { createdBy: officerId } : {}),
         project: {
           ...(fundingSourceId ? { fundingSourceId } : {}),
+          ...(sector ? { sector: { label: sector } } : {}),
         },
       },
     },
@@ -241,15 +245,19 @@ export async function streamPlanVsActual(
     where,
     include: {
       stageType: { select: { label: true } },
-      revisions: { orderBy: { revisionNo: 'asc' } },
+      revisions: { orderBy: { revisionNo: 'desc' }, take: 1 },
       activity: {
         select: {
           reference: true,
           description: true,
+          procurementMethod: { select: { label: true } },
+          creator: { select: { displayName: true } },
           plan: {
             select: {
               title: true,
-              project: { select: { name: true } },
+              procurementCategory: true,
+              project: { select: { code: true, name: true } },
+              creator: { select: { displayName: true } },
             },
           },
         },
@@ -277,23 +285,40 @@ export async function streamPlanVsActual(
   const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
   const sheet = addSheet('Plan vs Actual', [
+    'Activity Reference',
+    'Activity Description',
     'Project',
-    'Activity',
+    'Officer',
+    'Category',
+    'Method',
     'Stage',
-    'Original Planned Date',
-    'Current Target Date',
+    'Baseline / Original Date',
+    'Revised / Current Date',
     'Actual Date',
-    'Variance / Delay Days',
-    'Status',
-    'Replanning Count',
-    'Replanning Reason',
+    'Variance Days',
+    'Delay Days',
+    'Stage Status',
+    'Remarks',
   ]);
 
   for (const s of paginated) {
+    // Variance: actual/current target vs original baseline
+    let varianceDays = '';
+    if (s.plannedEndDate) {
+      const compareDate = s.actualEndDate || s.currentTargetEndDate;
+      if (compareDate) {
+        const diff = compareDate.getTime() - s.plannedEndDate.getTime();
+        varianceDays = String(Math.round(diff / 86_400_000));
+      }
+    }
+
+    // Delay: overdue days past effective current target
     let delayDays = '';
     if (s.status === 'COMPLETED' && s.actualEndDate && s.currentTargetEndDate) {
-      const diff = s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
-      delayDays = String(Math.round(diff / 86_400_000));
+      if (s.actualEndDate > s.currentTargetEndDate) {
+        const diff = s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
+        delayDays = String(Math.round(diff / 86_400_000));
+      }
     } else if (
       s.status !== 'COMPLETED' &&
       s.currentTargetEndDate &&
@@ -303,19 +328,179 @@ export async function streamPlanVsActual(
       delayDays = String(Math.round(diff / 86_400_000));
     }
 
-    const lastRev = s.revisions[s.revisions.length - 1];
+    const latestRevision = s.revisions[0];
+    const remarks = s.remarks || latestRevision?.reason || '';
 
     sheet.addRow([
-      s.activity.plan.project.name,
-      `${s.activity.reference} - ${s.activity.description ?? ''}`,
+      s.activity.reference,
+      s.activity.description ?? '',
+      `${s.activity.plan.project.code} - ${s.activity.plan.project.name}`,
+      s.activity.creator?.displayName || s.activity.plan.creator.displayName,
+      s.activity.plan.procurementCategory ?? '',
+      s.activity.procurementMethod.label,
       s.stageType.label,
       fmtDate(s.plannedEndDate),
-      fmtDate(s.currentTargetEndDate),
+      s.currentTargetEndDate && s.plannedEndDate?.getTime() !== s.currentTargetEndDate.getTime()
+        ? fmtDate(s.currentTargetEndDate)
+        : '',
       fmtDate(s.actualEndDate),
+      varianceDays,
       delayDays,
       s.status,
-      s.revisions.length,
-      lastRev?.reason ?? '',
+      remarks,
+    ]);
+  }
+
+  await (sheet as unknown as { commit: () => Promise<void> }).commit();
+  await finalize();
+}
+
+// ─── Report #13: Committee / Approval Progress Report (P0) ────────────────────
+export async function streamCommitteeApprovalProgress(
+  res: Response,
+  query: CommitteeApprovalQuery,
+  userId: string,
+  isDirector: boolean,
+): Promise<void> {
+  const {
+    fiscalYear,
+    budgetYear,
+    projectId,
+    officerId,
+    planStatus,
+    directorDecision,
+    committeeResult,
+    managementDecision,
+    page,
+    limit,
+  } = query;
+
+  const targetYear = budgetYear || fiscalYear;
+
+  const where = {
+    isActive: true,
+    ...(targetYear ? { budgetYear: targetYear } : {}),
+    ...(isDirector ? {} : { createdBy: userId }),
+    ...(projectId ? { projectId } : {}),
+    ...(officerId ? { createdBy: officerId } : {}),
+    ...(planStatus ? { status: planStatus as PlanStatus } : {}),
+    ...(managementDecision ? { managementDecision } : {}),
+  };
+
+  const plans = await prisma.plan.findMany({
+    where,
+    include: {
+      project: { select: { code: true, name: true } },
+      creator: { select: { displayName: true } },
+      committeeVotes: {
+        orderBy: { createdAt: 'desc' },
+      },
+      statusHistory: {
+        orderBy: { createdAt: 'asc' },
+      },
+      reviews: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    skip: (page - 1) * limit,
+    take: limit,
+  });
+
+  const filename = `committee_approval_progress_${targetYear ?? 'all'}_p${page}.xlsx`;
+  const { addSheet, finalize } = createStreamingWorkbook(res, filename);
+
+  const sheet = addSheet('Approval Workflow Progress', [
+    'Plan',
+    'Project',
+    'Officer',
+    'Submitted Date',
+    'Director Decision',
+    'Director Comment',
+    'Committee Approvals',
+    'Committee Rejections',
+    'Pending Votes',
+    'Committee Result',
+    'Management Decision',
+    'Management Comment',
+    'Current Plan Status',
+  ]);
+
+  for (const plan of plans) {
+    // 1. Submitted Date from status history (when moved from DRAFT to SUBMITTED)
+    const submittedEntry = plan.statusHistory.find(
+      (h) => h.toStatus === 'SUBMITTED',
+    );
+    const submittedDate = submittedEntry
+      ? fmtDate(submittedEntry.createdAt)
+      : fmtDate(plan.createdAt);
+
+    // 2. Director Review Decision & Comments
+    let dirDecision = 'PENDING';
+    if (plan.status !== 'DRAFT' && plan.status !== 'SUBMITTED') {
+      if (plan.status === 'RETURNED_FOR_REVISION') {
+        dirDecision = 'RETURNED_FOR_REVISION';
+      } else if (plan.status === 'REJECTED') {
+        dirDecision = 'REJECTED';
+      } else {
+        dirDecision = 'FORWARDED_TO_COMMITTEE';
+      }
+    }
+    const dirComment =
+      plan.directorRevisionComment ||
+      plan.rejectionReason ||
+      plan.reviews[0]?.notes ||
+      '';
+
+    if (directorDecision && dirDecision !== directorDecision) {
+      continue;
+    }
+
+    // 3. Committee Votes for the current committee round
+    const currentRound = plan.committeeRound || 1;
+    const currentRoundVotes = plan.committeeVotes.filter(
+      (v) => v.round === currentRound,
+    );
+    const approvals = currentRoundVotes.filter(
+      (v) => v.decision === 'APPROVE',
+    ).length;
+    const rejections = currentRoundVotes.filter(
+      (v) => v.decision === 'REJECT',
+    ).length;
+    const pendingVotes = Math.max(0, 5 - (approvals + rejections));
+
+    let comResult = 'PENDING';
+    if (approvals >= 3) {
+      comResult = 'ENDORSED';
+    } else if (rejections >= 3) {
+      comResult = 'REJECTED';
+    } else if (currentRoundVotes.length > 0) {
+      comResult = 'IN_VOTING';
+    }
+
+    if (committeeResult && comResult !== committeeResult) {
+      continue;
+    }
+
+    // 4. Management Decision & Comments
+    const mgmtDecision = plan.managementDecision || 'PENDING';
+    const mgmtComment = plan.managementComment || '';
+
+    sheet.addRow([
+      plan.title,
+      `${plan.project.code} - ${plan.project.name}`,
+      plan.creator.displayName,
+      submittedDate,
+      dirDecision,
+      dirComment,
+      approvals,
+      rejections,
+      pendingVotes,
+      comResult,
+      mgmtDecision,
+      mgmtComment,
+      plan.status,
     ]);
   }
 

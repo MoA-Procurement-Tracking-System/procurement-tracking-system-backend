@@ -7,156 +7,15 @@ import type {
 import { prisma } from '../../../config/database.js';
 import { excelService } from '../../excel/excel.service.js';
 import type {
-  DetailedProcurementQuery,
   ProcurementStepQuery,
   DelayedProcurementQuery,
+  QuarterlyDetailedQuery,
   ActivityMilestoneQuery,
 } from '../reports.schema.js';
 
 const { createStreamingWorkbook, fmtDecimal, fmtDate } = excelService;
 
-// ─── Report #7: Detailed Procurement ──────────────────────────────────────────
-export async function streamDetailedProcurement(
-  res: Response,
-  query: DetailedProcurementQuery,
-  userId: string,
-  isDirector: boolean,
-): Promise<void> {
-  const {
-    projectId,
-    planId,
-    activityId,
-    category,
-    methodId,
-    marketApproach,
-    reviewType,
-    fundingSourceId,
-    region,
-    officerId,
-    supplierId,
-    contractStatus,
-    activityStatus,
-    dateFrom,
-    dateTo,
-    page,
-    limit,
-  } = query;
-
-  const where = {
-    ...(isDirector ? {} : { plan: { createdBy: userId } }),
-    ...(projectId ? { plan: { projectId } } : {}),
-    ...(planId ? { planId } : {}),
-    ...(activityId ? { id: activityId } : {}),
-    ...(category ? { plan: { procurementCategory: category } } : {}),
-    ...(methodId ? { procurementMethodId: methodId } : {}),
-    ...(marketApproach ? { marketApproach } : {}),
-    ...(reviewType ? { reviewType } : {}),
-    ...(fundingSourceId ? { plan: { project: { fundingSourceId } } } : {}),
-    ...(region ? { contracts: { some: { region } } } : {}),
-    ...(officerId ? { plan: { createdBy: officerId } } : {}),
-    ...(supplierId ? { contracts: { some: { supplierId } } } : {}),
-    ...(contractStatus
-      ? { contracts: { some: { status: contractStatus as ContractStatus } } }
-      : {}),
-    ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
-    ...(dateFrom || dateTo
-      ? {
-          createdAt: {
-            ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-            ...(dateTo ? { lte: new Date(dateTo) } : {}),
-          },
-        }
-      : {}),
-  };
-
-  const activities = await prisma.activity.findMany({
-    where,
-    include: {
-      procurementMethod: { select: { label: true } },
-      plan: {
-        select: {
-          title: true,
-          procurementCategory: true,
-          project: {
-            select: {
-              name: true,
-              fundingSource: { select: { label: true } },
-            },
-          },
-        },
-      },
-      contracts: {
-        where: { deletedAt: null },
-        include: { supplier: { select: { name: true } } },
-        orderBy: { createdAt: 'asc' },
-        take: 1,
-      },
-      fundings: { select: { fundingSource: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    skip: (page - 1) * limit,
-    take: limit,
-  });
-
-  const filename = `detailed_procurement_${fmtDate(new Date())}_p${page}.xlsx`;
-  const { addSheet, finalize } = createStreamingWorkbook(res, filename);
-
-  const sheet = addSheet('Detailed Procurement', [
-    'Project',
-    'Plan',
-    'Activity Reference',
-    'Activity Description',
-    'Procurement Type',
-    'Category',
-    'Method',
-    'Market Approach',
-    'Review Type',
-    'Funding Source',
-    'Budget Type',
-    'Estimated Amount',
-    'Winner/Supplier',
-    'Awarded Amount',
-    'Contract Amount',
-    'Contract Status',
-    'Completion/Receipt Date',
-  ]);
-
-  for (const a of activities) {
-    const primaryContract = a.contracts[0];
-    const budgetType = a.fundings.map((f) => f.fundingSource).join('; ');
-
-    sheet.addRow([
-      a.plan.project.name,
-      a.plan.title,
-      a.reference,
-      a.description ?? '',
-      a.plan.procurementCategory ?? '',
-      a.plan.procurementCategory ?? '',
-      a.procurementMethod.label,
-      a.marketApproach ?? '',
-      a.reviewType ?? '',
-      a.plan.project.fundingSource.label,
-      budgetType,
-      fmtDecimal(a.estimatedBudget),
-      primaryContract?.supplier?.name ?? '',
-      primaryContract ? fmtDecimal(primaryContract.totalValue) : '',
-      primaryContract
-        ? fmtDecimal(
-            primaryContract.contractAmountWithVat || primaryContract.totalValue,
-          )
-        : '',
-      primaryContract?.status ?? '',
-      primaryContract?.actualCompletionDate
-        ? fmtDate(primaryContract.actualCompletionDate)
-        : '',
-    ]);
-  }
-
-  await (sheet as unknown as { commit: () => Promise<void> }).commit();
-  await finalize();
-}
-
-// ─── Report #3: Procurement STEP Report ───────────────────────────────────────
+// ─── Report #3: Procurement Step Report (P0) ──────────────────────────────────
 export async function streamProcurementSteps(
   res: Response,
   query: ProcurementStepQuery,
@@ -171,8 +30,10 @@ export async function streamProcurementSteps(
     fundingSourceId,
     officerId,
     activityStatus,
+    status,
     stageTypeId,
     stageStatus,
+    currency,
     dateFrom,
     dateTo,
     page,
@@ -192,10 +53,13 @@ export async function streamProcurementSteps(
         }
       : {}),
     activity: {
-      ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
+      ...(activityStatus || status
+        ? { status: (activityStatus || status) as ActivityStatus }
+        : {}),
       ...(methodId ? { procurementMethodId: methodId } : {}),
       ...(marketApproach ? { marketApproach } : {}),
       ...(reviewType ? { reviewType } : {}),
+      ...(currency ? { currency } : {}),
       plan: {
         ...(planId ? { id: planId } : {}),
         ...(projectId ? { projectId } : {}),
@@ -219,6 +83,7 @@ export async function streamProcurementSteps(
             select: {
               title: true,
               procurementCategory: true,
+              project: { select: { code: true, name: true } },
             },
           },
         },
@@ -232,29 +97,32 @@ export async function streamProcurementSteps(
   const filename = `procurement_step_report_${fmtDate(new Date())}_p${page}.xlsx`;
   const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
-  const sheet = addSheet('STEP Report', [
+  const sheet = addSheet('Procurement Step Roadmap', [
     'Activity Reference',
     'Activity Description',
-    'Method',
-    'Market Approach',
+    'Project',
+    'Category',
+    'Procurement Method',
     'Review Type',
+    'Market Approach',
+    'Estimated Amount',
     'Stage',
     'Planned Date',
     'Revised Date',
     'Actual Date',
     'Stage Status',
     'Delay Days',
-    'Process Status',
-    'Activity Status',
   ]);
 
-  for (const s of stages) {
-    const today = new Date();
-    let delayDays = '';
+  const today = new Date();
 
+  for (const s of stages) {
+    let delayDays = '';
     if (s.status === 'COMPLETED' && s.actualEndDate && s.currentTargetEndDate) {
-      const diff = s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
-      delayDays = String(Math.round(diff / 86_400_000));
+      if (s.actualEndDate > s.currentTargetEndDate) {
+        const diff = s.actualEndDate.getTime() - s.currentTargetEndDate.getTime();
+        delayDays = String(Math.round(diff / 86_400_000));
+      }
     } else if (
       s.status !== 'COMPLETED' &&
       s.currentTargetEndDate &&
@@ -264,20 +132,29 @@ export async function streamProcurementSteps(
       delayDays = String(Math.round(diff / 86_400_000));
     }
 
+    const revisedDate =
+      s.currentTargetEndDate &&
+      s.plannedEndDate?.getTime() !== s.currentTargetEndDate.getTime()
+        ? fmtDate(s.currentTargetEndDate)
+        : '';
+
+    const currencyStr = s.activity.currency || 'ETB';
+
     sheet.addRow([
       s.activity.reference,
       s.activity.description ?? '',
+      `${s.activity.plan.project.code} - ${s.activity.plan.project.name}`,
+      s.activity.plan.procurementCategory ?? '',
       s.activity.procurementMethod.label,
-      s.activity.marketApproach ?? '',
       s.activity.reviewType ?? '',
+      s.activity.marketApproach ?? '',
+      `${currencyStr} ${fmtDecimal(s.activity.estimatedBudget)}`,
       s.stageType.label,
       fmtDate(s.plannedEndDate),
-      fmtDate(s.currentTargetEndDate),
+      revisedDate,
       fmtDate(s.actualEndDate),
       s.status,
       delayDays,
-      s.activity.processStatus ?? '',
-      s.activity.status,
     ]);
   }
 
@@ -285,7 +162,7 @@ export async function streamProcurementSteps(
   await finalize();
 }
 
-// ─── Report #4: Delayed Procurement ───────────────────────────────────────────
+// ─── Report #4: Delayed Procurement Report (P0) ───────────────────────────────
 export async function streamDelayedProcurement(
   res: Response,
   query: DelayedProcurementQuery,
@@ -293,14 +170,18 @@ export async function streamDelayedProcurement(
   isDirector: boolean,
 ): Promise<void> {
   const {
+    budgetYear,
+    fiscalYear,
     projectId,
     planId,
     category,
     methodId,
     officerId,
     region,
+    sector,
     fundingSourceId,
     activityStatus,
+    status,
     stageTypeId,
     minDelayDays,
     delayBucket,
@@ -311,15 +192,18 @@ export async function streamDelayedProcurement(
   } = query;
 
   const today = new Date();
+  const targetYear = budgetYear || fiscalYear;
 
   const planFilter = {
     ...(isDirector ? {} : { createdBy: userId }),
+    ...(targetYear ? { budgetYear: targetYear } : {}),
     ...(planId ? { id: planId } : {}),
     ...(projectId ? { projectId } : {}),
     ...(category ? { procurementCategory: category } : {}),
     ...(officerId ? { createdBy: officerId } : {}),
     project: {
       ...(fundingSourceId ? { fundingSourceId } : {}),
+      ...(sector ? { sector: { label: sector } } : {}),
     },
   };
 
@@ -335,7 +219,9 @@ export async function streamDelayedProcurement(
         }
       : {}),
     activity: {
-      ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
+      ...(activityStatus || status
+        ? { status: (activityStatus || status) as ActivityStatus }
+        : {}),
       ...(methodId ? { procurementMethodId: methodId } : {}),
       ...(region ? { contracts: { some: { region } } } : {}),
       plan: planFilter,
@@ -358,19 +244,20 @@ export async function streamDelayedProcurement(
     },
     include: {
       stageType: { select: { label: true } },
-      revisions: { orderBy: { revisionNo: 'asc' } },
+      revisions: { orderBy: { revisionNo: 'desc' }, take: 1 },
       activity: {
         include: {
+          procurementMethod: { select: { label: true } },
+          fundings: { select: { fundingSource: true } },
           plan: {
             include: {
-              project: { select: { name: true } },
+              project: { select: { code: true, name: true, fundingSource: { select: { label: true } } } },
               creator: { select: { displayName: true } },
             },
           },
         },
       },
     },
-    orderBy: { currentTargetEndDate: 'asc' },
   });
 
   const computed = stages
@@ -402,7 +289,9 @@ export async function streamDelayedProcurement(
         if (delayBucket === '60+') return delayDays >= 60;
       }
       return true;
-    });
+    })
+    // Sort descending by delay days as required
+    .sort((a, b) => b.delayDays - a.delayDays);
 
   const paginated = computed.slice((page - 1) * limit, page * limit);
 
@@ -410,33 +299,40 @@ export async function streamDelayedProcurement(
   const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
   const sheet = addSheet('Delayed Procurement', [
+    'Activity Reference',
+    'Activity Description',
     'Project',
-    'Activity',
-    'Officer',
-    'Stage',
-    'Original Target',
-    'Current Target',
-    'Actual Date',
+    'Category',
+    'Method',
+    'Responsible Officer',
+    'Delayed Stage',
+    'Effective Target Date',
     'Delay Days',
-    'Process Status',
-    'Reason',
+    'Funding Source',
+    'Status',
     'Remarks',
   ]);
 
   for (const { stage: s, delayDays } of paginated) {
-    const lastRev = s.revisions[s.revisions.length - 1];
+    const lastRev = s.revisions[0];
+    const funding =
+      s.activity.fundings.length > 0
+        ? s.activity.fundings.map((f) => f.fundingSource).join(', ')
+        : s.activity.plan.project.fundingSource.label;
+
     sheet.addRow([
-      s.activity.plan.project.name,
-      `${s.activity.reference} - ${s.activity.description ?? ''}`,
+      s.activity.reference,
+      s.activity.description ?? '',
+      `${s.activity.plan.project.code} - ${s.activity.plan.project.name}`,
+      s.activity.plan.procurementCategory ?? '',
+      s.activity.procurementMethod.label,
       s.activity.plan.creator.displayName,
       s.stageType.label,
-      fmtDate(s.plannedEndDate),
       fmtDate(s.currentTargetEndDate),
-      fmtDate(s.actualEndDate),
       delayDays,
-      s.status,
-      lastRev?.reason ?? '',
-      s.remarks ?? '',
+      funding,
+      s.activity.status,
+      s.remarks || lastRev?.reason || '',
     ]);
   }
 
@@ -444,28 +340,24 @@ export async function streamDelayedProcurement(
   await finalize();
 }
 
-// ─── Report #9: Activity Milestone Report ─────────────────────────────────────
-// One Excel sheet per procurement method (e.g. DIR, RFQ, RFB, QCBS-FBS-LCS)
-// matching the multi-tab format the client uses.
-export async function streamActivityMilestone(
+// ─── Report #7: Quarterly Detailed Procurement Report (P1) ────────────────────
+export async function streamQuarterlyDetailedProcurement(
   res: Response,
-  query: ActivityMilestoneQuery,
+  query: QuarterlyDetailedQuery,
   userId: string,
   isDirector: boolean,
 ): Promise<void> {
   const {
     projectId,
     planId,
-    budgetYear,
     category,
     methodId,
-    marketApproach,
-    reviewType,
     fundingSourceId,
+    region,
     officerId,
-    activityStatus,
-    contractStatus,
     supplierId,
+    contractStatus,
+    activityStatus,
     dateFrom,
     dateTo,
     page,
@@ -476,18 +368,16 @@ export async function streamActivityMilestone(
     ...(isDirector ? {} : { plan: { createdBy: userId } }),
     ...(projectId ? { plan: { projectId } } : {}),
     ...(planId ? { planId } : {}),
-    ...(budgetYear ? { plan: { budgetYear } } : {}),
     ...(category ? { plan: { procurementCategory: category } } : {}),
     ...(methodId ? { procurementMethodId: methodId } : {}),
-    ...(marketApproach ? { marketApproach } : {}),
-    ...(reviewType ? { reviewType } : {}),
     ...(fundingSourceId ? { plan: { project: { fundingSourceId } } } : {}),
+    ...(region ? { contracts: { some: { region } } } : {}),
     ...(officerId ? { plan: { createdBy: officerId } } : {}),
-    ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
     ...(supplierId ? { contracts: { some: { supplierId } } } : {}),
     ...(contractStatus
       ? { contracts: { some: { status: contractStatus as ContractStatus } } }
       : {}),
+    ...(activityStatus ? { status: activityStatus as ActivityStatus } : {}),
     ...(dateFrom || dateTo
       ? {
           createdAt: {
@@ -501,184 +391,110 @@ export async function streamActivityMilestone(
   const activities = await prisma.activity.findMany({
     where,
     include: {
-      procurementMethod: { select: { label: true, code: true } },
+      procurementMethod: { select: { label: true } },
       plan: {
         select: {
           title: true,
-          budgetYear: true,
           procurementCategory: true,
+          creator: { select: { displayName: true } },
           project: {
             select: {
-              name: true,
               code: true,
-              sapIdentificationNo: true,
+              name: true,
               fundingSource: { select: { label: true } },
             },
           },
-          creator: { select: { displayName: true } },
         },
-      },
-      stages: {
-        where: { isNotApplicable: false },
-        include: { stageType: { select: { label: true, code: true } } },
-        orderBy: { sequence: 'asc' },
       },
       contracts: {
         where: { deletedAt: null },
-        include: { supplier: { select: { name: true } } },
-        orderBy: { createdAt: 'asc' },
+        include: {
+          supplier: { select: { name: true } },
+          payments: { select: { referenceNo: true }, take: 1 },
+        },
+        orderBy: { createdAt: 'desc' },
         take: 1,
       },
       fundings: { select: { fundingSource: true } },
     },
-    // Sort by method first so sheet grouping is natural
-    orderBy: [{ procurementMethodId: 'asc' }, { createdAt: 'desc' }],
+    orderBy: { createdAt: 'desc' },
     skip: (page - 1) * limit,
     take: limit,
   });
 
-  // ── Group activities by procurement method (each group → one sheet) ─────────
-  type MethodGroup = { label: string; activities: typeof activities };
-  const methodGroups = new Map<string, MethodGroup>();
-
-  for (const a of activities) {
-    const code = a.procurementMethod.code;
-    if (!methodGroups.has(code)) {
-      methodGroups.set(code, {
-        label: a.procurementMethod.label,
-        activities: [],
-      });
-    }
-    methodGroups.get(code)!.activities.push(a);
-  }
-
-  // ── Fixed headers (same on every sheet) ────────────────────────────────────
-  const fixedHeaders = [
-    'Activity Reference / Description',
-    'In Process',
-    'Cost / Oracle No',
-    'Completed',
-    'Process Type',
-    'Procurement Category',
-    'Indicator Option',
-    'Allocation Amount (ETB)',
-    'STEP / BIS Link',
-    'Procurement Manager',
-    'Process Status',
-    'Activity Status',
-  ];
-
-  const trailingHeaders = [
-    'Supplier / Contractor',
-    'Contract No',
-    'Contract Amount (ETB)',
-    'Contract Signature Date',
-    'Contract Completion Date',
-    'Contract Status',
-    'Contract Termination',
-  ];
-
-  // ── Row builder — uses the stage types specific to this sheet ──────────────
-  function buildRow(
-    a: (typeof activities)[0],
-    orderedStageTypes: { id: string; label: string; avgSeq: number }[],
-  ): (string | number)[] {
-    const contract = a.contracts[0];
-    const stageByTypeId = new Map(a.stages.map((s) => [s.stageTypeId, s]));
-
-    const fixedCells: (string | number)[] = [
-      `${a.reference}${a.description ? ' / ' + a.description : ''}`,
-      a.status === 'IN_PROGRESS' ? 'Yes' : '',
-      a.plan.project.sapIdentificationNo ?? '',
-      a.status === 'COMPLETED' ? 'Yes' : '',
-      a.procurementProcess ?? '',
-      a.plan.procurementCategory ?? '',
-      a.domesticPreference ?? '',
-      fmtDecimal(a.estimatedBudget),
-      a.bidReferenceNo ?? '',
-      a.plan.creator.displayName,
-      a.processStatus ?? '',
-      a.status,
-    ];
-
-    const stageCells: string[] = [];
-    for (const st of orderedStageTypes) {
-      const stage = stageByTypeId.get(st.id);
-      stageCells.push(
-        fmtDate(stage?.currentTargetEndDate ?? stage?.plannedEndDate),
-      );
-      stageCells.push(fmtDate(stage?.actualEndDate));
-    }
-
-    const contractWithVat = contract
-      ? contract.contractAmountWithVat
-        ? Number(contract.contractAmountWithVat)
-        : Number(contract.totalValue) *
-          (1 +
-            ((contract as unknown as { vatRate?: number }).vatRate ?? 0) / 100)
-      : null;
-
-    const trailingCells: string[] = [
-      contract?.supplier?.name ?? '',
-      contract?.contractNo ?? '',
-      contractWithVat !== null ? contractWithVat.toFixed(2) : '',
-      fmtDate(contract?.signatureDate),
-      fmtDate(contract?.actualCompletionDate),
-      contract?.status ?? '',
-      '', // Contract Termination
-    ];
-
-    return [...fixedCells, ...stageCells, ...trailingCells];
-  }
-
-  const filename = `activity_milestone_${fmtDate(new Date())}_p${page}.xlsx`;
+  const filename = `quarterly_detailed_procurement_${fmtDate(new Date())}_p${page}.xlsx`;
   const { addSheet, finalize } = createStreamingWorkbook(res, filename);
 
-  const sheets: ReturnType<typeof addSheet>[] = [];
+  const sheet = addSheet('Quarterly Detailed Procurement', [
+    'No.',
+    'Procurement Description',
+    'Procurement Method',
+    'Winning Supplier / Contractor',
+    'Winning / Award Amount',
+    'Budget Type',
+    'Funding Source',
+    'Purchase Order / PV Number',
+    'Receipt / Delivery Status',
+    'Receipt / Completion Date',
+    'Project',
+    'Region',
+    'Officer',
+  ]);
 
-  for (const [, group] of methodGroups) {
-    type StageTypeMeta = { id: string; label: string; avgSeq: number };
-    const stageTypeMap = new Map<string, StageTypeMeta>();
+  let rowNumber = (page - 1) * limit + 1;
 
-    for (const a of group.activities) {
-      for (const s of a.stages) {
-        const existing = stageTypeMap.get(s.stageTypeId);
-        if (!existing) {
-          stageTypeMap.set(s.stageTypeId, {
-            id: s.stageTypeId,
-            label: s.stageType.label,
-            avgSeq: s.sequence,
-          });
-        } else {
-          existing.avgSeq = (existing.avgSeq + s.sequence) / 2;
-        }
-      }
-    }
+  for (const a of activities) {
+    const primaryContract = a.contracts[0];
+    const budgetType =
+      primaryContract?.budgetType ||
+      a.fundings.map((f) => f.fundingSource).join(', ') ||
+      'Recurrent';
 
-    const orderedStageTypes = Array.from(stageTypeMap.values()).sort(
-      (a, b) => a.avgSeq - b.avgSeq,
-    );
+    const fundingSource =
+      a.fundings.length > 0
+        ? a.fundings.map((f) => f.fundingSource).join(', ')
+        : a.plan.project.fundingSource.label;
 
-    const stageHeaders: string[] = [];
-    for (const st of orderedStageTypes) {
-      stageHeaders.push(`${st.label} (Planned)`);
-      stageHeaders.push(`${st.label} (Actual)`);
-    }
+    const poPvNumber =
+      primaryContract?.purchaseOrderNo ||
+      primaryContract?.payments[0]?.referenceNo ||
+      primaryContract?.contractNo ||
+      '';
 
-    const allHeaders = [...fixedHeaders, ...stageHeaders, ...trailingHeaders];
+    const awardAmount = primaryContract
+      ? `${primaryContract.currency} ${fmtDecimal(primaryContract.totalValue)}`
+      : '';
 
-    const sheetName = group.label.substring(0, 31);
-    const sheet = addSheet(sheetName, allHeaders);
-
-    for (const a of group.activities) {
-      sheet.addRow(buildRow(a, orderedStageTypes));
-    }
-
-    sheets.push(sheet);
+    sheet.addRow([
+      rowNumber++,
+      a.description || a.reference,
+      a.procurementMethod.label,
+      primaryContract?.supplier?.name ?? 'Not Awarded',
+      awardAmount,
+      budgetType,
+      fundingSource,
+      poPvNumber,
+      primaryContract?.status ?? a.status,
+      fmtDate(primaryContract?.actualCompletionDate),
+      `${a.plan.project.code} - ${a.plan.project.name}`,
+      primaryContract?.region || 'National',
+      a.plan.creator.displayName,
+    ]);
   }
 
-  for (const sheet of sheets) {
-    await (sheet as unknown as { commit: () => Promise<void> }).commit();
-  }
+  await (sheet as unknown as { commit: () => Promise<void> }).commit();
   await finalize();
+}
+
+// Legacy alias
+export const streamDetailedProcurement = streamQuarterlyDetailedProcurement;
+
+// ─── Legacy Activity Milestone Report ─────────────────────────────────────────
+export async function streamActivityMilestone(
+  res: Response,
+  query: ActivityMilestoneQuery,
+  userId: string,
+  isDirector: boolean,
+): Promise<void> {
+  return streamQuarterlyDetailedProcurement(res, query, userId, isDirector);
 }
