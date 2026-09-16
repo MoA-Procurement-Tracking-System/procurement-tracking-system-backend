@@ -69,6 +69,23 @@ export class ContractsService {
     const [contracts, totalCount] = await Promise.all([
       prisma.contract.findMany({
         where,
+        include: {
+          supplier: true,
+          payments: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
+          },
+          activity: {
+            include: {
+              procurementMethod: true,
+              plan: {
+                include: {
+                  project: true,
+                },
+              },
+            },
+          },
+        },
         take,
         ...(page && page > 0 ? { skip: (page - 1) * take } : {}),
         orderBy: { createdAt: 'desc' },
