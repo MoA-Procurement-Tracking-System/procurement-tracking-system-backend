@@ -1069,16 +1069,117 @@ export class ExcelService {
       useSharedStrings: false,
     });
 
+    const getOptimalColumnWidth = (header: string): number => {
+      const h = header.toLowerCase();
+      if (
+        h.includes('description') ||
+        h.includes('remarks') ||
+        h.includes('specification') ||
+        h.includes('comment') ||
+        h.includes('activity details')
+      ) {
+        return 48;
+      }
+      if (
+        h.includes('project') ||
+        h.includes('plan') ||
+        h.includes('roadmap') ||
+        h.includes('subcomponent')
+      ) {
+        return 36;
+      }
+      if (
+        h.includes('supplier') ||
+        h.includes('contractor') ||
+        h.includes('winner') ||
+        h.includes('officer') ||
+        h.includes('responsible')
+      ) {
+        return 32;
+      }
+      if (
+        h.includes('method') ||
+        h.includes('financing') ||
+        h.includes('funding') ||
+        h.includes('organization') ||
+        h.includes('agency') ||
+        h.includes('sector') ||
+        h.includes('region')
+      ) {
+        return 28;
+      }
+      if (
+        h.includes('reference') ||
+        h.includes('ref no') ||
+        h.includes('contract no') ||
+        h.includes('po/pv') ||
+        h.includes('tin') ||
+        h.includes('stage')
+      ) {
+        return 26;
+      }
+      if (
+        h.includes('amount') ||
+        h.includes('budget') ||
+        h.includes('value') ||
+        h.includes('paid') ||
+        h.includes('balance') ||
+        h.includes('advance') ||
+        h.includes('interim') ||
+        h.includes('final') ||
+        h.includes('retention') ||
+        h.includes('adjustment') ||
+        h.includes('total')
+      ) {
+        return 22;
+      }
+      if (h.includes('date') || h.includes('period') || h.includes('target')) {
+        return 18;
+      }
+      if (
+        h.includes('status') ||
+        h.includes('category') ||
+        h.includes('currency') ||
+        h.includes('decision') ||
+        h.includes('result') ||
+        h.includes('type')
+      ) {
+        return 18;
+      }
+      if (
+        h.includes('%') ||
+        h.includes('pct') ||
+        h.includes('compliance') ||
+        h.includes('progress') ||
+        h.includes('variance') ||
+        h.includes('delay') ||
+        h.includes('count') ||
+        h.includes('days') ||
+        h.includes('packages')
+      ) {
+        return 16;
+      }
+      return Math.max(header.length + 6, 20);
+    };
+
     function addSheet(name: string, headers: string[]): ExcelJS.Worksheet {
-      const sheet = workbook.addWorksheet(name);
+      const sheet = workbook.addWorksheet(name, {
+        views: [{ state: 'frozen', ySplit: 1, showGridLines: true }],
+      });
+
       sheet.columns = headers.map((header) => ({
         header,
         key: header,
-        width: Math.max(header.length + 4, 16),
+        width: getOptimalColumnWidth(header),
       }));
 
       const headerRow = sheet.getRow(1);
-      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.font = {
+        name: 'Segoe UI',
+        size: 11,
+        bold: true,
+        color: { argb: 'FFFFFFFF' },
+      };
       headerRow.fill = {
         type: 'pattern',
         pattern: 'solid',
@@ -1089,8 +1190,104 @@ export class ExcelService {
         horizontal: 'center',
         wrapText: true,
       };
-      headerRow.height = 22;
+      headerRow.height = 28;
       headerRow.commit();
+
+      const originalAddRow = sheet.addRow.bind(sheet);
+      // Proxy addRow to format each data row beautifully and sanitize numeric values
+      (sheet as any).addRow = (values: any[]) => {
+        const sanitizedValues = Array.isArray(values)
+          ? values.map((val) => {
+              if (typeof val === 'string') {
+                const trimmed = val.trim();
+                if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+                  const num = Number(trimmed);
+                  if (!isNaN(num)) return num;
+                }
+              }
+              return val;
+            })
+          : values;
+
+        const row = originalAddRow(sanitizedValues);
+        row.height = 24;
+
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          const header = headers[colNumber - 1] || '';
+          const hLower = header.toLowerCase();
+
+          cell.font = { name: 'Segoe UI', size: 10 };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          };
+
+          if (typeof cell.value === 'number') {
+            if (
+              hLower.includes('amount') ||
+              hLower.includes('budget') ||
+              hLower.includes('value') ||
+              hLower.includes('paid') ||
+              hLower.includes('balance') ||
+              hLower.includes('advance') ||
+              hLower.includes('interim') ||
+              hLower.includes('final') ||
+              hLower.includes('retention') ||
+              hLower.includes('adjustment') ||
+              hLower.includes('total')
+            ) {
+              cell.numFmt = '#,##0.00';
+              cell.alignment = { vertical: 'middle', horizontal: 'right' };
+            } else if (
+              hLower.includes('count') ||
+              hLower.includes('days') ||
+              hLower.includes('number') ||
+              hLower.includes('packages') ||
+              hLower.includes('row') ||
+              hLower.includes('contracts')
+            ) {
+              cell.numFmt = '#,##0';
+              cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            } else if (
+              hLower.includes('%') ||
+              hLower.includes('pct') ||
+              hLower.includes('compliance') ||
+              hLower.includes('progress')
+            ) {
+              cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            } else {
+              cell.numFmt = '#,##0.00';
+              cell.alignment = { vertical: 'middle', horizontal: 'right' };
+            }
+          } else if (hLower.includes('date') || hLower.includes('period')) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else if (
+            hLower.includes('status') ||
+            hLower.includes('currency') ||
+            hLower.includes('category') ||
+            hLower.includes('tin') ||
+            hLower.includes('method') ||
+            hLower.includes('decision') ||
+            hLower.includes('result')
+          ) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else {
+            const shouldWrap =
+              hLower.includes('description') ||
+              hLower.includes('remarks') ||
+              hLower.includes('comment');
+            cell.alignment = {
+              vertical: 'middle',
+              horizontal: 'left',
+              wrapText: shouldWrap,
+            };
+          }
+        });
+
+        return row;
+      };
 
       return sheet;
     }
@@ -1102,9 +1299,10 @@ export class ExcelService {
     return { workbook, addSheet, finalize };
   }
 
-  fmtDecimal(value: unknown): string {
-    if (value === null || value === undefined) return '';
-    return Number(value).toFixed(2);
+  fmtDecimal(value: unknown): number | string {
+    if (value === null || value === undefined || value === '') return '';
+    const num = Number(value);
+    return isNaN(num) ? '' : num;
   }
 
   fmtDate(value: Date | null | undefined): string {
