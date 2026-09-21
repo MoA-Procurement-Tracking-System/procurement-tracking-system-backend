@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { registry } from '../../config/openapi.js';
 
 const pageParams = {
   page: z.coerce.number().int().positive().default(1),
@@ -319,3 +320,205 @@ export const activityMilestoneSchema = z.object({
   ...pageParams,
 });
 export type ActivityMilestoneQuery = z.infer<typeof activityMilestoneSchema>;
+
+// ─── Register OpenAPI Paths for Reports ──────────────────────────────────────
+const security = [{ bearerAuth: [] }, { cookieAuth: [] }];
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/detailed-procurement',
+  summary: 'Report #7 — Detailed Procurement (Excel)',
+  tags: ['Reports'],
+  security,
+  request: { query: detailedProcurementSchema },
+  responses: {
+    200: {
+      description: 'Excel file download',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/annual-procurement-plan',
+  summary: 'Report #1 — Annual Procurement Plan (Excel)',
+  tags: ['Reports'],
+  security,
+  request: { query: annualPlanSchema },
+  responses: {
+    200: {
+      description: 'Excel file download',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/procurement-steps',
+  summary: 'Report #3 — Procurement Step (STEP Tracker)',
+  tags: ['Reports'],
+  security,
+  request: { query: procurementStepSchema },
+  responses: {
+    200: {
+      description: 'Excel file download',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/plan-vs-actual',
+  summary: 'Report #2 — Plan vs Actual comparison (Excel)',
+  tags: ['Reports'],
+  security,
+  request: { query: planVsActualSchema },
+  responses: {
+    200: {
+      description: 'Excel file download',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/delayed-procurement',
+  summary: 'Report #4 — Delayed Procurement (Excel)',
+  tags: ['Reports'],
+  security,
+  request: { query: delayedProcurementSchema },
+  responses: {
+    200: {
+      description: 'Excel file download',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/contract-payment',
+  summary: 'Report #6 — Contract & Payment (Excel) — Director only',
+  tags: ['Reports'],
+  security,
+  request: { query: contractPaymentSchema },
+  responses: {
+    200: {
+      description: 'Excel file download',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+    403: { description: 'Director access required' },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/monthly-summary',
+  summary: 'Report #5 — Monthly Summary (Excel) — Director only',
+  tags: ['Reports'],
+  security,
+  request: { query: monthlySummarySchema },
+  responses: {
+    200: {
+      description: 'Excel file download',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+    403: { description: 'Director access required' },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/project-officer-summary',
+  summary: 'Report #8 — Project & Officer Summary (Excel) — Director only',
+  tags: ['Reports'],
+  security,
+  request: { query: projectOfficerSummarySchema },
+  responses: {
+    200: {
+      description: 'Excel file download',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+    403: { description: 'Director access required' },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/reports/activity-milestone',
+  summary: 'Report #9 — Activity Milestone Report (Excel)',
+  description:
+    'One row per Activity. Fixed identity columns followed by dynamic Planned/Actual date column pairs for each procurement stage milestone.',
+  tags: ['Reports'],
+  security,
+  request: { query: activityMilestoneSchema },
+  responses: {
+    200: {
+      description: 'Excel file download (.xlsx)',
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'post',
+  path: '/api/reports/import/contracts',
+  summary: 'Import contract report spreadsheet from local disk',
+  tags: ['Reports'],
+  security,
+  request: {
+    body: {
+      content: {
+        'multipart/form-data': {
+          schema: z.object({
+            file: z.string().openapi({ type: 'string', format: 'binary' }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: { description: 'Success response with import counts' },
+    400: { description: 'Import parsing or validation error' },
+  },
+});

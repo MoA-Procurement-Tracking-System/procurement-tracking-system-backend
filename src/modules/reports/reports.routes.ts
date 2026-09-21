@@ -4,6 +4,7 @@ import os from 'os';
 import { reportsController } from './reports.controller.js';
 import { loadSession, requireAuthenticated } from '../auth/auth.routes.js';
 import { excelController } from '../excel/excel.controller.js';
+import './reports.schema.js';
 
 const router = Router();
 const upload = multer({ dest: os.tmpdir() });
@@ -97,12 +98,6 @@ router.get('/activity-milestone', (req, res) =>
 
 // ─── Import Endpoints ─────────────────────────────────────────────────────────
 router.post('/import/contracts', upload.any(), (req, res) =>
-  excelController.importContracts(req, res),
-);
-router.post('/import-contracts', upload.any(), (req, res) =>
-  excelController.importContracts(req, res),
-);
-router.post('/import-report', upload.any(), (req, res) =>
   excelController.importContracts(req, res),
 );
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authorize } from '../../middleware/authorize.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as svc from './lookup.service.js';
 import {
@@ -11,20 +11,6 @@ import {
 
 const router = Router();
 
-/**
- * @swagger
- * /api/lookups:
- *   get:
- *     summary: List lookup values
- *     tags: [Lookups]
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: query
- *         name: type
- *         schema: { type: string }
- *     responses:
- *       200: { description: List of lookup values }
- */
 router.get(
   '/',
   validate(lookupTypeQuerySchema, 'query'),
@@ -39,22 +25,6 @@ router.get(
   },
 );
 
-/**
- * @swagger
- * /api/lookups/{id}:
- *   get:
- *     summary: Get a lookup value by id
- *     tags: [Lookups]
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: Lookup value }
- *       404: { description: Not found }
- */
 router.get(
   '/:id',
   validate(lookupIdParamSchema, 'params'),
@@ -67,30 +37,9 @@ router.get(
   },
 );
 
-/**
- * @swagger
- * /api/lookups:
- *   post:
- *     summary: Create a lookup value
- *     tags: [Lookups]
- *     security: [{ bearerAuth: [] }]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [type, code, label]
- *             properties:
- *               type: { type: string }
- *               code: { type: string }
- *               label: { type: string }
- *     responses:
- *       201: { description: Created }
- *       409: { description: Conflict }
- */
 router.post(
   '/',
+  authenticate,
   authorize('Administrator'),
   validate(createLookupSchema, 'body'),
   async (req, res, next) => {
@@ -105,33 +54,9 @@ router.post(
   },
 );
 
-/**
- * @swagger
- * /api/lookups/{id}:
- *   patch:
- *     summary: Update a lookup value
- *     tags: [Lookups]
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               label: { type: string }
- *               isActive: { type: boolean }
- *     responses:
- *       200: { description: Updated }
- *       404: { description: Not found }
- */
 router.patch(
   '/:id',
+  authenticate,
   authorize('Administrator'),
   validate(lookupIdParamSchema, 'params'),
   validate(updateLookupSchema, 'body'),

@@ -1,7 +1,9 @@
 model Project {
   id                  String        @id @default(uuid())
-  code                String        @unique
+  code                String
+  pNumber             String?       @unique
   name                String
+  description         String?
   sapIdentificationNo String?
   country             String?
   executingAgency     String?
@@ -15,9 +17,12 @@ model Project {
   components          String[]
   subcomponents       String[]
   
+  totalBudget         Float?
   baseCurrency        String?
   projectStartDate    DateTime?
   projectEndDate      DateTime?
+  effectivenessDate   DateTime?
+  closingDate         DateTime?
   
   sectorId            String
   sector              LookupValue   @relation("ProjectSector", fields: [sectorId], references: [id])
@@ -31,6 +36,8 @@ model Project {
   members   UserProject[]
   revisions Revision[]    @relation("RevisionProject")
 
+  @@index([code])
+  @@index([pNumber])
   @@index([isActive])
   @@index([status])
   @@index([fundingSourceId])

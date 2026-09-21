@@ -8,7 +8,7 @@ import {
   replanStageSchema,
 } from './activity.schema.js';
 
-// ─── Activities ───────────────────────────────────────────────────────────────
+// ─── Activities
 
 export const getActivities = async (
   req: Request,
@@ -86,7 +86,7 @@ export const updateActivity = async (
   }
 };
 
-// ─── Stage: Update Planning Dates ─────────────────────────────────────────────
+// ─── Stage: Update Planning Dates
 
 export const updateStage = async (
   req: Request,
@@ -103,6 +103,7 @@ export const updateStage = async (
     const stage = await activityService.updateStageService(
       req.params.stageId as string,
       parsed.data,
+      req.auth?.user?.id,
     );
     res.status(200).json(stage);
   } catch (e) {
@@ -110,7 +111,7 @@ export const updateStage = async (
   }
 };
 
-// ─── Stage: Record Actual Date ─────────────────────────────────────────────────
+// ─── Stage: Record Actual Date
 
 export const updateStageActual = async (
   req: Request,
@@ -127,6 +128,7 @@ export const updateStageActual = async (
     const stage = await activityService.updateStageActualService(
       req.params.stageId as string,
       parsed.data,
+      req.auth?.user?.id,
     );
     res.status(200).json(stage);
   } catch (e) {
@@ -134,7 +136,7 @@ export const updateStageActual = async (
   }
 };
 
-// ─── Stage: Replan ─────────────────────────────────────────────────────────────
+// ─── Stage: Replan
 
 export const replanStage = async (
   req: Request,

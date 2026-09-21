@@ -8,6 +8,7 @@ import type {
   CreateContractDto,
   CreatePaymentDto,
   UpdateContractDto,
+  CreateAmendmentDto,
 } from './contracts.schema.js';
 import { createAuditLog } from '../../shared/audit/audit-logger.js';
 
@@ -71,6 +72,14 @@ export class ContractsService {
         where,
         include: {
           supplier: true,
+          amendments: {
+            orderBy: { amendmentNo: 'asc' },
+            include: {
+              amendedBy: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+          },
           payments: {
             where: { deletedAt: null },
             orderBy: { createdAt: 'asc' },
@@ -263,6 +272,137 @@ export class ContractsService {
     });
 
     return updated;
+  }
+
+  async recordAmendment(
+    contractId: string,
+    data: CreateAmendmentDto,
+    userId?: string,
+  ) {
+    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const contract = await tx.contract.findFirst({
+        where: {
+          OR: [{ id: contractId }, { contractNo: contractId }],
+          deletedAt: null,
+        },
+        include: { amendments: true },
+      });
+
+      if (!contract) {
+        throw new Error('Contract not found');
+      }
+
+      const existingCount = contract.amendments?.length || 0;
+      const amendmentNo = existingCount + 1;
+      const previousValue = Number(
+        contract.contractAmountWithVat || contract.totalValue,
+      );
+      const newValue = previousValue + data.amount;
+
+      if (newValue < Number(contract.paidAmount)) {
+        throw new Error(
+          `Contract value cannot be reduced below the amount already paid (${Number(contract.paidAmount)}).`,
+        );
+      }
+
+      let validUserId = userId;
+      if (validUserId) {
+        const u = await tx.user.findUnique({ where: { id: validUserId } });
+        if (!u) validUserId = undefined;
+      }
+      if (!validUserId) {
+        const fallbackUser = await tx.user.findFirst({ select: { id: true } });
+        validUserId = fallbackUser?.id || '';
+      }
+
+      const amendment = await tx.contractAmendment.create({
+        data: {
+          contractId: contract.id,
+          amendmentNo,
+          previousValue,
+          newValue,
+          reason: data.reason,
+          amendedById: validUserId,
+          createdAt: data.effectiveDate ?? new Date(),
+        },
+        include: {
+          amendedBy: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      });
+
+      const updatedRemaining = newValue - Number(contract.paidAmount);
+
+      const updatedContract = await tx.contract.update({
+        where: { id: contract.id },
+        data: {
+          totalValue: newValue,
+          contractAmountWithVat: newValue,
+          remainingValue: updatedRemaining,
+        },
+        include: {
+          supplier: true,
+          amendments: {
+            orderBy: { amendmentNo: 'asc' },
+            include: {
+              amendedBy: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+          },
+          payments: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+
+      await createAuditLog(
+        {
+          userId: userId ?? null,
+          action: 'CONTRACT_AMENDED',
+          entityType: 'CONTRACT',
+          entityId: contract.id,
+          changes: {
+            contractNo: contract.contractNo,
+            amendmentNo,
+            variationAmount: data.amount,
+            previousValue,
+            newValue,
+            reason: data.reason,
+            newRemainingBalance: updatedRemaining,
+          },
+        },
+        tx,
+      );
+
+      return { amendment, contract: updatedContract };
+    });
+  }
+
+  async getContractAmendments(contractId: string) {
+    const contract = await prisma.contract.findFirst({
+      where: {
+        OR: [{ id: contractId }, { contractNo: contractId }],
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!contract) {
+      throw new Error('Contract not found');
+    }
+
+    return await prisma.contractAmendment.findMany({
+      where: { contractId: contract.id },
+      orderBy: { amendmentNo: 'asc' },
+      include: {
+        amendedBy: {
+          select: { id: true, name: true, email: true },
+        },
+      },
+    });
   }
 
   async getContractPayments(id: string, status?: string) {

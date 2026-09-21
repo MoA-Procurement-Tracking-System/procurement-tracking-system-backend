@@ -12,6 +12,9 @@ import { sendEmail } from '../../services/email.service.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { createNotification } from '../alerts/alerts.service.js';
+import { notifyOfficersOnEntityChange } from '../alerts/officer-notification.helper.js';
+
+import { ApiError } from '../../utils/errors.js';
 
 export interface GetPlansQueryOptions {
   page?: number | undefined;
@@ -55,6 +58,12 @@ export const getPlansService = async (options: GetPlansQueryOptions = {}) => {
           },
         },
         creator: true,
+        parentPlan: {
+          include: {
+            activities: true,
+          },
+        },
+        childPlans: true,
         activities: {
           include: {
             procurementMethod: true,
@@ -151,6 +160,12 @@ export const getPlanByIdService = async (id: string) => {
           },
         },
         creator: true,
+        parentPlan: {
+          include: {
+            activities: true,
+          },
+        },
+        childPlans: true,
         activities: {
           include: {
             procurementMethod: true,
@@ -218,27 +233,79 @@ export const createPlanService = async (
   userId: string,
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // 1. Resolve projectId by ID or code
+    // 1. Resolve projectId by ID, code, pNumber, or name
     let resolvedProjectId = data.projectId;
     const project = await tx.project.findFirst({
       where: {
-        OR: [{ id: resolvedProjectId }, { code: resolvedProjectId }],
+        OR: [
+          { id: resolvedProjectId },
+          { code: resolvedProjectId },
+          { pNumber: resolvedProjectId },
+          { name: resolvedProjectId },
+        ],
       },
     });
     if (project) {
       resolvedProjectId = project.id;
+    } else {
+      throw ApiError.badRequest(
+        `Project not found with identifier: "${resolvedProjectId}". Please select a valid existing project.`,
+      );
+    }
+
+    // Validate plan period dates vs project start & end dates
+    const planStart = new Date(data.periodStart as string | Date);
+    const planEnd = new Date(data.periodEnd as string | Date);
+
+    if (planEnd < planStart) {
+      throw ApiError.badRequest(
+        'Plan period end date cannot be earlier than period start date.',
+      );
+    }
+
+    const projStart = project.projectStartDate || project.effectivenessDate;
+    if (projStart && planStart < projStart) {
+      const projStartStr = projStart.toISOString().split('T')[0];
+      const planStartStr = planStart.toISOString().split('T')[0];
+      throw ApiError.badRequest(
+        `Plan period start date (${planStartStr}) cannot be earlier than the project start date (${projStartStr}).`,
+      );
+    }
+
+    const projEnd = project.projectEndDate || project.closingDate;
+    if (projEnd && planEnd > projEnd) {
+      const projEndStr = projEnd.toISOString().split('T')[0];
+      const planEndStr = planEnd.toISOString().split('T')[0];
+      throw ApiError.badRequest(
+        `Plan period end date (${planEndStr}) cannot be later than the project end date (${projEndStr}).`,
+      );
     }
 
     // 2. Resolve creator user
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) {
-      throw new Error(`Authenticated user not found with id: ${userId}`);
+      throw ApiError.unauthorized(`Authenticated user not found with id: ${userId}`);
     }
     const validUserId = user.id;
+
+    // 3. Sanitize optional parentPlanId (convert empty string to null)
+    const rawParentId = (data as { parentPlanId?: unknown }).parentPlanId;
+    const parentPlanId =
+      typeof rawParentId === 'string' && rawParentId.trim() !== ''
+        ? rawParentId.trim()
+        : null;
+
+    if (parentPlanId) {
+      const parentPlan = await tx.plan.findUnique({ where: { id: parentPlanId } });
+      if (!parentPlan) {
+        throw ApiError.badRequest(`Parent plan not found with id: "${parentPlanId}".`);
+      }
+    }
 
     const plan = await tx.plan.create({
       data: {
         ...data,
+        parentPlanId,
         projectId: resolvedProjectId,
         status: PlanStatus.DRAFT,
         createdBy: validUserId,
@@ -276,55 +343,114 @@ export const updatePlanService = async (
   data: Prisma.PlanUpdateInput,
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan =
-      (await tx.plan.findUnique({
-        where: { id },
-        include: { activities: true, committeeVotes: true },
-      })) ||
-      (await tx.plan.findFirst({
-        where: { title: id },
-        include: { activities: true, committeeVotes: true },
-      }));
-    if (!oldPlan) {
-      throw new Error(`Plan not found with id: ${id}`);
-    }
-
-    const user = await tx.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error(`Authenticated user not found with id: ${userId}`);
-    }
-    const validUserId = user.id;
-
-    const plan = await tx.plan.update({
-      where: { id: oldPlan.id },
-      data,
-      include: {
-        project: true,
-        creator: true,
-        activities: true,
-        committeeVotes: true,
-      },
-    });
-
-    try {
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PLAN,
-          RevisionChangeType.UPDATE,
-          oldPlan.id,
-          validUserId,
-          oldPlan,
-          plan,
-        );
+  const { plan, user } = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, committeeVotes: true, project: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, committeeVotes: true, project: true },
+        }));
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
       }
-    } catch (auditErr) {
-      console.warn('logRevision update plan warning:', auditErr);
-    }
 
-    return plan;
-  });
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new Error(`Authenticated user not found with id: ${userId}`);
+      }
+      const validUserId = user.id;
+
+      if (data.periodStart !== undefined || data.periodEnd !== undefined) {
+        const targetStart =
+          data.periodStart !== undefined
+            ? new Date(data.periodStart as string | Date)
+            : oldPlan.periodStart;
+        const targetEnd =
+          data.periodEnd !== undefined
+            ? new Date(data.periodEnd as string | Date)
+            : oldPlan.periodEnd;
+
+        if (targetStart && targetEnd && targetEnd < targetStart) {
+          throw ApiError.badRequest(
+            'Plan period end date cannot be earlier than period start date.',
+          );
+        }
+
+        if (oldPlan.project) {
+          const projStart =
+            oldPlan.project.projectStartDate ||
+            oldPlan.project.effectivenessDate;
+          if (projStart && targetStart && targetStart < projStart) {
+            const projStartStr = projStart.toISOString().split('T')[0];
+            const planStartStr = targetStart.toISOString().split('T')[0];
+            throw ApiError.badRequest(
+              `Plan period start date (${planStartStr}) cannot be earlier than the project start date (${projStartStr}).`,
+            );
+          }
+
+          const projEnd =
+            oldPlan.project.projectEndDate || oldPlan.project.closingDate;
+          if (projEnd && targetEnd && targetEnd > projEnd) {
+            const projEndStr = projEnd.toISOString().split('T')[0];
+            const planEndStr = targetEnd.toISOString().split('T')[0];
+            throw ApiError.badRequest(
+              `Plan period end date (${planEndStr}) cannot be later than the project end date (${projEndStr}).`,
+            );
+          }
+        }
+      }
+
+      const plan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data,
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (validUserId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.UPDATE,
+            oldPlan.id,
+            validUserId,
+            oldPlan,
+            plan,
+          );
+        }
+      } catch (auditErr) {
+        console.warn('logRevision update plan warning:', auditErr);
+      }
+
+      return { plan, user };
+    },
+  );
+
+  if (user?.authRole === UserRole.DIRECTOR) {
+    const directorName = user.displayName || user.name || 'Director';
+    notifyOfficersOnEntityChange({
+      planId: plan.id,
+      projectId: plan.projectId,
+      creatorId: plan.createdBy,
+      actorUserId: user.id,
+      title: `Plan Modified by Director: ${plan.title}`,
+      message: `Director ${directorName} made changes to procurement plan "${plan.title}".`,
+      type: 'PLAN_REVIEW',
+      severity: 'INFO',
+      link: '/workspace/plan-management',
+    }).catch(() => {});
+  }
+
+  return plan;
 };
 
 export const submitPlanService = async (id: string, userId: string) => {
@@ -341,6 +467,17 @@ export const submitPlanService = async (id: string, userId: string) => {
         }));
       if (!oldPlan) {
         throw new Error(`Plan not found with id: ${id}`);
+      }
+
+      const submittableStatuses: PlanStatus[] = [
+        PlanStatus.DRAFT,
+        PlanStatus.RETURNED_FOR_REVISION,
+        PlanStatus.REJECTED,
+      ];
+      if (!submittableStatuses.includes(oldPlan.status)) {
+        throw new Error(
+          `Plan cannot be submitted because its current status is ${oldPlan.status}. Only plans in DRAFT, RETURNED_FOR_REVISION, or REJECTED status can be submitted.`,
+        );
       }
 
       const user = await tx.user.findUnique({ where: { id: userId } });
@@ -556,61 +693,155 @@ export const rejectPlanService = async (
   reason: string,
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan =
-      (await tx.plan.findUnique({
-        where: { id },
-        include: { activities: true, committeeVotes: true },
-      })) ||
-      (await tx.plan.findFirst({
-        where: { title: id },
-        include: { activities: true, committeeVotes: true },
-      }));
-    if (!oldPlan) {
-      throw new Error(`Plan not found with id: ${id}`);
-    }
-
-    const user = await tx.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error(`Authenticated user not found with id: ${userId}`);
-    }
-    const validUserId = user.id;
-
-    const plan = await tx.plan.update({
-      where: { id: oldPlan.id },
-      data: {
-        status: PlanStatus.REJECTED,
-        rejectedById: validUserId,
-        rejectionReason: reason,
-        rejectedAt: new Date(),
-      },
-      include: {
-        project: true,
-        creator: true,
-        activities: true,
-        committeeVotes: true,
-      },
-    });
-
-    try {
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PLAN,
-          RevisionChangeType.REJECT,
-          oldPlan.id,
-          validUserId,
-          oldPlan,
-          plan,
-        );
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, committeeVotes: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, committeeVotes: true },
+        }));
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
       }
-    } catch (auditErr) {
-      console.warn('logRevision rejectPlan warning:', auditErr);
-    }
 
-    return plan;
-  });
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new Error(`Authenticated user not found with id: ${userId}`);
+      }
+      const validUserId = user.id;
+
+      const plan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: {
+          status: PlanStatus.REJECTED,
+          rejectedById: validUserId,
+          rejectionReason: reason,
+          rejectedAt: new Date(),
+        },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (validUserId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.REJECT,
+            oldPlan.id,
+            validUserId,
+            oldPlan,
+            plan,
+          );
+        }
+      } catch (auditErr) {
+        console.warn('logRevision rejectPlan warning:', auditErr);
+      }
+
+      return plan;
+    },
+  );
+
+  notifyOfficersOnEntityChange({
+    planId: plan.id,
+    projectId: plan.projectId,
+    creatorId: plan.createdBy,
+    actorUserId: userId,
+    title: `Plan Rejected: ${plan.title}`,
+    message: `Director rejected plan "${plan.title}". Reason: ${reason}`,
+    type: 'DECISION',
+    severity: 'HIGH',
+    link: '/workspace/plan-management',
+  }).catch(() => {});
+
+  return plan;
 };
+
+export const returnToOfficerService = async (
+  id: string,
+  reason: string,
+  userId: string,
+) => {
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, committeeVotes: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, committeeVotes: true },
+        }));
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
+      }
+
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new Error(`Authenticated user not found with id: ${userId}`);
+      }
+      const validUserId = user.id;
+
+      const plan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: {
+          status: PlanStatus.RETURNED_FOR_REVISION,
+          directorRevisionComment: reason,
+          rejectedById: validUserId,
+          rejectedAt: new Date(),
+        },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (validUserId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.UPDATE,
+            oldPlan.id,
+            validUserId,
+            oldPlan,
+            plan,
+          );
+        }
+      } catch (auditErr) {
+        console.warn('logRevision returnToOfficer warning:', auditErr);
+      }
+
+      return plan;
+    },
+  );
+
+  notifyOfficersOnEntityChange({
+    planId: plan.id,
+    projectId: plan.projectId,
+    creatorId: plan.createdBy,
+    actorUserId: userId,
+    title: `Plan Returned for Revision: ${plan.title}`,
+    message: `Director returned plan "${plan.title}" for revision with comments: "${reason}"`,
+    type: 'DECISION',
+    severity: 'HIGH',
+    link: '/workspace/plan-management',
+  }).catch(() => {});
+
+  return plan;
+};
+
 
 export const submitCommitteeVoteService = async (
   id: string,
@@ -631,6 +862,12 @@ export const submitCommitteeVoteService = async (
         }));
       if (!oldPlan) {
         throw new Error(`Plan not found with id: ${id}`);
+      }
+
+      if (oldPlan.status !== PlanStatus.WITH_COMMITTEE) {
+        throw new Error(
+          `Voting is closed for this round because the plan is currently ${oldPlan.status}.`,
+        );
       }
 
       const user = await tx.user.findUnique({
@@ -681,7 +918,7 @@ export const submitCommitteeVoteService = async (
         plan = await tx.plan.update({
           where: { id: oldPlan.id },
           data: {
-            status: PlanStatus.APPROVED,
+            status: PlanStatus.AWAITING_MANAGEMENT_APPROVAL,
             approvedById: validUserId,
             approvedAt: new Date(),
           },
@@ -860,20 +1097,21 @@ export const submitCommitteeVoteService = async (
       );
     }
 
-    if (plan.creator?.id) {
-      createNotification({
-        userId: plan.creator.id,
-        title: isApproved
-          ? `Plan Approved: ${plan.title}`
-          : `Plan Rejected: ${plan.title}`,
-        message: isApproved
-          ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee.`
-          : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee.`,
-        type: 'DECISION',
-        severity: isApproved ? 'INFO' : 'HIGH',
-        link: '/workspace/plan-management',
-      }).catch(() => {});
-    }
+    notifyOfficersOnEntityChange({
+      planId: plan.id,
+      projectId: plan.projectId,
+      creatorId: plan.creator?.id || plan.createdBy,
+      actorUserId: userId,
+      title: isApproved
+        ? `Plan Approved: ${plan.title}`
+        : `Plan Rejected: ${plan.title}`,
+      message: isApproved
+        ? `Procurement plan "${plan.title}" has been approved by the Endorsement Committee.`
+        : `Procurement plan "${plan.title}" was rejected by the Endorsement Committee.`,
+      type: 'DECISION',
+      severity: isApproved ? 'INFO' : 'HIGH',
+      link: '/workspace/plan-management',
+    }).catch(() => {});
 
     createNotification({
       targetRole: 'DIRECTOR',
@@ -977,68 +1215,187 @@ export const requestPlanUpdateService = async (id: string, userId: string) => {
     },
   );
 
-  if (plan.creator?.id) {
-    createNotification({
-      userId: plan.creator.id,
-      title: `Revision Requested: ${plan.title}`,
-      message: `Director has requested updates on procurement plan "${plan.title}".`,
-      type: 'DECISION',
-      severity: 'HIGH',
-      link: '/workspace/plan-management',
-    }).catch(() => {});
-  }
+  const commentMsg = plan.directorRevisionComment
+    ? ` Comment: ${plan.directorRevisionComment}`
+    : '';
+  notifyOfficersOnEntityChange({
+    planId: plan.id,
+    projectId: plan.projectId,
+    creatorId: plan.creator?.id || plan.createdBy,
+    actorUserId: userId,
+    title: `Revision Requested: ${plan.title}`,
+    message: `Director has requested updates on procurement plan "${plan.title}".${commentMsg}`,
+    type: 'DECISION',
+    severity: 'HIGH',
+    link: '/workspace/plan-management',
+  }).catch(() => {});
 
   return plan;
 };
 
 export const approvePlanUpdateService = async (id: string, userId: string) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const oldPlan =
-      (await tx.plan.findUnique({
-        where: { id },
-        include: { activities: true, committeeVotes: true },
-      })) ||
-      (await tx.plan.findFirst({
-        where: { title: id },
-        include: { activities: true, committeeVotes: true },
-      }));
-    if (!oldPlan) {
-      throw new Error(`Plan not found with id: ${id}`);
-    }
-
-    const user = await tx.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error(`Authenticated user not found with id: ${userId}`);
-    }
-    const validUserId = user.id;
-
-    const plan = await tx.plan.update({
-      where: { id: oldPlan.id },
-      data: { status: PlanStatus.DRAFT },
-      include: {
-        project: true,
-        creator: true,
-        activities: true,
-        committeeVotes: true,
-      },
-    });
-
-    try {
-      if (validUserId) {
-        await logRevision(
-          tx,
-          RevisionEntityType.PLAN,
-          RevisionChangeType.UPDATE,
-          oldPlan.id,
-          validUserId,
-          oldPlan,
-          plan,
-        );
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, committeeVotes: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, committeeVotes: true },
+        }));
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
       }
-    } catch (auditErr) {
-      console.warn('logRevision approvePlanUpdate warning:', auditErr);
-    }
 
-    return plan;
-  });
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new Error(`Authenticated user not found with id: ${userId}`);
+      }
+      const validUserId = user.id;
+
+      const plan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: { status: PlanStatus.DRAFT },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (validUserId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.UPDATE,
+            oldPlan.id,
+            validUserId,
+            oldPlan,
+            plan,
+          );
+        }
+      } catch (auditErr) {
+        console.warn('logRevision approvePlanUpdate warning:', auditErr);
+      }
+
+      return plan;
+    },
+  );
+
+  notifyOfficersOnEntityChange({
+    planId: plan.id,
+    projectId: plan.projectId,
+    creatorId: plan.createdBy,
+    actorUserId: userId,
+    title: `Plan Revision Approved: ${plan.title}`,
+    message: `Director approved reopening plan "${plan.title}" for updates.`,
+    type: 'PLAN_REVIEW',
+    severity: 'INFO',
+    link: '/workspace/plan-management',
+  }).catch(() => {});
+
+  return plan;
+};
+
+export const submitManagementDecisionService = async (
+  id: string,
+  decision: 'APPROVE' | 'REJECT',
+  comment?: string,
+  userId?: string,
+) => {
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, committeeVotes: true, creator: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, committeeVotes: true, creator: true },
+        }));
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
+      }
+
+      const isApproved = decision === 'APPROVE';
+      const updatedPlan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: {
+          status: isApproved
+            ? PlanStatus.APPROVED
+            : PlanStatus.MANAGEMENT_REJECTED,
+          managementDecision: decision,
+          managementComment: comment || null,
+          managementById: userId || null,
+          managementAt: new Date(),
+          ...(isApproved
+            ? { approvedById: userId || null, approvedAt: new Date() }
+            : { rejectedById: userId || null, rejectedAt: new Date() }),
+        },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (userId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            isApproved ? RevisionChangeType.APPROVE : RevisionChangeType.REJECT,
+            oldPlan.id,
+            userId,
+            oldPlan,
+            updatedPlan,
+          );
+        }
+      } catch (auditErr) {
+        console.warn('logRevision managementDecision warning:', auditErr);
+      }
+
+      return updatedPlan;
+    },
+  );
+
+  createNotification({
+    targetRole: 'DIRECTOR',
+    title:
+      decision === 'APPROVE'
+        ? `Plan Authorized: ${plan.title}`
+        : `Plan Rejected by Management: ${plan.title}`,
+    message:
+      decision === 'APPROVE'
+        ? `Executive Management has authorized and finally approved plan "${plan.title}".`
+        : `Executive Management has rejected plan "${plan.title}".`,
+    type: 'DECISION',
+    severity: decision === 'APPROVE' ? 'INFO' : 'HIGH',
+    link: '/workspace/plan-for-review',
+  }).catch(() => {});
+
+  if (plan.creator?.id) {
+    createNotification({
+      userId: plan.creator.id,
+      title:
+        decision === 'APPROVE'
+          ? `Plan Finally Approved: ${plan.title}`
+          : `Plan Rejected by Management: ${plan.title}`,
+      message:
+        decision === 'APPROVE'
+          ? `Your procurement plan "${plan.title}" has been authorized by Executive Management and is now Finally Approved.`
+          : `Executive Management has returned plan "${plan.title}".`,
+      type: 'DECISION',
+      severity: decision === 'APPROVE' ? 'INFO' : 'HIGH',
+      link: '/workspace/plan-management',
+    }).catch(() => {});
+  }
+
+  return plan;
 };

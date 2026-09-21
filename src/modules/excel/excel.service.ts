@@ -1597,13 +1597,13 @@ export class ExcelService {
           status: projectStatus,
         };
 
-        const existing = await prisma.project.findUnique({
+        const existing = await prisma.project.findFirst({
           where: { code },
         });
 
         if (existing) {
           await prisma.project.update({
-            where: { code },
+            where: { id: existing.id },
             data,
           });
           updated++;
@@ -1751,12 +1751,30 @@ export class ExcelService {
       }
 
       const p = (async () => {
-        const project = await prisma.project.findUnique({
+        const project = await prisma.project.findFirst({
           where: { code: projectCode },
         });
         if (!project) {
           throw new Error(
             `Project Code '${projectCode}' not found at row ${rowNumber}.`,
+          );
+        }
+
+        const projStart = project.projectStartDate || project.effectivenessDate;
+        if (projStart && periodStart < projStart) {
+          const projStartStr = projStart.toISOString().split('T')[0];
+          const planStartStr = periodStart.toISOString().split('T')[0];
+          throw new Error(
+            `Row ${rowNumber}: Plan period start date (${planStartStr}) cannot be earlier than project start date (${projStartStr}).`,
+          );
+        }
+
+        const projEnd = project.projectEndDate || project.closingDate;
+        if (projEnd && periodEnd > projEnd) {
+          const projEndStr = projEnd.toISOString().split('T')[0];
+          const planEndStr = periodEnd.toISOString().split('T')[0];
+          throw new Error(
+            `Row ${rowNumber}: Plan period end date (${planEndStr}) cannot be later than project end date (${projEndStr}).`,
           );
         }
 

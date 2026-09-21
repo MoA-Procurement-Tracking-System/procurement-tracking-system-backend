@@ -35,6 +35,18 @@ describe('Plan Zod Validation Schemas', () => {
     expect(parsed.success).toBe(false);
   });
 
+  it('rejects create plan payload when periodEnd is earlier than periodStart', () => {
+    const invalidData = {
+      projectId: 'proj-123',
+      title: 'FY2026 Seed Procurement',
+      periodStart: '2026-12-31',
+      periodEnd: '2026-01-01',
+    };
+
+    const parsed = createPlanSchema.safeParse(invalidData);
+    expect(parsed.success).toBe(false);
+  });
+
   it('validates plan rejection payload', () => {
     const valid = rejectPlanSchema.safeParse({
       reason: 'Insufficient budget justification',

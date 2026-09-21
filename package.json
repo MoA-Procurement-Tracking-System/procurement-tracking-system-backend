@@ -41,6 +41,7 @@
   },
   "homepage": "https://github.com/MoA-Procurement-Tracking-System/procurement-tracking-system-backend#readme",
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@types/bcryptjs": "^2.4.6",

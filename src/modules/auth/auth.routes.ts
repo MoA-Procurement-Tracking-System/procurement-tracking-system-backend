@@ -24,10 +24,12 @@ import {
   verifyPassword,
 } from './auth.security.js';
 import {
+  isBrevoConfigured,
   isMailerSendConfigured,
   isSmtpConfigured,
   sendEmail,
 } from '../../services/email.service.js';
+import './auth.validation.js';
 
 const INVALID_LOGIN_MESSAGE = 'Unable to sign in with those credentials.';
 const GENERIC_RESET_MESSAGE =
@@ -303,7 +305,7 @@ async function deliverUserInvitation(values: {
     'If you were not expecting this invitation, you can ignore this email.',
   ].join('\n');
 
-  if (isSmtpConfigured() || isMailerSendConfigured()) {
+  if (isSmtpConfigured() || isMailerSendConfigured() || isBrevoConfigured()) {
     await sendEmail({
       to: values.email,
       subject:
@@ -323,7 +325,7 @@ async function deliverUserInvitation(values: {
   }
 
   throw new Error(
-    'An email provider (Gmail SMTP or MailerSend) is required to deliver invitations in production',
+    'An email provider (Gmail SMTP, Brevo, or MailerSend) is required to deliver invitations in production',
   );
 }
 
@@ -439,29 +441,6 @@ function requireRole(role: UserRole): RequestHandler {
 
 export const authRouter = Router();
 
-/**
- * @swagger
- * /api/auth/login:
- *   post:
- *     summary: Login to the system
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [identifier, password]
- *             properties:
- *               identifier: { type: string }
- *               password: { type: string }
- *               rememberMe: { type: boolean }
- *     responses:
- *       200:
- *         description: Login successful
- *       401:
- *         description: Unauthorized
- */
 authRouter.post('/login', async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -551,18 +530,6 @@ authRouter.post('/login', async (req, res) => {
   });
 });
 
-/**
- * @swagger
- * /api/auth/session:
- *   get:
- *     summary: Get current session details
- *     tags: [Auth]
- *     responses:
- *       200:
- *         description: Session active
- *       401:
- *         description: Unauthorized
- */
 authRouter.get('/session', loadSession, (req, res) => {
   const auth = req.auth!;
   res.json({
@@ -575,29 +542,6 @@ authRouter.get('/session', loadSession, (req, res) => {
   });
 });
 
-/**
- * @swagger
- * /api/auth/change-password:
- *   post:
- *     summary: Change user password
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [currentPassword, newPassword, confirmPassword]
- *             properties:
- *               currentPassword: { type: string }
- *               newPassword: { type: string }
- *               confirmPassword: { type: string }
- *     responses:
- *       200:
- *         description: Password changed
- *       400:
- *         description: Bad request
- */
 authRouter.post('/change-password', loadSession, async (req, res) => {
   const parsed = changePasswordSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -669,16 +613,6 @@ authRouter.post('/change-password', loadSession, async (req, res) => {
   res.json({ status: 'AUTHENTICATED', user: publicUser(auth.user), expiresAt });
 });
 
-/**
- * @swagger
- * /api/auth/logout:
- *   post:
- *     summary: Logout of the system
- *     tags: [Auth]
- *     responses:
- *       204:
- *         description: Logged out successfully
- */
 authRouter.post('/logout', async (req, res) => {
   const raw = cookieValue(req.headers.cookie, env.SESSION_COOKIE_NAME);
   if (raw) {
@@ -697,25 +631,6 @@ authRouter.post('/logout', async (req, res) => {
   res.status(204).send();
 });
 
-/**
- * @swagger
- * /api/auth/forgot-password:
- *   post:
- *     summary: Request a password reset email
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [email]
- *             properties:
- *               email: { type: string }
- *     responses:
- *       200:
- *         description: Reset link sent
- */
 authRouter.post('/forgot-password', async (req, res) => {
   const parsed = forgotPasswordSchema.safeParse(req.body);
   const email = parsed.success ? parsed.data.email.toLowerCase() : '';
@@ -759,20 +674,69 @@ authRouter.post('/forgot-password', async (req, res) => {
     }
     */
 
-    if (isMailerSendConfigured()) {
+    if (isSmtpConfigured() || isMailerSendConfigured() || isBrevoConfigured()) {
       try {
+        const textContent = [
+          'A password reset was requested for your MoA Procurement Tracking System account.',
+          '',
+          'Reset your password using this secure link:',
+          resetUrl,
+          '',
+          `This link expires in ${env.PASSWORD_RESET_MINUTES} minutes.`,
+          'If you did not request a password reset, you can ignore this email.',
+        ].join('\n');
+
+        const htmlContent = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #0f172a; background-color: #f8fafc; margin: 0; padding: 20px; }
+                .container { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+                .header { background: #04382c; color: #ffffff; padding: 32px 24px; text-align: center; }
+                .header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+                .header p { margin: 6px 0 0 0; opacity: 0.85; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+                .body { padding: 32px 24px; }
+                .cta-btn { display: inline-block; background: #04382c; color: #ffffff !important; font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 9999px; font-size: 14px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .footer { background: #f8fafc; padding: 20px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+                .link-box { font-size: 12px; word-break: break-all; color: #047857; background: #f1f5f9; padding: 12px; border-radius: 8px; font-family: monospace; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>Ministry of Agriculture</h1>
+                  <p>Procurement Tracking System (PTS)</p>
+                </div>
+                <div class="body">
+                  <h2 style="margin-top:0; color:#0f172a; font-size:18px;">Password Reset Request</h2>
+                  <p>Hello <strong>${user.displayName || 'User'}</strong>,</p>
+                  <p>A password reset was requested for your <strong>MoA Procurement Tracking System</strong> account.</p>
+                  <p>To reset your password, click the button below:</p>
+                  <div style="text-align: center;">
+                    <a href="${resetUrl}" class="cta-btn">Reset Password</a>
+                  </div>
+                  <p style="font-size: 13px; color: #64748b;">Or copy and paste this link into your web browser:</p>
+                  <div class="link-box">${resetUrl}</div>
+                  <p style="font-size: 13px; color: #dc2626; font-weight: 600; margin-top: 20px;">
+                    ⚠️ Note: This link expires in ${env.PASSWORD_RESET_MINUTES} minutes.
+                  </p>
+                </div>
+                <div class="footer">
+                  <p>If you did not request a password reset, you can safely ignore this email.</p>
+                  <p>&copy; ${new Date().getFullYear()} Ministry of Agriculture. All rights reserved.</p>
+                </div>
+              </div>
+            </body>
+          </html>
+        `;
+
         await sendEmail({
           to: user.email,
           subject: 'Reset your MoA Procurement Tracking System password',
-          text: [
-            'A password reset was requested for your MoA Procurement Tracking System account.',
-            '',
-            'Reset your password using this secure link:',
-            resetUrl,
-            '',
-            `This link expires in ${env.PASSWORD_RESET_MINUTES} minutes.`,
-            'If you did not request a password reset, you can ignore this email.',
-          ].join('\n'),
+          text: textContent,
+          html: htmlContent,
         });
       } catch (error) {
         logger.error(
@@ -787,7 +751,7 @@ authRouter.post('/forgot-password', async (req, res) => {
       );
     } else {
       logger.error(
-        'MailerSend email delivery is required to deliver reset links in production',
+        'An email provider (Gmail SMTP, Brevo, or MailerSend) is required to deliver reset links in production',
       );
     }
     await audit('PASSWORD_RESET_REQUESTED', true, req, {
@@ -802,29 +766,6 @@ authRouter.post('/forgot-password', async (req, res) => {
   res.json({ message: GENERIC_RESET_MESSAGE });
 });
 
-/**
- * @swagger
- * /api/auth/create-password:
- *   post:
- *     summary: Create password from an invitation token
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [token, newPassword, confirmPassword]
- *             properties:
- *               token: { type: string }
- *               newPassword: { type: string }
- *               confirmPassword: { type: string }
- *     responses:
- *       200:
- *         description: Password created
- *       400:
- *         description: Invalid token
- */
 authRouter.post('/create-password', async (req, res) => {
   const parsed = createPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -918,29 +859,6 @@ authRouter.post('/create-password', async (req, res) => {
   res.json({ message: 'Password created. You can now sign in.' });
 });
 
-/**
- * @swagger
- * /api/auth/reset-password:
- *   post:
- *     summary: Reset password using a reset token
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [token, newPassword, confirmPassword]
- *             properties:
- *               token: { type: string }
- *               newPassword: { type: string }
- *               confirmPassword: { type: string }
- *     responses:
- *       200:
- *         description: Password reset
- *       400:
- *         description: Invalid token
- */
 authRouter.post('/reset-password', async (req, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1006,32 +924,7 @@ authRouter.post('/reset-password', async (req, res) => {
 
 export const adminRouter = Router();
 adminRouter.use(loadSession, requireAuthenticated, requireRole(UserRole.ADMIN));
-/**
- * @swagger
- * /api/admin/users:
- *   post:
- *     summary: Create a new user with a temporary password
- *     tags: [Admin]
- *     security: [{ bearerAuth: [] }]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [email, displayName, role]
- *             properties:
- *               email: { type: string }
- *               displayName: { type: string }
- *               role:
- *                 type: string
- *                 enum: [OFFICER, DIRECTOR, ENDORSING_COMMITTEE, MANAGEMENT_TEAM, ADMIN]
- *     responses:
- *       201:
- *         description: User created successfully
- *       400:
- *         description: Bad request
- */
+
 adminRouter.post('/users', async (req, res) => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1130,6 +1023,7 @@ adminRouter.post('/users', async (req, res) => {
 
 export const protectedRouter = Router();
 protectedRouter.use(loadSession, requireAuthenticated);
+
 protectedRouter.get('/me', (req, res) => {
   res.json({ user: publicUser(req.auth!.user) });
 });
@@ -1151,5 +1045,7 @@ export const authErrorHandler = (
     return;
   }
   logger.error({ error }, 'Unhandled API error');
-  res.status(500).json({ message: 'The request could not be completed.' });
+  const message =
+    error instanceof Error ? error.message : 'The request could not be completed.';
+  res.status(500).json({ message });
 };

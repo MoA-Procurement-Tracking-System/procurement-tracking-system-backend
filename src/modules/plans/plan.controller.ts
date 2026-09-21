@@ -171,9 +171,37 @@ export const rejectPlan = async (
     if (!req.user?.id) {
       return next(ApiError.unauthorized('Authentication required'));
     }
+    const reason =
+      req.body.reason?.trim() ||
+      req.body.comment?.trim() ||
+      'No reason provided';
     const plan = await planService.rejectPlanService(
       req.params.id as string,
-      req.body.reason || 'No reason provided',
+      reason,
+      req.user.id,
+    );
+    res.status(200).json(plan);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const returnToOfficer = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user?.id) {
+      return next(ApiError.unauthorized('Authentication required'));
+    }
+    const reason =
+      req.body.comment?.trim() ||
+      req.body.reason?.trim() ||
+      'Returned to officer for revision';
+    const plan = await planService.returnToOfficerService(
+      req.params.id as string,
+      reason,
       req.user.id,
     );
     res.status(200).json(plan);
@@ -198,6 +226,28 @@ export const submitCommitteeVote = async (
       req.body.decision,
       req.body.comment || '',
       voterId,
+    );
+    res.status(200).json(plan);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const submitManagementDecision = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user?.id) {
+      return next(ApiError.unauthorized('Authentication required'));
+    }
+    const { decision, comment } = req.body;
+    const plan = await planService.submitManagementDecisionService(
+      req.params.id as string,
+      decision,
+      comment,
+      req.user.id,
     );
     res.status(200).json(plan);
   } catch (error) {

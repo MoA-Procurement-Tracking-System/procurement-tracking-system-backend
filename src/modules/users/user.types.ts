@@ -34,7 +34,6 @@ export interface ListUsersQuery {
   isActive?: boolean;
 }
 
-// Never includes passwordHash — this is the shape returned by every endpoint
 export interface SafeUser {
   id: string;
   name: string;

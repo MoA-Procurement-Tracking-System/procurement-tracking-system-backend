@@ -3,9 +3,11 @@ import {
   ProjectStatus,
   RevisionEntityType,
   RevisionChangeType,
+  UserRole,
 } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
+import { notifyOfficersOnEntityChange } from '../alerts/officer-notification.helper.js';
 
 export interface GetProjectsQueryOptions {
   page?: number | undefined;
@@ -135,44 +137,62 @@ export const updateProjectService = async (
   data: Prisma.ProjectUpdateInput,
   userId: string,
 ) => {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const userExists = await tx.user.findUnique({ where: { id: userId } });
-    if (!userExists) {
-      throw new Error(`Authenticated user not found with id: ${userId}`);
-    }
+  const { project, userExists } = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const userExists = await tx.user.findUnique({ where: { id: userId } });
+      if (!userExists) {
+        throw new Error(`Authenticated user not found with id: ${userId}`);
+      }
 
-    const oldProject = await tx.project.findUniqueOrThrow({ where: { id } });
+      const oldProject = await tx.project.findUniqueOrThrow({ where: { id } });
 
-    const project = await tx.project.update({
-      where: { id },
-      data,
-      include: {
-        fundingSource: true,
-        sector: true,
-        members: {
-          include: {
-            user: true,
+      const project = await tx.project.update({
+        where: { id },
+        data,
+        include: {
+          fundingSource: true,
+          sector: true,
+          members: {
+            include: {
+              user: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    try {
-      await logRevision(
-        tx,
-        RevisionEntityType.PROJECT,
-        RevisionChangeType.UPDATE,
-        id,
-        userExists.id,
-        oldProject,
-        project,
-      );
-    } catch (auditErr) {
-      console.warn('logRevision warning:', auditErr);
-    }
+      try {
+        await logRevision(
+          tx,
+          RevisionEntityType.PROJECT,
+          RevisionChangeType.UPDATE,
+          id,
+          userExists.id,
+          oldProject,
+          project,
+        );
+      } catch (auditErr) {
+        console.warn('logRevision warning:', auditErr);
+      }
 
-    return project;
-  });
+      return { project, userExists };
+    },
+  );
+
+  if (userExists?.authRole === UserRole.DIRECTOR) {
+    const directorName =
+      userExists.displayName || userExists.name || 'Director';
+    notifyOfficersOnEntityChange({
+      projectId: project.id,
+      actorUserId: userExists.id,
+      title: `Project Modified by Director: ${project.name}`,
+      message: `Director ${directorName} made changes to project "${project.name}" (${project.code}).`,
+      type: 'SYSTEM',
+      severity: 'INFO',
+      link: '/workspace/projects',
+    }).catch(() => {});
+  }
+
+  return project;
 };
 
 export const assignOfficerService = async (

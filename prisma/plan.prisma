@@ -39,6 +39,12 @@ model Plan {
   managementAt            DateTime?
   directorRevisionComment String?
 
+  parentPlanId            String?
+  parentPlan              Plan?               @relation("PlanHierarchy", fields: [parentPlanId], references: [id])
+  childPlans              Plan[]              @relation("PlanHierarchy")
+  planType                String?             @default("ANNUAL")
+  additionalPlanReason    String?
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -56,6 +62,7 @@ model Plan {
   @@index([approvedById])
   @@index([rejectedById])
   @@index([managementById])
+  @@index([parentPlanId])
 }
 
 model PlanReview {

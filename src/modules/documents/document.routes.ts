@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { authenticate, requirePasswordChange } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import {
@@ -12,6 +12,10 @@ import {
   resolveStoragePath,
 } from './document.service.js';
 import { ApiError } from '../../utils/errors.js';
+import {
+  uploadBodySchema,
+  listDocumentsQuerySchema,
+} from './document.schema.js';
 
 const UPLOAD_DIR = path.resolve('uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -64,41 +68,6 @@ const upload = multer({
 const router = Router();
 router.use(authenticate, requirePasswordChange);
 
-const uploadBodySchema = z.object({
-  entityType: z.string().trim().min(1),
-  entityId: z.string().trim().min(1),
-  title: z.string().trim().min(1),
-  type: z.string().trim().min(1),
-});
-
-const listQuerySchema = z.object({
-  entityType: z.string().trim().min(1),
-  entityId: z.string().trim().min(1),
-});
-
-/**
- * @swagger
- * /api/documents:
- *   post:
- *     summary: Upload a document
- *     tags: [Documents]
- *     security: [{ bearerAuth: [] }]
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required: [file, entityType, entityId, title, type]
- *             properties:
- *               file: { type: string, format: binary }
- *               entityType: { type: string }
- *               entityId: { type: string }
- *               title: { type: string }
- *               type: { type: string }
- *     responses:
- *       201: { description: Document uploaded }
- */
 router.post(
   '/',
   upload.single('file'),
@@ -127,53 +96,22 @@ router.post(
   },
 );
 
-/**
- * @swagger
- * /api/documents:
- *   get:
- *     summary: List documents for an entity
- *     tags: [Documents]
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: query
- *         name: entityType
- *         required: true
- *         schema: { type: string }
- *       - in: query
- *         name: entityId
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: List of documents }
- */
-router.get('/', validate(listQuerySchema, 'query'), async (req, res, next) => {
-  try {
-    const { entityType, entityId } = req.query as {
-      entityType: string;
-      entityId: string;
-    };
-    res.json({ data: await listDocuments(entityType, entityId) });
-  } catch (e) {
-    next(e);
-  }
-});
+router.get(
+  '/',
+  validate(listDocumentsQuerySchema, 'query'),
+  async (req, res, next) => {
+    try {
+      const { entityType, entityId } = req.query as {
+        entityType: string;
+        entityId: string;
+      };
+      res.json({ data: await listDocuments(entityType, entityId) });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
-/**
- * @swagger
- * /api/documents/{id}/download:
- *   get:
- *     summary: Download a document
- *     tags: [Documents]
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: File stream }
- *       404: { description: Not found }
- */
 router.get('/:id/download', async (req, res, next) => {
   try {
     const doc = await getDocumentById(req.params.id);

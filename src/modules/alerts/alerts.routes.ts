@@ -4,6 +4,7 @@ import { alertsController } from './alerts.controller.js';
 import { prisma } from '../../config/database.js';
 import { hashToken } from '../auth/auth.security.js';
 import { env } from '../../config/env.js';
+import './alerts.schema.js';
 
 const router = Router();
 
@@ -62,81 +63,18 @@ const tryLoadSession: RequestHandler = async (req, _res, next) => {
   next();
 };
 
-/**
- * @openapi
- * /api/alerts:
- *   get:
- *     summary: Retrieve alerts matching the authenticated user or role
- *     tags: [Alerts]
- */
-router.get('/', tryLoadSession, (req, res) =>
-  alertsController.getAlerts(req, res),
-);
+router.use(tryLoadSession);
 
-/**
- * @openapi
- * /api/alerts:
- *   post:
- *     summary: Create a new alert
- *     tags: [Alerts]
- */
-router.post('/', tryLoadSession, (req, res) =>
-  alertsController.createAlert(req, res),
-);
-
-/**
- * @openapi
- * /api/alerts/read-all:
- *   patch:
- *     summary: Mark all alerts as read for user
- *     tags: [Alerts]
- */
-router.patch('/read-all', tryLoadSession, (req, res) =>
+router.get('/', (req, res) => alertsController.getAlerts(req, res));
+router.post('/', (req, res) => alertsController.createAlert(req, res));
+router.patch('/read-all', (req, res) =>
   alertsController.markAllAsRead(req, res),
 );
-
-/**
- * @openapi
- * /api/alerts/{id}:
- *   get:
- *     summary: Get alert by ID
- *     tags: [Alerts]
- */
-router.get('/:id', tryLoadSession, (req, res) =>
-  alertsController.getAlertById(req, res),
-);
-
-/**
- * @openapi
- * /api/alerts/{id}:
- *   patch:
- *     summary: Update alert details
- *     tags: [Alerts]
- */
-router.patch('/:id', tryLoadSession, (req, res) =>
-  alertsController.updateAlert(req, res),
-);
-
-/**
- * @openapi
- * /api/alerts/{id}/read:
- *   patch:
- *     summary: Mark single alert as read
- *     tags: [Alerts]
- */
-router.patch('/:id/read', tryLoadSession, (req, res) =>
+router.get('/:id', (req, res) => alertsController.getAlertById(req, res));
+router.patch('/:id', (req, res) => alertsController.updateAlert(req, res));
+router.patch('/:id/read', (req, res) =>
   alertsController.markAlertAsRead(req, res),
 );
-
-/**
- * @openapi
- * /api/alerts/{id}:
- *   delete:
- *     summary: Delete/dismiss alert by ID
- *     tags: [Alerts]
- */
-router.delete('/:id', tryLoadSession, (req, res) =>
-  alertsController.deleteAlert(req, res),
-);
+router.delete('/:id', (req, res) => alertsController.deleteAlert(req, res));
 
 export default router;
