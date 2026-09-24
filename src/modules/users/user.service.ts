@@ -1,7 +1,7 @@
 import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/errors.js';
 import { hashPassword } from '../auth/auth.security.js';
-import { UserRole } from '../../generated/prisma/index.js';
+import { UserRole, UserStatus } from '../../generated/prisma/index.js';
 import type { Prisma } from '../../generated/prisma/index.js';
 import type {
   CreateUserInput,
@@ -188,5 +188,46 @@ export async function updateUser(
   return {
     ...user,
     role: user.authRole,
+  };
+}
+
+export async function deleteUser(
+  id: string,
+): Promise<{ message: string; success: boolean }> {
+  const existing = await prisma.user.findUnique({ where: { id } });
+  if (!existing) throw ApiError.notFound('User not found');
+
+  if (existing.status === UserStatus.PENDING_INVITATION) {
+    // Invalidate invitation tokens immediately so the invite link cannot be used
+    try {
+      await prisma.userInvitationToken.deleteMany({ where: { userId: id } });
+    } catch {}
+    await prisma.user.update({
+      where: { id },
+      data: {
+        isActive: false,
+        status: UserStatus.INACTIVE,
+      },
+    });
+    return {
+      message: 'Invitation cancelled and user account marked as inactive',
+      success: true,
+    };
+  }
+
+  // Deactivate and mark as INACTIVE so the account is removed from active directory
+  // and visible under "Deactivated or deleted accounts"
+  await prisma.user.update({
+    where: { id },
+    data: {
+      isActive: false,
+      status: UserStatus.INACTIVE,
+    },
+  });
+  await prisma.session.deleteMany({ where: { userId: id } });
+  await prisma.refreshToken.deleteMany({ where: { userId: id } });
+  return {
+    message: 'User account deleted successfully and moved to Deactivated or Deleted accounts',
+    success: true,
   };
 }

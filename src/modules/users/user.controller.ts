@@ -63,3 +63,24 @@ export async function updateUserHandler(
     next(err);
   }
 }
+
+export async function deleteUserHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const id = typeof req.params.id === 'string' ? req.params.id : '';
+    const currentUserId = req.auth?.user?.id;
+    if (currentUserId && currentUserId === id) {
+      return res
+        .status(400)
+        .json({ error: 'Administrators cannot delete their own account.' });
+    }
+    const result = await usersService.deleteUser(id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+

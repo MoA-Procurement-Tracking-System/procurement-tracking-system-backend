@@ -939,14 +939,67 @@ adminRouter.post('/users', async (req, res) => {
   try {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      if (existing.status === UserStatus.ACTIVE) {
+      if (existing.status === UserStatus.ACTIVE && existing.isActive) {
         res.status(409).json({
           message: 'An active user account with that email already exists.',
         });
         return;
       }
-      // If user was previously invited but hasn't completed setup, remove old pending invitation
-      await prisma.user.delete({ where: { id: existing.id } });
+      // If user was previously invited, cancelled, or inactive, delete old tokens
+      try {
+        await prisma.userInvitationToken.deleteMany({ where: { userId: existing.id } });
+      } catch {}
+
+      try {
+        await prisma.user.delete({ where: { id: existing.id } });
+      } catch {
+        // If user cannot be hard deleted due to historical foreign keys, recycle the account back to PENDING_INVITATION
+        const dummyHash = await hashPassword(generateOpaqueToken().raw);
+        const token = generateOpaqueToken();
+
+        const updatedUser = await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: parsed.data.displayName,
+            displayName: parsed.data.displayName,
+            authRole: parsed.data.role,
+            status: UserStatus.PENDING_INVITATION,
+            isActive: true,
+            passwordHash: dummyHash,
+            mustChangePassword: false,
+            tempPasswordExpiresAt: null,
+          },
+        });
+
+        await prisma.userInvitationToken.create({
+          data: {
+            userId: updatedUser.id,
+            tokenHash: token.hash,
+            expiresAt: expiresFromNow(env.USER_INVITATION_HOURS * 3_600_000),
+          },
+        });
+
+        const invitationUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/create-password?token=${encodeURIComponent(token.raw)}`;
+
+        await deliverUserInvitation({
+          email: updatedUser.email,
+          displayName: updatedUser.displayName,
+          role: updatedUser.authRole,
+          invitationUrl,
+        });
+
+        await audit('USER_INVITED', true, req, {
+          userId: updatedUser.id,
+          email,
+          metadata: { role: updatedUser.authRole, createdBy: req.auth!.user.id },
+        });
+
+        res.status(201).json({
+          message: `Invitation email sent successfully to ${updatedUser.email}.`,
+          user: publicUser(updatedUser),
+        });
+        return;
+      }
     }
 
     const dummyHash = await hashPassword(generateOpaqueToken().raw);

@@ -88,7 +88,13 @@ if (env.NODE_ENV === 'production') {
   app.use('/api/auth/forgot-password', authLimiter);
 }
 
-// Swagger UI
+// Swagger UI and OpenAPI JSON spec
+app.get(['/api-docs.json', '/api-docs/json', '/openapi.json'], (_req, res) => {
+  res.json(swaggerSpec);
+});
+app.get(['/docs', '/swagger'], (_req, res) => {
+  res.redirect('/api-docs/');
+});
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Health check routes
