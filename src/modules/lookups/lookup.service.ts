@@ -2,8 +2,9 @@ import { prisma } from '../../config/database.js';
 import { ApiError } from '../../utils/errors.js';
 
 export async function listLookups(type?: string) {
+  const cleanType = type ? type.trim().toUpperCase() : undefined;
   return prisma.lookupValue.findMany({
-    where: { ...(type && { type }), isActive: true },
+    where: { ...(cleanType && { type: cleanType }), isActive: true },
     orderBy: [{ type: 'asc' }, { code: 'asc' }],
   });
 }
@@ -19,12 +20,29 @@ export async function createLookup(data: {
   code: string;
   label: string;
 }) {
+  const cleanType = data.type.trim().toUpperCase();
+  const cleanCode = data.code.trim().toUpperCase();
+  const cleanLabel = data.label.trim();
+
   const existing = await prisma.lookupValue.findUnique({
-    where: { type_code: { type: data.type, code: data.code } },
+    where: { type_code: { type: cleanType, code: cleanCode } },
   });
-  if (existing)
-    throw ApiError.conflict('Lookup code already exists for this type');
-  return prisma.lookupValue.create({ data });
+  if (existing) {
+    if (!existing.isActive) {
+      return prisma.lookupValue.update({
+        where: { id: existing.id },
+        data: { isActive: true, label: cleanLabel || existing.label },
+      });
+    }
+    return existing;
+  }
+  return prisma.lookupValue.create({
+    data: {
+      type: cleanType,
+      code: cleanCode,
+      label: cleanLabel,
+    },
+  });
 }
 
 export async function updateLookup(

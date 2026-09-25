@@ -38,6 +38,8 @@ router.post(
     'Administrator',
     'ProjectManager',
     'ProcurementOfficer',
+    'ProcurementDirector',
+    'DIRECTOR',
     'OFFICER',
     'ADMIN',
   ),
@@ -73,7 +75,14 @@ router.post(
 
 router.post(
   '/:id/submit',
-  authorize('ProcurementOfficer', 'OFFICER', 'Administrator', 'ADMIN'),
+  authorize(
+    'ProcurementOfficer',
+    'OFFICER',
+    'ProcurementDirector',
+    'DIRECTOR',
+    'Administrator',
+    'ADMIN',
+  ),
   submitPlan,
 );
 

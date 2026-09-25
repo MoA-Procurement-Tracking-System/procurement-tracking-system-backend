@@ -40,7 +40,15 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize('Administrator'),
+  authorize(
+    'Administrator',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ADMIN',
+    'OFFICER',
+    'ProcurementOfficer',
+    'ProjectManager',
+  ),
   validate(createLookupSchema, 'body'),
   async (req, res, next) => {
     try {
@@ -57,7 +65,15 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize('Administrator'),
+  authorize(
+    'Administrator',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ADMIN',
+    'OFFICER',
+    'ProcurementOfficer',
+    'ProjectManager',
+  ),
   validate(lookupIdParamSchema, 'params'),
   validate(updateLookupSchema, 'body'),
   async (req, res, next) => {

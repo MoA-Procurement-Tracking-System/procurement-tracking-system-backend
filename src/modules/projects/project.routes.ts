@@ -26,28 +26,52 @@ router.get('/:id', getProjectById);
 
 router.post(
   '/',
-  authorize('Administrator', 'ProjectManager', 'ADMIN'),
+  authorize(
+    'Administrator',
+    'ADMIN',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ProjectManager',
+  ),
   validate(createProjectSchema),
   createProject,
 );
 
 router.patch(
   '/:id',
-  authorize('Administrator', 'ProjectManager', 'ADMIN'),
+  authorize(
+    'Administrator',
+    'ADMIN',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ProjectManager',
+  ),
   validate(updateProjectSchema),
   updateProject,
 );
 
 router.post(
   '/:id/officers',
-  authorize('Administrator', 'ProjectManager', 'ADMIN'),
+  authorize(
+    'Administrator',
+    'ADMIN',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ProjectManager',
+  ),
   validate(assignOfficerSchema),
   assignOfficer,
 );
 
 router.delete(
   '/:id/officers/:officerId',
-  authorize('Administrator', 'ProjectManager', 'ADMIN'),
+  authorize(
+    'Administrator',
+    'ADMIN',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ProjectManager',
+  ),
   removeOfficer,
 );
 
