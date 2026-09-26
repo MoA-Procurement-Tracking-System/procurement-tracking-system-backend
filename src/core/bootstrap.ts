@@ -138,6 +138,43 @@ const BASELINE_LOOKUPS: BaselineLookup[] = [
     code: 'PM_DIR',
     label: 'Direct Contracting',
   },
+  {
+    type: 'PROCUREMENT_METHOD',
+    code: 'PM_CQS',
+    label: 'Consultant Qualification Selection (CQS)',
+  },
+  {
+    type: 'PROCUREMENT_METHOD',
+    code: 'PM_INDV',
+    label: 'Individual Consultant Selection',
+  },
+  {
+    type: 'PROCUREMENT_METHOD',
+    code: 'PM_FA',
+    label: 'Framework Agreement',
+  },
+
+  // Currencies
+  {
+    type: 'CURRENCY',
+    code: 'ETB',
+    label: 'ETB (Ethiopian Birr)',
+  },
+  {
+    type: 'CURRENCY',
+    code: 'USD',
+    label: 'USD ($)',
+  },
+  {
+    type: 'CURRENCY',
+    code: 'UA',
+    label: 'UA (Unit of Account - AfDB)',
+  },
+  {
+    type: 'CURRENCY',
+    code: 'EUR',
+    label: 'EUR (€)',
+  },
 
   // Project Codes
   {

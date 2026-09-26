@@ -88,4 +88,27 @@ router.patch(
   },
 );
 
+router.delete(
+  '/:id',
+  authenticate,
+  authorize(
+    'Administrator',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ADMIN',
+    'OFFICER',
+    'ProcurementOfficer',
+    'ProjectManager',
+  ),
+  validate(lookupIdParamSchema, 'params'),
+  async (req, res, next) => {
+    try {
+      await svc.deleteLookup(req.params.id as string);
+      res.json({ message: 'Lookup deleted successfully' });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
 export default router;

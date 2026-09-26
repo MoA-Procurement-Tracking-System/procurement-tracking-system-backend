@@ -53,3 +53,13 @@ export async function updateLookup(
   if (!existing) throw ApiError.notFound('Lookup value not found');
   return prisma.lookupValue.update({ where: { id }, data });
 }
+
+export async function deleteLookup(id: string) {
+  const existing = await prisma.lookupValue.findUnique({ where: { id } });
+  if (!existing) throw ApiError.notFound('Lookup value not found');
+  return prisma.lookupValue.update({
+    where: { id },
+    data: { isActive: false },
+  });
+}
+
