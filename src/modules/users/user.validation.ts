@@ -65,7 +65,7 @@ export const listUsersQuerySchema = z.object({
 });
 
 export const userIdParamSchema = z.object({
-  id: z.uuid('Invalid user id'),
+  id: z.string().min(1, 'User id is required'),
 });
 
 // Register OpenAPI Paths

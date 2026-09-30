@@ -42,7 +42,7 @@ export const getPlansService = async (options: GetPlansQueryOptions = {}) => {
   };
 
   const take =
-    pageSize && pageSize > 0 ? Math.min(pageSize, 100) : isPaginated ? 20 : 100;
+    pageSize && pageSize > 0 ? Math.min(pageSize, 500) : isPaginated ? 20 : 500;
 
   const [plans, committeeUsers, totalCount] = await Promise.all([
     prisma.plan.findMany({
@@ -264,27 +264,35 @@ export const createPlanService = async (
     }
 
     const projStart = project.projectStartDate || project.effectivenessDate;
-    if (projStart && planStart < projStart) {
-      const projStartStr = projStart.toISOString().split('T')[0];
-      const planStartStr = planStart.toISOString().split('T')[0];
-      throw ApiError.badRequest(
-        `Plan period start date (${planStartStr}) cannot be earlier than the project start date (${projStartStr}).`,
-      );
-    }
-
     const projEnd = project.projectEndDate || project.closingDate;
-    if (projEnd && planEnd > projEnd) {
+
+    // Validate that plan period overlaps with the project duration if dates exist
+    if (projStart && projEnd) {
+      if (planEnd < projStart || planStart > projEnd) {
+        const projStartStr = projStart.toISOString().split('T')[0];
+        const projEndStr = projEnd.toISOString().split('T')[0];
+        throw ApiError.badRequest(
+          `Plan period must overlap with the project timeline (${projStartStr} to ${projEndStr}).`,
+        );
+      }
+    } else if (projEnd && planStart > projEnd) {
       const projEndStr = projEnd.toISOString().split('T')[0];
-      const planEndStr = planEnd.toISOString().split('T')[0];
       throw ApiError.badRequest(
-        `Plan period end date (${planEndStr}) cannot be later than the project end date (${projEndStr}).`,
+        `Plan period start date cannot be later than the project end date (${projEndStr}).`,
+      );
+    } else if (projStart && planEnd < projStart) {
+      const projStartStr = projStart.toISOString().split('T')[0];
+      throw ApiError.badRequest(
+        `Plan period end date cannot be earlier than the project start date (${projStartStr}).`,
       );
     }
 
     // 2. Resolve creator user
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) {
-      throw ApiError.unauthorized(`Authenticated user not found with id: ${userId}`);
+      throw ApiError.unauthorized(
+        `Authenticated user not found with id: ${userId}`,
+      );
     }
     const validUserId = user.id;
 
@@ -296,9 +304,13 @@ export const createPlanService = async (
         : null;
 
     if (parentPlanId) {
-      const parentPlan = await tx.plan.findUnique({ where: { id: parentPlanId } });
+      const parentPlan = await tx.plan.findUnique({
+        where: { id: parentPlanId },
+      });
       if (!parentPlan) {
-        throw ApiError.badRequest(`Parent plan not found with id: "${parentPlanId}".`);
+        throw ApiError.badRequest(
+          `Parent plan not found with id: "${parentPlanId}".`,
+        );
       }
     }
 
@@ -384,21 +396,26 @@ export const updatePlanService = async (
           const projStart =
             oldPlan.project.projectStartDate ||
             oldPlan.project.effectivenessDate;
-          if (projStart && targetStart && targetStart < projStart) {
-            const projStartStr = projStart.toISOString().split('T')[0];
-            const planStartStr = targetStart.toISOString().split('T')[0];
-            throw ApiError.badRequest(
-              `Plan period start date (${planStartStr}) cannot be earlier than the project start date (${projStartStr}).`,
-            );
-          }
-
           const projEnd =
             oldPlan.project.projectEndDate || oldPlan.project.closingDate;
-          if (projEnd && targetEnd && targetEnd > projEnd) {
+
+          if (projStart && projEnd && targetStart && targetEnd) {
+            if (targetEnd < projStart || targetStart > projEnd) {
+              const projStartStr = projStart.toISOString().split('T')[0];
+              const projEndStr = projEnd.toISOString().split('T')[0];
+              throw ApiError.badRequest(
+                `Plan period must overlap with the project timeline (${projStartStr} to ${projEndStr}).`,
+              );
+            }
+          } else if (projEnd && targetStart && targetStart > projEnd) {
             const projEndStr = projEnd.toISOString().split('T')[0];
-            const planEndStr = targetEnd.toISOString().split('T')[0];
             throw ApiError.badRequest(
-              `Plan period end date (${planEndStr}) cannot be later than the project end date (${projEndStr}).`,
+              `Plan period start date cannot be later than the project end date (${projEndStr}).`,
+            );
+          } else if (projStart && targetEnd && targetEnd < projStart) {
+            const projStartStr = projStart.toISOString().split('T')[0];
+            throw ApiError.badRequest(
+              `Plan period end date cannot be earlier than the project start date (${projStartStr}).`,
             );
           }
         }
@@ -841,7 +858,6 @@ export const returnToOfficerService = async (
 
   return plan;
 };
-
 
 export const submitCommitteeVoteService = async (
   id: string,

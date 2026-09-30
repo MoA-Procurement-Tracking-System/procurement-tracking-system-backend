@@ -8,6 +8,7 @@ import {
   getUserHandler,
   createUserHandler,
   updateUserHandler,
+  deleteUserHandler,
 } from './user.controller.js';
 import {
   createUserSchema,
@@ -68,6 +69,13 @@ router.patch(
   validate(userIdParamSchema, 'params'),
   validate(updateUserSchema, 'body'),
   updateUserHandler,
+);
+
+router.delete(
+  '/:id',
+  authorize('Administrator'),
+  validate(userIdParamSchema, 'params'),
+  deleteUserHandler,
 );
 
 export default router;

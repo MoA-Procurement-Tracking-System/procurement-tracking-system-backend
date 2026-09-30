@@ -43,12 +43,14 @@ async function generateActivityReference(
 export const getActivitiesService = async (planId?: string) => {
   let where: Prisma.ActivityWhereInput = { isActive: true };
   if (planId) {
+    const trimmed = planId.trim();
     where = {
       isActive: true,
       OR: [
-        { planId: planId },
-        { plan: { id: planId } },
-        { plan: { title: planId } },
+        { planId: trimmed },
+        { plan: { id: trimmed } },
+        { plan: { title: { equals: trimmed, mode: 'insensitive' } } },
+        { plan: { title: { contains: trimmed, mode: 'insensitive' } } },
       ],
     };
   }
@@ -100,11 +102,23 @@ export const createActivityService = async (
 ) => {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1. Resolve plan by ID or Title
+    const trimmedPlanId = data.planId.trim();
     let plan = await tx.plan.findFirst({
       where: {
-        OR: [{ id: data.planId }, { title: data.planId }],
+        OR: [
+          { id: trimmedPlanId },
+          { title: { equals: trimmedPlanId, mode: 'insensitive' } },
+        ],
       },
     });
+    if (!plan) {
+      plan = await tx.plan.findFirst({
+        where: {
+          title: { contains: trimmedPlanId, mode: 'insensitive' },
+          isActive: true,
+        },
+      });
+    }
     if (!plan) {
       plan = await tx.plan.findFirst({
         where: { isActive: true },

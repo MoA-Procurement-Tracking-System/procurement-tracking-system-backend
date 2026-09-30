@@ -40,21 +40,29 @@ export function getZodOpenApiSpec() {
       description: 'Type-safe API documentation generated from Zod schemas',
     },
     servers: [
+      ...(process.env['API_URL'] || process.env['PUBLIC_API_URL']
+        ? [
+            {
+              url: (process.env['API_URL'] || process.env['PUBLIC_API_URL'])!,
+              description: 'Production Server',
+            },
+          ]
+        : []),
       ...(process.env['RENDER_EXTERNAL_URL']
         ? [
             {
               url: process.env['RENDER_EXTERNAL_URL'],
-              description: 'Production Server',
+              description: 'Render Deployment Server',
             },
           ]
         : []),
       {
         url: '/',
-        description: 'Current Domain',
+        description: 'Current Domain (Relative)',
       },
       {
         url: `http://localhost:${env.PORT}`,
-        description: 'Development Server',
+        description: 'Local Development Server',
       },
     ],
   });

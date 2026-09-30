@@ -6,6 +6,8 @@ import { logger } from './config/logger.js';
 import { registerBackupJob } from './jobs/backup.job.js';
 import { registerCommitteeReminderJob } from './jobs/committee-reminder.job.js';
 
+import { bootstrapSystem } from './core/bootstrap.js';
+
 const server = createServer(app);
 
 server.on('error', (err: NodeJS.ErrnoException) => {
@@ -20,11 +22,15 @@ server.on('error', (err: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
-server.listen(env.PORT, () => {
+server.listen(env.PORT, async () => {
   logger.info(
     { port: env.PORT },
     `Procurement Tracking System API running on http://localhost:${env.PORT} [${env.NODE_ENV}]`,
   );
+  // Auto-bootstrap baseline system data (lookups & default users)
+  await bootstrapSystem().catch((err) => {
+    logger.error({ err }, 'Bootstrap system initialization error');
+  });
   // Register scheduled jobs after the server is live
   registerBackupJob();
   registerCommitteeReminderJob();

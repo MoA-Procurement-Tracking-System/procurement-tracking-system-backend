@@ -40,7 +40,15 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize('Administrator'),
+  authorize(
+    'Administrator',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ADMIN',
+    'OFFICER',
+    'ProcurementOfficer',
+    'ProjectManager',
+  ),
   validate(createLookupSchema, 'body'),
   async (req, res, next) => {
     try {
@@ -57,7 +65,15 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize('Administrator'),
+  authorize(
+    'Administrator',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ADMIN',
+    'OFFICER',
+    'ProcurementOfficer',
+    'ProjectManager',
+  ),
   validate(lookupIdParamSchema, 'params'),
   validate(updateLookupSchema, 'body'),
   async (req, res, next) => {
@@ -66,6 +82,29 @@ router.patch(
         message: 'Lookup updated',
         data: await svc.updateLookup(req.params.id as string, req.body),
       });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+router.delete(
+  '/:id',
+  authenticate,
+  authorize(
+    'Administrator',
+    'DIRECTOR',
+    'ProcurementDirector',
+    'ADMIN',
+    'OFFICER',
+    'ProcurementOfficer',
+    'ProjectManager',
+  ),
+  validate(lookupIdParamSchema, 'params'),
+  async (req, res, next) => {
+    try {
+      await svc.deleteLookup(req.params.id as string);
+      res.json({ message: 'Lookup deleted successfully' });
     } catch (e) {
       next(e);
     }
