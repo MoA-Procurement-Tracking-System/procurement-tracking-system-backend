@@ -947,8 +947,12 @@ adminRouter.post('/users', async (req, res) => {
       }
       // If user was previously invited, cancelled, or inactive, delete old tokens
       try {
-        await prisma.userInvitationToken.deleteMany({ where: { userId: existing.id } });
-      } catch {}
+        await prisma.userInvitationToken.deleteMany({
+          where: { userId: existing.id },
+        });
+      } catch {
+        // Ignore if cleanup fails
+      }
 
       try {
         await prisma.user.delete({ where: { id: existing.id } });
@@ -991,7 +995,10 @@ adminRouter.post('/users', async (req, res) => {
         await audit('USER_INVITED', true, req, {
           userId: updatedUser.id,
           email,
-          metadata: { role: updatedUser.authRole, createdBy: req.auth!.user.id },
+          metadata: {
+            role: updatedUser.authRole,
+            createdBy: req.auth!.user.id,
+          },
         });
 
         res.status(201).json({
@@ -1099,6 +1106,8 @@ export const authErrorHandler = (
   }
   logger.error({ error }, 'Unhandled API error');
   const message =
-    error instanceof Error ? error.message : 'The request could not be completed.';
+    error instanceof Error
+      ? error.message
+      : 'The request could not be completed.';
   res.status(500).json({ message });
 };

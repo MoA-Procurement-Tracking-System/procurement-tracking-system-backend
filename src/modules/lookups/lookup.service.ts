@@ -62,4 +62,3 @@ export async function deleteLookup(id: string) {
     data: { isActive: false },
   });
 }
-
