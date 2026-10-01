@@ -201,7 +201,9 @@ export async function deleteUser(
     // Invalidate invitation tokens immediately so the invite link cannot be used
     try {
       await prisma.userInvitationToken.deleteMany({ where: { userId: id } });
-    } catch {}
+    } catch {
+      // Ignore if table or relation is not present
+    }
     await prisma.user.update({
       where: { id },
       data: {
@@ -227,7 +229,8 @@ export async function deleteUser(
   await prisma.session.deleteMany({ where: { userId: id } });
   await prisma.refreshToken.deleteMany({ where: { userId: id } });
   return {
-    message: 'User account deleted successfully and moved to Deactivated or Deleted accounts',
+    message:
+      'User account deleted successfully and moved to Deactivated or Deleted accounts',
     success: true,
   };
 }

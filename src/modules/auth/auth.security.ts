@@ -4,7 +4,6 @@ const SCRYPT_KEY_LENGTH = 64;
 const SCRYPT_COST = 16_384;
 const SCRYPT_BLOCK_SIZE = 8;
 const SCRYPT_PARALLELIZATION = 1;
-const DUMMY_HASH = `scrypt$v1$${SCRYPT_COST}$${SCRYPT_BLOCK_SIZE}$${SCRYPT_PARALLELIZATION}$${Buffer.alloc(16).toString('base64url')}$${Buffer.alloc(SCRYPT_KEY_LENGTH).toString('base64url')}`;
 
 const commonPasswords = new Set([
   'password',
@@ -55,7 +54,29 @@ export async function verifyPassword(
   password: string,
   encodedHash?: string | null,
 ): Promise<boolean> {
-  const value = encodedHash ?? DUMMY_HASH;
+  if (!encodedHash) {
+    await deriveKey(password, Buffer.alloc(16));
+    return false;
+  }
+
+  if (encodedHash.startsWith('$2')) {
+    try {
+      const bcryptMod = (await import('bcryptjs')) as unknown as {
+        default?: { compare?: (s: string, h: string) => Promise<boolean> };
+        compare?: (s: string, h: string) => Promise<boolean>;
+      };
+      const compareFn = bcryptMod.default?.compare || bcryptMod.compare;
+      if (typeof compareFn === 'function') {
+        return await compareFn(password, encodedHash);
+      }
+      return false;
+    } catch (e) {
+      console.error('bcrypt error in verifyPassword:', e);
+      return false;
+    }
+  }
+
+  const value = encodedHash;
   const parts = value.split('$');
   if (parts.length !== 7 || parts[0] !== 'scrypt' || parts[1] !== 'v1') {
     await deriveKey(password, Buffer.alloc(16));

@@ -118,16 +118,100 @@ export class ContractsService {
   }
 
   async createContract(data: CreateContractDto, userId?: string) {
+    let resolvedSupplierId = data.supplierId;
+    if (!resolvedSupplierId && data.supplierName) {
+      const name = String(data.supplierName).trim();
+      let supplier = await prisma.supplier.findFirst({
+        where: { name: { equals: name, mode: 'insensitive' } },
+      });
+      if (!supplier) {
+        supplier = await prisma.supplier.create({
+          data: {
+            name,
+            tinNumber: `TIN-${Date.now().toString().slice(-7)}`,
+          },
+        });
+      }
+      resolvedSupplierId = supplier.id;
+    }
+    if (!resolvedSupplierId) {
+      let supplier = await prisma.supplier.findFirst();
+      if (!supplier) {
+        supplier = await prisma.supplier.create({
+          data: {
+            name: 'General Contractor / Supplier',
+            tinNumber: 'TIN-0000000',
+          },
+        });
+      }
+      resolvedSupplierId = supplier.id;
+    }
+
+    let resolvedActivityId = data.activityId || data.activityReference;
+    if (resolvedActivityId) {
+      const act = await prisma.activity.findFirst({
+        where: {
+          OR: [
+            { id: resolvedActivityId },
+            { reference: { equals: resolvedActivityId, mode: 'insensitive' } },
+            {
+              reference: { contains: resolvedActivityId, mode: 'insensitive' },
+            },
+          ],
+        },
+      });
+      if (act) resolvedActivityId = act.id;
+      else resolvedActivityId = undefined;
+    }
+
+    const totalVal = Number(data.totalValue) || 100000;
     const contract = await prisma.contract.create({
       data: {
         contractNo: data.contractNo,
-        totalValue: data.totalValue,
-        remainingValue: data.totalValue,
+        totalValue: totalVal,
+        remainingValue: totalVal,
         paidAmount: 0,
         currency: data.currency ?? 'ETB',
-        ...(data.supplierId ? { supplierId: data.supplierId } : {}),
+        supplierId: resolvedSupplierId,
+        ...(resolvedActivityId ? { activityId: resolvedActivityId } : {}),
         ...(data.region ? { region: data.region } : {}),
         ...(data.sector ? { sector: data.sector } : {}),
+        ...(data.subcomponent ? { subcomponent: data.subcomponent } : {}),
+        ...(data.remarks ? { remarks: data.remarks } : {}),
+        ...(data.vatRate !== undefined ? { vatRate: data.vatRate } : {}),
+        ...(data.contractAmountWithVat !== undefined
+          ? { contractAmountWithVat: data.contractAmountWithVat }
+          : {}),
+        ...(data.contractNetOfVat !== undefined
+          ? { contractNetOfVat: data.contractNetOfVat }
+          : {}),
+        ...(data.awardDate ? { awardDate: new Date(data.awardDate) } : {}),
+        ...(data.signatureDate
+          ? { signatureDate: new Date(data.signatureDate) }
+          : {}),
+        ...(data.startDate ? { startDate: new Date(data.startDate) } : {}),
+        ...(data.plannedEndDate
+          ? { plannedEndDate: new Date(data.plannedEndDate) }
+          : {}),
+        ...(data.actualCompletionDate
+          ? {
+              actualCompletionDate: new Date(data.actualCompletionDate),
+            }
+          : {}),
+        ...(data.status
+          ? {
+              status:
+                data.status === 'PENDING'
+                  ? ContractStatus.DRAFT
+                  : (data.status as ContractStatus),
+            }
+          : {}),
+      },
+      include: {
+        supplier: true,
+        activity: true,
+        payments: true,
+        amendments: true,
       },
     });
 

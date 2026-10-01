@@ -290,7 +290,9 @@ export const createPlanService = async (
     // 2. Resolve creator user
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) {
-      throw ApiError.unauthorized(`Authenticated user not found with id: ${userId}`);
+      throw ApiError.unauthorized(
+        `Authenticated user not found with id: ${userId}`,
+      );
     }
     const validUserId = user.id;
 
@@ -302,9 +304,13 @@ export const createPlanService = async (
         : null;
 
     if (parentPlanId) {
-      const parentPlan = await tx.plan.findUnique({ where: { id: parentPlanId } });
+      const parentPlan = await tx.plan.findUnique({
+        where: { id: parentPlanId },
+      });
       if (!parentPlan) {
-        throw ApiError.badRequest(`Parent plan not found with id: "${parentPlanId}".`);
+        throw ApiError.badRequest(
+          `Parent plan not found with id: "${parentPlanId}".`,
+        );
       }
     }
 
@@ -852,7 +858,6 @@ export const returnToOfficerService = async (
 
   return plan;
 };
-
 
 export const submitCommitteeVoteService = async (
   id: string,

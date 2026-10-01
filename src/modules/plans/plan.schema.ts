@@ -4,41 +4,42 @@ import { registry } from '../../config/openapi.js';
 
 export const createPlanSchema = registry.register(
   'CreatePlan',
-  z.object({
-    projectId: z
-      .string()
-      .trim()
-      .min(1, 'Project ID is required')
-      .openapi({ example: 'proj-uuid-1' }),
-    title: z
-      .string()
-      .trim()
-      .min(1, 'Title is required')
-      .max(255)
-      .openapi({ example: 'Annual Procurement Plan 2026' }),
-    budgetYear: z.string().trim().optional().openapi({ example: '2026' }),
-    procurementCategory: z
-      .string()
-      .trim()
-      .optional()
-      .openapi({ example: 'GOODS' }),
-    organization: z
-      .string()
-      .trim()
-      .optional()
-      .openapi({ example: 'Ministry of Agriculture' }),
-    description: z.string().trim().optional(),
-    periodStart: z.coerce.date(),
-    periodEnd: z.coerce.date(),
-    gpnDate: z.coerce.date().optional(),
-    parentPlanId: z.string().trim().optional(),
-    planType: z.string().trim().optional(),
-    additionalPlanReason: z.string().trim().optional(),
-  })
-  .refine((data) => data.periodEnd >= data.periodStart, {
-    message: 'Period end date must be on or after period start date',
-    path: ['periodEnd'],
-  }),
+  z
+    .object({
+      projectId: z
+        .string()
+        .trim()
+        .min(1, 'Project ID is required')
+        .openapi({ example: 'proj-uuid-1' }),
+      title: z
+        .string()
+        .trim()
+        .min(1, 'Title is required')
+        .max(255)
+        .openapi({ example: 'Annual Procurement Plan 2026' }),
+      budgetYear: z.string().trim().optional().openapi({ example: '2026' }),
+      procurementCategory: z
+        .string()
+        .trim()
+        .optional()
+        .openapi({ example: 'GOODS' }),
+      organization: z
+        .string()
+        .trim()
+        .optional()
+        .openapi({ example: 'Ministry of Agriculture' }),
+      description: z.string().trim().optional(),
+      periodStart: z.coerce.date(),
+      periodEnd: z.coerce.date(),
+      gpnDate: z.coerce.date().optional(),
+      parentPlanId: z.string().trim().optional(),
+      planType: z.string().trim().optional(),
+      additionalPlanReason: z.string().trim().optional(),
+    })
+    .refine((data) => data.periodEnd >= data.periodStart, {
+      message: 'Period end date must be on or after period start date',
+      path: ['periodEnd'],
+    }),
 );
 
 export const updatePlanSchema = registry.register(

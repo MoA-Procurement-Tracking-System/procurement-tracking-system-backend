@@ -222,6 +222,13 @@ const BASELINE_USERS: BaselineUser[] = [
     authRole: UserRole.ADMIN,
     password: env.BOOTSTRAP_ADMIN_PASSWORD || DEFAULT_SEED_PASSWORD,
   },
+];
+
+/**
+ * Demo accounts seeded ONLY in non-production environments.
+ * These use a shared default password and must never appear in production.
+ */
+const DEMO_ONLY_USERS: BaselineUser[] = [
   {
     email: env.BOOTSTRAP_DIRECTOR_EMAIL || 'director@moa.gov.et',
     name: env.BOOTSTRAP_DIRECTOR_NAME || 'Procurement Director',
@@ -294,8 +301,20 @@ export async function bootstrapSystem(): Promise<void> {
     }
     logger.info('System lookups successfully synchronized.');
 
-    // 2. Seed baseline users
-    for (const u of BASELINE_USERS) {
+    // 2. Seed baseline users (always: Admin + Director)
+    const isProduction =
+      (process.env.NODE_ENV || '').toLowerCase() === 'production';
+    const usersToSeed = isProduction
+      ? BASELINE_USERS
+      : [...BASELINE_USERS, ...DEMO_ONLY_USERS];
+
+    if (isProduction) {
+      logger.info(
+        'Production environment detected — skipping demo account seeding.',
+      );
+    }
+
+    for (const u of usersToSeed) {
       const existing = await prisma.user.findUnique({
         where: { email: u.email.toLowerCase() },
       });
@@ -312,7 +331,7 @@ export async function bootstrapSystem(): Promise<void> {
             authRole: u.authRole,
             status: UserStatus.ACTIVE,
             isActive: true,
-            mustChangePassword: false,
+            mustChangePassword: isProduction,
             passwordHash,
           },
         });

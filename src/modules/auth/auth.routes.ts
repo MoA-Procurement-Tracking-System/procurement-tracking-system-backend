@@ -66,11 +66,17 @@ declare global {
   }
 }
 
-const loginSchema = z.object({
-  identifier: z.string().trim().min(1).max(254),
-  password: z.string().min(1).max(128),
-  rememberMe: z.boolean().default(false),
-});
+const loginSchema = z
+  .object({
+    identifier: z.string().trim().min(1).max(254).optional(),
+    email: z.string().trim().min(1).max(254).optional(),
+    password: z.string().min(1).max(128),
+    rememberMe: z.boolean().default(false),
+  })
+  .refine((data) => Boolean(data.identifier || data.email), {
+    message: 'Identifier or email is required',
+    path: ['identifier'],
+  });
 
 const changePasswordSchema = z
   .object({
@@ -448,7 +454,11 @@ authRouter.post('/login', async (req, res) => {
     return;
   }
 
-  const identifier = parsed.data.identifier.toLowerCase();
+  const identifier = (
+    parsed.data.identifier ||
+    parsed.data.email ||
+    ''
+  ).toLowerCase();
   const user = await prisma.user.findFirst({
     where: { OR: [{ email: identifier }, { username: identifier }] },
   });
@@ -947,8 +957,12 @@ adminRouter.post('/users', async (req, res) => {
       }
       // If user was previously invited, cancelled, or inactive, delete old tokens
       try {
-        await prisma.userInvitationToken.deleteMany({ where: { userId: existing.id } });
-      } catch {}
+        await prisma.userInvitationToken.deleteMany({
+          where: { userId: existing.id },
+        });
+      } catch {
+        // Ignore if tokens table is not found or already empty
+      }
 
       try {
         await prisma.user.delete({ where: { id: existing.id } });
@@ -991,7 +1005,10 @@ adminRouter.post('/users', async (req, res) => {
         await audit('USER_INVITED', true, req, {
           userId: updatedUser.id,
           email,
-          metadata: { role: updatedUser.authRole, createdBy: req.auth!.user.id },
+          metadata: {
+            role: updatedUser.authRole,
+            createdBy: req.auth!.user.id,
+          },
         });
 
         res.status(201).json({
@@ -1099,6 +1116,8 @@ export const authErrorHandler = (
   }
   logger.error({ error }, 'Unhandled API error');
   const message =
-    error instanceof Error ? error.message : 'The request could not be completed.';
+    error instanceof Error
+      ? error.message
+      : 'The request could not be completed.';
   res.status(500).json({ message });
 };

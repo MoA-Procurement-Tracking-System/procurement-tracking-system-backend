@@ -3,25 +3,96 @@ import { registry } from '../../config/openapi.js';
 
 // ─── Step 1: Key Details ──────────────────────────────────────────────────────
 
+const optionalCoerceDate = z.preprocess((val) => {
+  if (
+    val === '' ||
+    val === null ||
+    val === undefined ||
+    val === 'null' ||
+    val === 'undefined'
+  ) {
+    return undefined;
+  }
+  return val;
+}, z.coerce.date().optional());
+
+const optionalCoord = z.preprocess((val) => {
+  if (val === '' || val === null || val === undefined) return undefined;
+  const num = Number(val);
+  return isNaN(num) ? undefined : num;
+}, z.number().optional());
+
 export const createActivityStep1Schema = z.object({
-  planId: z.string().uuid('Plan ID must be a valid UUID'),
+  planId: z.string().trim().min(1, 'Plan ID is required'),
   reference: z.string().trim().max(255).optional(),
-  procurementMethodId: z.string().uuid('Procurement Method is required'),
+  procurementMethodId: z
+    .string()
+    .trim()
+    .min(1, 'Procurement Method is required'),
   specificMethod: z.string().trim().max(255).optional(),
-  marketApproach: z
-    .enum(['OPEN_INTERNATIONAL', 'OPEN_NATIONAL', 'LIMITED', 'DIRECT'])
-    .optional(),
-  qualificationApproach: z
-    .enum(['PREQUALIFICATION', 'POST_QUALIFICATION', 'NOT_APPLICABLE'])
-    .optional(),
-  domesticPreference: z.boolean().optional(),
-  reviewType: z.enum(['PRIOR', 'POST']).optional(),
+  marketApproach: z.preprocess(
+    (val) => {
+      if (!val || typeof val !== 'string') return undefined;
+      const clean = val.toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
+      if (clean.includes('INT')) return 'OPEN_INTERNATIONAL';
+      if (clean.includes('NAT')) return 'OPEN_NATIONAL';
+      if (clean.includes('DIR')) return 'DIRECT';
+      if (clean.includes('LIM')) return 'LIMITED';
+      return val;
+    },
+    z
+      .enum(['OPEN_INTERNATIONAL', 'OPEN_NATIONAL', 'LIMITED', 'DIRECT'])
+      .optional(),
+  ),
+  qualificationApproach: z.preprocess(
+    (val) => {
+      if (!val || typeof val !== 'string') return undefined;
+      const clean = val.toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
+      if (clean.includes('PRE')) return 'PREQUALIFICATION';
+      if (clean.includes('POST')) return 'POST_QUALIFICATION';
+      if (clean.includes('NOT') || clean.includes('NA'))
+        return 'NOT_APPLICABLE';
+      return val;
+    },
+    z
+      .enum(['PREQUALIFICATION', 'POST_QUALIFICATION', 'NOT_APPLICABLE'])
+      .optional(),
+  ),
+  domesticPreference: z.preprocess((val) => {
+    if (val === undefined || val === null || val === '') return undefined;
+    if (typeof val === 'string') {
+      const lower = val.toLowerCase().trim();
+      return lower === 'yes' || lower === 'true' || lower === '1'
+        ? 'Yes'
+        : 'No';
+    }
+    return val ? 'Yes' : 'No';
+  }, z.string().optional()),
+  reviewType: z.preprocess(
+    (val) => {
+      if (!val || typeof val !== 'string') return undefined;
+      const clean = val.toUpperCase();
+      if (clean.includes('PRIOR')) return 'PRIOR';
+      if (clean.includes('POST')) return 'POST';
+      return val;
+    },
+    z.enum(['PRIOR', 'POST']).optional(),
+  ),
   oversightClassification: z.string().trim().max(100).optional(),
   procurementProcess: z.string().trim().max(255).optional(),
   evaluationOptions: z.array(z.string()).optional(),
   highSeaShRisk: z.boolean().optional(),
   procurementDocumentType: z.string().trim().max(255).optional(),
-  contractType: z.enum(['LUMP_SUM', 'TIME_BASED']).optional(),
+  contractType: z.preprocess(
+    (val) => {
+      if (!val || typeof val !== 'string') return undefined;
+      const clean = val.toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
+      if (clean.includes('LUMP')) return 'LUMP_SUM';
+      if (clean.includes('TIME')) return 'TIME_BASED';
+      return val;
+    },
+    z.enum(['LUMP_SUM', 'TIME_BASED']).optional(),
+  ),
   requiresUnAgencyContracting: z.boolean().optional(),
   isImport: z.boolean().default(false),
 });
@@ -95,10 +166,10 @@ export const createActivityStep2Schema = step2BaseSchema.refine(
 // ─── Step 3: Roadmap Template ────────────────────────────────────────────────
 
 const customStageInputSchema = z.object({
-  stageTypeId: z.string().uuid('Stage Type ID must be a valid UUID'),
+  stageTypeId: z.string().trim().min(1, 'Stage Type ID is required'),
   sequence: z.number().int().positive(),
-  plannedStartDate: z.coerce.date().optional(),
-  plannedEndDate: z.coerce.date().optional(),
+  plannedStartDate: optionalCoerceDate,
+  plannedEndDate: optionalCoerceDate,
   plannedDays: z.number().int().nonnegative().optional(),
 });
 
@@ -106,10 +177,10 @@ export const stagePayloadItemSchema = z.object({
   name: z.string().optional(),
   stageTypeId: z.string().optional(),
   sequence: z.number().optional(),
-  plannedStartDate: z.coerce.date().optional(),
-  plannedEndDate: z.coerce.date().optional(),
-  currentTargetStartDate: z.coerce.date().optional(),
-  currentTargetEndDate: z.coerce.date().optional(),
+  plannedStartDate: optionalCoerceDate,
+  plannedEndDate: optionalCoerceDate,
+  currentTargetStartDate: optionalCoerceDate,
+  currentTargetEndDate: optionalCoerceDate,
   plannedDays: z.number().optional(),
   isNotApplicable: z.boolean().optional(),
   notApplicable: z.boolean().optional(),
@@ -123,9 +194,9 @@ export const createActivityStep3Schema = z.object({
   procurementClassificationCode: z.string().trim().max(100).optional(),
   procurementClassificationDesc: z.string().trim().max(500).optional(),
   location: z.string().trim().max(255).optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-  roadmapTemplateId: z.string().uuid().optional(),
+  latitude: optionalCoord,
+  longitude: optionalCoord,
+  roadmapTemplateId: z.string().trim().optional(),
   customStages: z.array(customStageInputSchema).optional(),
 });
 
@@ -194,10 +265,10 @@ export const updateActivitySchema = registry.register(
 export const updateStageSchema = registry.register(
   'UpdateStage',
   z.object({
-    plannedStartDate: z.coerce.date().optional(),
-    plannedEndDate: z.coerce.date().optional(),
-    currentTargetStartDate: z.coerce.date().optional(),
-    currentTargetEndDate: z.coerce.date().optional(),
+    plannedStartDate: optionalCoerceDate,
+    plannedEndDate: optionalCoerceDate,
+    currentTargetStartDate: optionalCoerceDate,
+    currentTargetEndDate: optionalCoerceDate,
     plannedDays: z.number().int().nonnegative().optional(),
     isNotApplicable: z.boolean().optional(),
     status: z
@@ -216,8 +287,8 @@ export const updateStageSchema = registry.register(
 export const updateStageActualSchema = registry.register(
   'UpdateStageActual',
   z.object({
-    actualStartDate: z.coerce.date().optional(),
-    actualEndDate: z.coerce.date().optional(),
+    actualStartDate: optionalCoerceDate,
+    actualEndDate: optionalCoerceDate,
     status: z
       .enum([
         'NOT_STARTED',
