@@ -8,6 +8,7 @@ import {
 } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
+import { createAuditLog } from '../../shared/audit/audit-logger.js';
 import { sendEmail } from '../../services/email.service.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
@@ -341,6 +342,20 @@ export const createPlanService = async (
           null,
           plan,
         );
+        await createAuditLog(
+          {
+            userId: validUserId,
+            action: 'PLAN_CREATED',
+            entityType: 'PLAN',
+            entityId: plan.id,
+            changes: {
+              title: plan.title,
+              budgetYear: plan.budgetYear,
+              organization: plan.organization,
+            },
+          },
+          tx,
+        );
       }
     } catch (auditErr) {
       console.warn('logRevision create plan warning:', auditErr);
@@ -443,6 +458,19 @@ export const updatePlanService = async (
             oldPlan,
             plan,
           );
+          await createAuditLog(
+            {
+              userId: validUserId,
+              action: 'PLAN_UPDATED',
+              entityType: 'PLAN',
+              entityId: plan.id,
+              changes: {
+                title: plan.title,
+                budgetYear: plan.budgetYear,
+              },
+            },
+            tx,
+          );
         }
       } catch (auditErr) {
         console.warn('logRevision update plan warning:', auditErr);
@@ -525,6 +553,19 @@ export const submitPlanService = async (id: string, userId: string) => {
             oldPlan,
             plan,
           );
+          await createAuditLog(
+            {
+              userId: validUserId,
+              action: 'PLAN_SUBMITTED',
+              entityType: 'PLAN',
+              entityId: plan.id,
+              changes: {
+                title: plan.title,
+                status: plan.status,
+              },
+            },
+            tx,
+          );
         }
       } catch (auditErr) {
         console.warn('logRevision submit plan warning:', auditErr);
@@ -605,6 +646,20 @@ export const sendToCommitteeService = async (
             validUserId,
             oldPlan,
             plan,
+          );
+          await createAuditLog(
+            {
+              userId: validUserId,
+              action: 'PLAN_SENT_TO_COMMITTEE',
+              entityType: 'PLAN',
+              entityId: plan.id,
+              changes: {
+                title: plan.title,
+                committeeRound: plan.committeeRound,
+                ...(committeeVoteDeadline ? { committeeVoteDeadline } : {}),
+              },
+            },
+            tx,
           );
         }
       } catch (auditErr) {
@@ -758,6 +813,19 @@ export const rejectPlanService = async (
             oldPlan,
             plan,
           );
+          await createAuditLog(
+            {
+              userId: validUserId,
+              action: 'PLAN_REJECTED',
+              entityType: 'PLAN',
+              entityId: plan.id,
+              changes: {
+                title: plan.title,
+                reason,
+              },
+            },
+            tx,
+          );
         }
       } catch (auditErr) {
         console.warn('logRevision rejectPlan warning:', auditErr);
@@ -834,6 +902,19 @@ export const returnToOfficerService = async (
             validUserId,
             oldPlan,
             plan,
+          );
+          await createAuditLog(
+            {
+              userId: validUserId,
+              action: 'PLAN_RETURNED_FOR_REVISION',
+              entityType: 'PLAN',
+              entityId: plan.id,
+              changes: {
+                title: plan.title,
+                reason,
+              },
+            },
+            tx,
           );
         }
       } catch (auditErr) {
@@ -918,6 +999,22 @@ export const submitCommitteeVoteService = async (
         where: { planId: oldPlan.id, round: oldPlan.committeeRound },
       });
 
+      await createAuditLog(
+        {
+          userId: validUserId,
+          action: 'COMMITTEE_VOTE_CAST',
+          entityType: 'PLAN',
+          entityId: oldPlan.id,
+          changes: {
+            title: oldPlan.title,
+            decision,
+            comment,
+            round: oldPlan.committeeRound,
+          },
+        },
+        tx,
+      );
+
       const approveCount = votes.filter(
         (v: { decision: VoteDecision }) => v.decision === VoteDecision.APPROVE,
       ).length;
@@ -955,6 +1052,20 @@ export const submitCommitteeVoteService = async (
             oldPlan,
             plan,
           );
+          await createAuditLog(
+            {
+              userId: validUserId,
+              action: 'PLAN_ENDORSED',
+              entityType: 'PLAN',
+              entityId: plan.id,
+              changes: {
+                title: plan.title,
+                approveCount,
+                status: plan.status,
+              },
+            },
+            tx,
+          );
         } catch (auditErr) {
           console.warn('logRevision vote approve warning:', auditErr);
         }
@@ -984,6 +1095,21 @@ export const submitCommitteeVoteService = async (
             validUserId,
             oldPlan,
             plan,
+          );
+          await createAuditLog(
+            {
+              userId: validUserId,
+              action: 'PLAN_REJECTED',
+              entityType: 'PLAN',
+              entityId: plan.id,
+              changes: {
+                title: plan.title,
+                rejectCount,
+                reason:
+                  comment || 'Rejected by majority Endorsement Committee vote.',
+              },
+            },
+            tx,
           );
         } catch (auditErr) {
           console.warn('logRevision vote reject warning:', auditErr);
@@ -1373,6 +1499,20 @@ export const submitManagementDecisionService = async (
             updatedPlan,
           );
         }
+        await createAuditLog(
+          {
+            userId: userId ?? null,
+            action: isApproved ? 'PLAN_APPROVED' : 'PLAN_REJECTED',
+            entityType: 'PLAN',
+            entityId: updatedPlan.id,
+            changes: {
+              title: updatedPlan.title,
+              decision,
+              comment,
+            },
+          },
+          tx,
+        );
       } catch (auditErr) {
         console.warn('logRevision managementDecision warning:', auditErr);
       }

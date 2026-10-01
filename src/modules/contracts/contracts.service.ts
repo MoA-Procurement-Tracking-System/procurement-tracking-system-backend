@@ -340,20 +340,32 @@ export class ContractsService {
       data: formattedData,
     });
 
-    await createAuditLog({
-      userId: userId ?? null,
-      action: 'CONTRACT_UPDATED',
-      entityType: 'CONTRACT',
-      entityId: id,
-      changes: {
-        contractNo: updated.contractNo,
-        previousTotalValue: oldContract
-          ? Number(oldContract.totalValue)
-          : undefined,
-        newTotalValue: Number(updated.totalValue),
-        currency: updated.currency,
-      },
-    });
+    if (isDeleted === true) {
+      await createAuditLog({
+        userId: userId ?? null,
+        action: 'CONTRACT_DELETED',
+        entityType: 'CONTRACT',
+        entityId: id,
+        changes: {
+          contractNo: updated.contractNo,
+        },
+      });
+    } else {
+      await createAuditLog({
+        userId: userId ?? null,
+        action: 'CONTRACT_UPDATED',
+        entityType: 'CONTRACT',
+        entityId: id,
+        changes: {
+          contractNo: updated.contractNo,
+          previousTotalValue: oldContract
+            ? Number(oldContract.totalValue)
+            : undefined,
+          newTotalValue: Number(updated.totalValue),
+          currency: updated.currency,
+        },
+      });
+    }
 
     return updated;
   }

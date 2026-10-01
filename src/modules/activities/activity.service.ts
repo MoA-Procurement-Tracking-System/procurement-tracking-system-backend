@@ -630,6 +630,21 @@ export const updateStageService = async (
       data: updateData,
     });
 
+    await createAuditLog(
+      {
+        userId: userId ?? null,
+        action: 'STAGE_UPDATED',
+        entityType: 'STAGE',
+        entityId: stage.id,
+        changes: {
+          stageName: stage.stageType?.label || `Stage ${stage.sequence}`,
+          activityRef: stage.activity?.reference,
+          status: updatedStage.status,
+        },
+      },
+      tx,
+    );
+
     return { updatedStage, stage };
   });
 
@@ -717,6 +732,23 @@ export const updateStageActualService = async (
       where: { id: stageId },
       data: updateData,
     });
+
+    await createAuditLog(
+      {
+        userId: userId ?? null,
+        action: 'STAGE_UPDATED',
+        entityType: 'STAGE',
+        entityId: stage.id,
+        changes: {
+          stageName: stage.stageType?.label || `Stage ${stage.sequence}`,
+          activityRef: stage.activity?.reference,
+          status: updatedStage.status,
+          actualStartDate: data.actualStartDate,
+          actualEndDate: data.actualEndDate,
+        },
+      },
+      tx,
+    );
 
     return { updatedStage, stage };
   });
@@ -807,6 +839,23 @@ export const replanStageService = async (
         data: stageUpdateData,
         include: { revisions: { orderBy: { revisionNo: 'asc' } } },
       });
+
+      await createAuditLog(
+        {
+          userId,
+          action: 'STAGE_REPLANNED',
+          entityType: 'STAGE',
+          entityId: stage.id,
+          changes: {
+            stageName: stage.stageType?.label || `Stage ${stage.sequence}`,
+            activityRef: stage.activity?.reference,
+            reason: data.reason,
+            revisedStartDate: data.revisedStartDate,
+            revisedEndDate: data.revisedEndDate,
+          },
+        },
+        tx,
+      );
 
       return { updatedStage, stage, user };
     },
