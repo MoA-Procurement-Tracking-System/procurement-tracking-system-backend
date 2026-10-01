@@ -23,6 +23,7 @@ export function formatAuditSummary(log: AuditLogPayload): string {
   const changes = (log.changes ?? {}) as Record<string, unknown>;
 
   switch (log.action) {
+    // ─── Contracts & Financials ───
     case 'PAYMENT_ADDED': {
       const amount = changes.amount
         ? Number(changes.amount).toLocaleString()
@@ -54,12 +55,25 @@ export function formatAuditSummary(log: AuditLogPayload): string {
       return `${userName} updated contract details for Contract ${contractNo}`;
     }
 
+    case 'CONTRACT_AMENDED': {
+      const contractNo = String(changes.contractNo ?? log.entityId ?? '');
+      const amendNo = changes.amendmentNo ? ` #${changes.amendmentNo}` : '';
+      const reason = changes.reason ? `: "${changes.reason}"` : '';
+      return `${userName} issued Amendment${amendNo} for Contract ${contractNo}${reason}`;
+    }
+
+    case 'CONTRACT_DELETED': {
+      const contractNo = String(changes.contractNo ?? log.entityId ?? '');
+      return `${userName} deleted Contract ${contractNo}`;
+    }
+
+    // ─── Procurement Activities & Stages ───
     case 'ACTIVITY_CREATED': {
       const ref = String(changes.reference ?? log.entityId ?? '');
       const budget = changes.estimatedBudget
         ? Number(changes.estimatedBudget).toLocaleString()
         : 'N/A';
-      return `${userName} created Procurement Activity ${ref} with estimated budget ${budget} ${changes.currency ?? 'USD'}`;
+      return `${userName} created Procurement Activity ${ref} with estimated budget ${budget} ${changes.currency ?? 'ETB'}`;
     }
 
     case 'ACTIVITY_UPDATED': {
@@ -69,39 +83,171 @@ export function formatAuditSummary(log: AuditLogPayload): string {
         const oldB = changes.previousEstimatedBudget
           ? Number(changes.previousEstimatedBudget).toLocaleString()
           : 'N/A';
-        return `${userName} updated Activity ${ref} estimated budget from ${oldB} to ${newB} ${changes.currency ?? 'USD'}`;
+        return `${userName} updated Activity ${ref} estimated budget from ${oldB} to ${newB} ${changes.currency ?? 'ETB'}`;
       }
       return `${userName} updated details for Activity ${ref}`;
     }
 
-    case 'PLAN_SUBMITTED':
-      return `${userName} submitted procurement plan for review`;
-
-    case 'PLAN_SENT_TO_COMMITTEE':
-      return `${userName} forwarded procurement plan to Endorsement Committee`;
-
-    case 'PLAN_APPROVED':
-      return `${userName} approved procurement plan`;
-
-    case 'PLAN_REJECTED': {
-      const reason = changes.reason ? `: "${changes.reason}"` : '';
-      return `${userName} rejected procurement plan${reason}`;
+    case 'STAGE_REPLANNED': {
+      const stageName = String(changes.stageName ?? 'Stage');
+      const actRef = changes.activityRef ? ` in ${changes.activityRef}` : '';
+      const reason = changes.reason ? ` (Reason: "${changes.reason}")` : '';
+      return `${userName} replanned stage "${stageName}"${actRef}${reason}`;
     }
 
-    case 'LOGIN':
-      return `${userName} logged in successfully`;
+    case 'STAGE_UPDATED': {
+      const stageName = String(changes.stageName ?? 'Stage');
+      const actRef = changes.activityRef ? ` in ${changes.activityRef}` : '';
+      return `${userName} updated dates/status for stage "${stageName}"${actRef}`;
+    }
 
-    case 'LOGIN_FAILED':
-      return `Failed login attempt for ${log.entityId || userName}`;
+    // ─── Procurement Plans & Governance ───
+    case 'PLAN_CREATED': {
+      const title = String(changes.title ?? log.entityId ?? 'Procurement Plan');
+      return `${userName} created Procurement Plan "${title}"`;
+    }
+
+    case 'PLAN_SUBMITTED': {
+      const title = String(changes.title ?? log.entityId ?? 'Procurement Plan');
+      return `${userName} submitted Procurement Plan "${title}" for director review`;
+    }
+
+    case 'PLAN_SENT_TO_COMMITTEE': {
+      const title = String(changes.title ?? log.entityId ?? 'Procurement Plan');
+      return `${userName} forwarded Procurement Plan "${title}" to Endorsement Committee`;
+    }
+
+    case 'PLAN_RETURNED_FOR_REVISION': {
+      const title = String(changes.title ?? log.entityId ?? 'Procurement Plan');
+      const reason =
+        changes.reason || changes.comment
+          ? `: "${changes.reason || changes.comment}"`
+          : '';
+      return `${userName} returned Procurement Plan "${title}" for revision${reason}`;
+    }
+
+    case 'PLAN_ENDORSED': {
+      const title = String(changes.title ?? log.entityId ?? 'Procurement Plan');
+      return `${userName} recorded Endorsement Committee approval for Plan "${title}"`;
+    }
+
+    case 'PLAN_APPROVED': {
+      const title = String(changes.title ?? log.entityId ?? 'Procurement Plan');
+      return `${userName} authorized & approved Procurement Plan "${title}"`;
+    }
+
+    case 'PLAN_REJECTED': {
+      const title = String(changes.title ?? log.entityId ?? 'Procurement Plan');
+      const reason =
+        changes.reason || changes.comment
+          ? `: "${changes.reason || changes.comment}"`
+          : '';
+      return `${userName} rejected Procurement Plan "${title}"${reason}`;
+    }
+
+    case 'COMMITTEE_VOTE_CAST': {
+      const title = String(changes.title ?? log.entityId ?? 'Procurement Plan');
+      const dec = String(changes.decision ?? '');
+      return `${userName} voted ${dec} on Procurement Plan "${title}"`;
+    }
+
+    // ─── Projects ───
+    case 'PROJECT_CREATED': {
+      const proj = String(
+        changes.code ?? changes.name ?? log.entityId ?? 'Project',
+      );
+      return `${userName} created Project "${proj}"`;
+    }
+
+    case 'PROJECT_UPDATED': {
+      const proj = String(
+        changes.code ?? changes.name ?? log.entityId ?? 'Project',
+      );
+      return `${userName} updated Project details for "${proj}"`;
+    }
+
+    // ─── User Governance & Access ───
+    case 'USER_INVITED': {
+      const target = String(changes.email ?? log.entityId ?? 'user');
+      const role = changes.role ? ` (${changes.role})` : '';
+      return `${userName} sent an account invitation email to ${target}${role}`;
+    }
+
+    case 'USER_ROLE_CHANGED': {
+      const target = String(
+        changes.name ?? changes.email ?? log.entityId ?? 'User',
+      );
+      return `${userName} changed role of ${target} from ${changes.previousRole ?? 'previous'} to ${changes.newRole}`;
+    }
+
+    case 'USER_DEACTIVATED': {
+      const target = String(
+        changes.name ?? changes.email ?? log.entityId ?? 'User',
+      );
+      return `${userName} deactivated access for user ${target}`;
+    }
+
+    case 'USER_ACTIVATED': {
+      const target = String(
+        changes.name ?? changes.email ?? log.entityId ?? 'User',
+      );
+      return `${userName} restored/activated access for user ${target}`;
+    }
+
+    case 'USER_DELETED': {
+      const target = String(
+        changes.name ?? changes.email ?? log.entityId ?? 'User',
+      );
+      return `${userName} deleted user account for ${target}`;
+    }
+
+    case 'USER_CREATED': {
+      const target = String(
+        changes.name ?? changes.email ?? log.entityId ?? 'User',
+      );
+      const role = changes.role ? ` as ${changes.role}` : '';
+      return `${userName} created user account for ${target}${role}`;
+    }
+
+    case 'USER_UPDATED': {
+      const target = String(
+        changes.name ?? changes.email ?? log.entityId ?? 'User',
+      );
+      return `${userName} updated profile details for ${target}`;
+    }
+
+    case 'USER_INVITATION_CANCELLED': {
+      const target = String(changes.email ?? log.entityId ?? 'User');
+      return `${userName} cancelled pending invitation for ${target}`;
+    }
+
+    // ─── Authentication & Identity ───
+    case 'LOGIN':
+    case 'LOGIN_SUCCEEDED':
+      return `${userName} signed in successfully`;
+
+    case 'LOGIN_FAILED': {
+      const target = String(changes.email ?? log.entityId ?? userName);
+      return `Failed sign-in attempt for ${target}`;
+    }
 
     case 'LOGOUT':
-      return `${userName} logged out`;
+      return `${userName} signed out`;
+
+    case 'ACCOUNT_ACTIVATED':
+      return `${userName} activated their account and set initial password`;
 
     case 'PASSWORD_CHANGE':
+    case 'PASSWORD_CHANGED':
       return `${userName} changed their password`;
 
-    case 'USER_INVITATION_SENT':
-      return `${userName} sent an account invitation email to ${changes.email || log.entityId}`;
+    case 'PASSWORD_RESET_REQUESTED': {
+      const target = String(changes.email ?? userName);
+      return `Password reset requested for ${target}`;
+    }
+
+    case 'PASSWORD_RESET_COMPLETED':
+      return `${userName} completed password reset`;
 
     default: {
       const actionText = log.action.replace(/_/g, ' ').toLowerCase();

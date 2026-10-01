@@ -10,7 +10,10 @@ import {
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
 import { createAuditLog } from '../../shared/audit/audit-logger.js';
-import { generateStagesForActivity } from './stage-generator.js';
+import {
+  generateStagesForActivity,
+  type CustomStageInput,
+} from './stage-generator.js';
 import { notifyOfficersOnEntityChange } from '../alerts/officer-notification.helper.js';
 import type {
   CreateActivityInput,
@@ -200,6 +203,11 @@ export const createActivityService = async (
       }
     ).procurementMethodId;
 
+    const rawClean = cleanActivityData as Record<string, unknown>;
+    if (typeof rawClean.domesticPreference === 'boolean') {
+      rawClean.domesticPreference = rawClean.domesticPreference ? 'Yes' : 'No';
+    }
+
     let validActUserId: string | undefined = undefined;
     if (userId) {
       const u = await tx.user.findUnique({ where: { id: userId } });
@@ -348,6 +356,13 @@ export const updateActivityService = async (
       delete (cleanScalarData as { stages?: unknown; roadmap?: unknown })
         .roadmap;
 
+      const rawScalar = cleanScalarData as Record<string, unknown>;
+      if (typeof rawScalar.domesticPreference === 'boolean') {
+        rawScalar.domesticPreference = rawScalar.domesticPreference
+          ? 'Yes'
+          : 'No';
+      }
+
       // Replace child records if provided
       if (fundings !== undefined) {
         await tx.activityFunding.deleteMany({ where: { activityId: id } });
@@ -395,6 +410,99 @@ export const updateActivityService = async (
           updatedByUser: true,
         },
       });
+
+      // Update stages if provided
+      const stageInputs = (inputWithExtra.stages ||
+        inputWithExtra.roadmap) as unknown as CustomStageInput[];
+      if (Array.isArray(stageInputs) && stageInputs.length > 0) {
+        const existingStages = await tx.stage.findMany({
+          where: { activityId: id },
+          include: { stageType: true },
+          orderBy: { sequence: 'asc' },
+        });
+
+        if (existingStages.length > 0) {
+          for (let idx = 0; idx < existingStages.length; idx++) {
+            const st = existingStages[idx];
+            if (!st) continue;
+
+            const custom = stageInputs.find(
+              (cs, csIdx) =>
+                cs.sequence === st.sequence ||
+                cs.stageTypeId === st.stageTypeId ||
+                (typeof cs.name === 'string' &&
+                  st.stageType?.label &&
+                  cs.name.toLowerCase() === st.stageType.label.toLowerCase()) ||
+                csIdx === idx,
+            );
+            if (custom) {
+              const isNA = Boolean(
+                custom.notApplicable ||
+                custom.isNotApplicable ||
+                custom.status === 'NOT_APPLICABLE' ||
+                custom.status === 'Not Applicable',
+              );
+              let plannedStart: Date | null = null;
+              if (!isNA) {
+                const rawDate = custom.plannedStartDate || custom.gregorianDate;
+                if (rawDate) {
+                  const d = new Date(rawDate);
+                  if (!isNaN(d.getTime())) plannedStart = d;
+                }
+              }
+              const plannedDays =
+                Number(custom.plannedDays) || st.plannedDays || 14;
+              let plannedEnd: Date | null = null;
+              if (plannedStart && !isNaN(plannedStart.getTime())) {
+                plannedEnd = new Date(plannedStart);
+                plannedEnd.setUTCDate(plannedStart.getUTCDate() + plannedDays);
+              }
+              await tx.stage.update({
+                where: { id: st.id },
+                data: {
+                  plannedStartDate: isNA
+                    ? null
+                    : plannedStart || st.plannedStartDate,
+                  plannedEndDate: isNA ? null : plannedEnd || st.plannedEndDate,
+                  currentTargetStartDate: isNA
+                    ? null
+                    : plannedStart || st.currentTargetStartDate,
+                  currentTargetEndDate: isNA
+                    ? null
+                    : plannedEnd || st.currentTargetEndDate,
+                  isNotApplicable: isNA,
+                  remarks:
+                    custom.remarks !== undefined
+                      ? custom.remarks
+                        ? String(custom.remarks)
+                        : null
+                      : st.remarks,
+                  status: isNA
+                    ? StageStatus.NOT_APPLICABLE
+                    : custom.status === 'IN_PROGRESS' ||
+                        custom.status === 'In Progress'
+                      ? StageStatus.IN_PROGRESS
+                      : custom.status === 'COMPLETED' ||
+                          custom.status === 'Completed'
+                        ? StageStatus.COMPLETED
+                        : st.status,
+                },
+              });
+            }
+          }
+        } else {
+          try {
+            await generateStagesForActivity(
+              tx,
+              activity.id,
+              activity.procurementMethodId,
+              stageInputs,
+            );
+          } catch (genErr) {
+            console.warn('generateStagesForActivity on update note:', genErr);
+          }
+        }
+      }
 
       await logRevision(
         tx,
@@ -522,6 +630,21 @@ export const updateStageService = async (
       data: updateData,
     });
 
+    await createAuditLog(
+      {
+        userId: userId ?? null,
+        action: 'STAGE_UPDATED',
+        entityType: 'STAGE',
+        entityId: stage.id,
+        changes: {
+          stageName: stage.stageType?.label || `Stage ${stage.sequence}`,
+          activityRef: stage.activity?.reference,
+          status: updatedStage.status,
+        },
+      },
+      tx,
+    );
+
     return { updatedStage, stage };
   });
 
@@ -609,6 +732,23 @@ export const updateStageActualService = async (
       where: { id: stageId },
       data: updateData,
     });
+
+    await createAuditLog(
+      {
+        userId: userId ?? null,
+        action: 'STAGE_UPDATED',
+        entityType: 'STAGE',
+        entityId: stage.id,
+        changes: {
+          stageName: stage.stageType?.label || `Stage ${stage.sequence}`,
+          activityRef: stage.activity?.reference,
+          status: updatedStage.status,
+          actualStartDate: data.actualStartDate,
+          actualEndDate: data.actualEndDate,
+        },
+      },
+      tx,
+    );
 
     return { updatedStage, stage };
   });
@@ -699,6 +839,23 @@ export const replanStageService = async (
         data: stageUpdateData,
         include: { revisions: { orderBy: { revisionNo: 'asc' } } },
       });
+
+      await createAuditLog(
+        {
+          userId,
+          action: 'STAGE_REPLANNED',
+          entityType: 'STAGE',
+          entityId: stage.id,
+          changes: {
+            stageName: stage.stageType?.label || `Stage ${stage.sequence}`,
+            activityRef: stage.activity?.reference,
+            reason: data.reason,
+            revisedStartDate: data.revisedStartDate,
+            revisedEndDate: data.revisedEndDate,
+          },
+        },
+        tx,
+      );
 
       return { updatedStage, stage, user };
     },

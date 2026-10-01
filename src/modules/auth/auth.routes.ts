@@ -66,11 +66,17 @@ declare global {
   }
 }
 
-const loginSchema = z.object({
-  identifier: z.string().trim().min(1).max(254),
-  password: z.string().min(1).max(128),
-  rememberMe: z.boolean().default(false),
-});
+const loginSchema = z
+  .object({
+    identifier: z.string().trim().min(1).max(254).optional(),
+    email: z.string().trim().min(1).max(254).optional(),
+    password: z.string().min(1).max(128),
+    rememberMe: z.boolean().default(false),
+  })
+  .refine((data) => Boolean(data.identifier || data.email), {
+    message: 'Identifier or email is required',
+    path: ['identifier'],
+  });
 
 const changePasswordSchema = z
   .object({
@@ -448,7 +454,11 @@ authRouter.post('/login', async (req, res) => {
     return;
   }
 
-  const identifier = parsed.data.identifier.toLowerCase();
+  const identifier = (
+    parsed.data.identifier ||
+    parsed.data.email ||
+    ''
+  ).toLowerCase();
   const user = await prisma.user.findFirst({
     where: { OR: [{ email: identifier }, { username: identifier }] },
   });

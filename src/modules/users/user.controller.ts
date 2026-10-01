@@ -43,7 +43,7 @@ export async function createUserHandler(
   next: NextFunction,
 ) {
   try {
-    const user = await usersService.createUser(req.body);
+    const user = await usersService.createUser(req.body, req.auth?.user?.id);
     res.status(201).json({ message: 'User created', data: user });
   } catch (err) {
     next(err);
@@ -57,7 +57,11 @@ export async function updateUserHandler(
 ) {
   try {
     const id = typeof req.params.id === 'string' ? req.params.id : '';
-    const user = await usersService.updateUser(id, req.body);
+    const user = await usersService.updateUser(
+      id,
+      req.body,
+      req.auth?.user?.id,
+    );
     res.json({ message: 'User updated', data: user });
   } catch (err) {
     next(err);
@@ -77,7 +81,7 @@ export async function deleteUserHandler(
         .status(400)
         .json({ error: 'Administrators cannot delete their own account.' });
     }
-    const result = await usersService.deleteUser(id);
+    const result = await usersService.deleteUser(id, req.auth?.user?.id);
     res.json(result);
   } catch (err) {
     next(err);

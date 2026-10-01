@@ -9,6 +9,9 @@ export const createContractSchema = registry.register(
       .min(1, 'Contract number is required')
       .openapi({ example: 'MOA-2026-CTR-001' }),
     supplierId: z.string().optional().openapi({ example: 'sup-uuid-1' }),
+    supplierName: z.string().optional(),
+    activityId: z.string().optional(),
+    activityReference: z.string().optional(),
     totalValue: z
       .number()
       .positive('Total value must be greater than 0')
@@ -16,6 +19,26 @@ export const createContractSchema = registry.register(
     currency: z.string().optional().default('USD').openapi({ example: 'USD' }),
     region: z.string().optional().openapi({ example: 'Oromia' }),
     sector: z.string().optional().openapi({ example: 'Agriculture' }),
+    subcomponent: z.string().optional(),
+    remarks: z.string().optional(),
+    vatRate: z.number().optional(),
+    contractAmountWithVat: z.number().optional(),
+    contractNetOfVat: z.number().optional(),
+    status: z
+      .enum([
+        'ACTIVE',
+        'COMPLETED',
+        'CANCELLED',
+        'PENDING',
+        'DRAFT',
+        'TERMINATED',
+      ])
+      .optional(),
+    awardDate: z.coerce.date().optional(),
+    signatureDate: z.coerce.date().optional(),
+    startDate: z.coerce.date().optional(),
+    plannedEndDate: z.coerce.date().optional(),
+    actualCompletionDate: z.coerce.date().optional(),
     isDeleted: z.boolean().optional(),
   }),
 );

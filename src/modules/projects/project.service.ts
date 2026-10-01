@@ -7,6 +7,7 @@ import {
 } from '../../generated/prisma/index.js';
 import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
+import { createAuditLog } from '../../shared/audit/audit-logger.js';
 import { notifyOfficersOnEntityChange } from '../alerts/officer-notification.helper.js';
 
 export interface GetProjectsQueryOptions {
@@ -124,6 +125,19 @@ export const createProjectService = async (
         null,
         project,
       );
+      await createAuditLog(
+        {
+          userId: userExists.id,
+          action: 'PROJECT_CREATED',
+          entityType: 'PROJECT',
+          entityId: project.id,
+          changes: {
+            code: project.code,
+            name: project.name,
+          },
+        },
+        tx,
+      );
     } catch (auditErr) {
       console.warn('logRevision warning:', auditErr);
     }
@@ -169,6 +183,19 @@ export const updateProjectService = async (
           userExists.id,
           oldProject,
           project,
+        );
+        await createAuditLog(
+          {
+            userId: userExists.id,
+            action: 'PROJECT_UPDATED',
+            entityType: 'PROJECT',
+            entityId: project.id,
+            changes: {
+              code: project.code,
+              name: project.name,
+            },
+          },
+          tx,
         );
       } catch (auditErr) {
         console.warn('logRevision warning:', auditErr);

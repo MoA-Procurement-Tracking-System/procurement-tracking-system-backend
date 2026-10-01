@@ -3,6 +3,7 @@ import { ApiError } from '../../utils/errors.js';
 import { hashPassword } from '../auth/auth.security.js';
 import { UserRole, UserStatus } from '../../generated/prisma/index.js';
 import type { Prisma } from '../../generated/prisma/index.js';
+import { createAuditLog } from '../../shared/audit/audit-logger.js';
 import type {
   CreateUserInput,
   UpdateUserInput,
@@ -122,7 +123,10 @@ export async function getUserById(id: string): Promise<SafeUser> {
   };
 }
 
-export async function createUser(input: CreateUserInput): Promise<SafeUser> {
+export async function createUser(
+  input: CreateUserInput,
+  actorUserId?: string,
+): Promise<SafeUser> {
   const existing = await prisma.user.findUnique({
     where: { email: input.email.toLowerCase() },
   });
@@ -146,6 +150,18 @@ export async function createUser(input: CreateUserInput): Promise<SafeUser> {
     select: safeSelect,
   });
 
+  await createAuditLog({
+    userId: actorUserId ?? null,
+    action: 'USER_CREATED',
+    entityType: 'USER',
+    entityId: user.id,
+    changes: {
+      name: user.displayName || user.name,
+      email: user.email,
+      role: user.authRole,
+    },
+  });
+
   return {
     ...user,
     role: user.authRole,
@@ -155,6 +171,7 @@ export async function createUser(input: CreateUserInput): Promise<SafeUser> {
 export async function updateUser(
   id: string,
   input: UpdateUserInput,
+  actorUserId?: string,
 ): Promise<SafeUser> {
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw ApiError.notFound('User not found');
@@ -185,6 +202,50 @@ export async function updateUser(
     select: safeSelect,
   });
 
+  if (existing.authRole !== user.authRole) {
+    await createAuditLog({
+      userId: actorUserId ?? null,
+      action: 'USER_ROLE_CHANGED',
+      entityType: 'USER',
+      entityId: user.id,
+      changes: {
+        name: user.displayName || user.name,
+        email: user.email,
+        previousRole: existing.authRole,
+        newRole: user.authRole,
+      },
+    });
+  }
+
+  if (input.isActive !== undefined && input.isActive !== existing.isActive) {
+    await createAuditLog({
+      userId: actorUserId ?? null,
+      action: input.isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED',
+      entityType: 'USER',
+      entityId: user.id,
+      changes: {
+        name: user.displayName || user.name,
+        email: user.email,
+      },
+    });
+  }
+
+  if (
+    existing.authRole === user.authRole &&
+    (input.isActive === undefined || input.isActive === existing.isActive)
+  ) {
+    await createAuditLog({
+      userId: actorUserId ?? null,
+      action: 'USER_UPDATED',
+      entityType: 'USER',
+      entityId: user.id,
+      changes: {
+        name: user.displayName || user.name,
+        email: user.email,
+      },
+    });
+  }
+
   return {
     ...user,
     role: user.authRole,
@@ -193,6 +254,7 @@ export async function updateUser(
 
 export async function deleteUser(
   id: string,
+  actorUserId?: string,
 ): Promise<{ message: string; success: boolean }> {
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw ApiError.notFound('User not found');
@@ -211,6 +273,18 @@ export async function deleteUser(
         status: UserStatus.INACTIVE,
       },
     });
+
+    await createAuditLog({
+      userId: actorUserId ?? null,
+      action: 'USER_INVITATION_CANCELLED',
+      entityType: 'USER',
+      entityId: id,
+      changes: {
+        name: existing.displayName || existing.name,
+        email: existing.email,
+      },
+    });
+
     return {
       message: 'Invitation cancelled and user account marked as inactive',
       success: true,
@@ -228,6 +302,18 @@ export async function deleteUser(
   });
   await prisma.session.deleteMany({ where: { userId: id } });
   await prisma.refreshToken.deleteMany({ where: { userId: id } });
+
+  await createAuditLog({
+    userId: actorUserId ?? null,
+    action: 'USER_DELETED',
+    entityType: 'USER',
+    entityId: id,
+    changes: {
+      name: existing.displayName || existing.name,
+      email: existing.email,
+    },
+  });
+
   return {
     message:
       'User account deleted successfully and moved to Deactivated or Deleted accounts',
