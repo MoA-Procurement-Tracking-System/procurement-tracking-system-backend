@@ -436,6 +436,28 @@ export const updatePlanService = async (
         }
       }
 
+      if (
+        (data.status === PlanStatus.SUBMITTED ||
+          (data.status as unknown as string) === 'SUBMITTED') &&
+        (!oldPlan.activities || oldPlan.activities.length === 0)
+      ) {
+        throw ApiError.badRequest(
+          'Cannot submit an empty plan. The plan must contain at least one procurement activity before submission.',
+        );
+      }
+
+      if (
+        data.procurementCategory !== undefined &&
+        oldPlan.procurementCategory &&
+        data.procurementCategory !== oldPlan.procurementCategory &&
+        oldPlan.activities &&
+        oldPlan.activities.length > 0
+      ) {
+        throw ApiError.badRequest(
+          'Cannot edit procurement category for a plan that already contains procurement activities.',
+        );
+      }
+
       const plan = await tx.plan.update({
         where: { id: oldPlan.id },
         data,
@@ -522,6 +544,12 @@ export const submitPlanService = async (id: string, userId: string) => {
       if (!submittableStatuses.includes(oldPlan.status)) {
         throw new Error(
           `Plan cannot be submitted because its current status is ${oldPlan.status}. Only plans in DRAFT, RETURNED_FOR_REVISION, or REJECTED status can be submitted.`,
+        );
+      }
+
+      if (!oldPlan.activities || oldPlan.activities.length === 0) {
+        throw ApiError.badRequest(
+          'Cannot submit an empty plan. The plan must contain at least one procurement activity before submission.',
         );
       }
 

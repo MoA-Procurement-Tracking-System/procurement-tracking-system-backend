@@ -363,6 +363,17 @@ export const updateActivityService = async (
           : 'No';
       }
 
+      let resolvedMethodId: string | undefined = undefined;
+      if (
+        cleanScalarData.procurementMethodId &&
+        typeof cleanScalarData.procurementMethodId === 'string'
+      ) {
+        resolvedMethodId = cleanScalarData.procurementMethodId;
+        delete (cleanScalarData as { procurementMethodId?: unknown })
+          .procurementMethodId;
+      }
+      delete (cleanScalarData as { planId?: unknown }).planId;
+
       // Replace child records if provided
       if (fundings !== undefined) {
         await tx.activityFunding.deleteMany({ where: { activityId: id } });
@@ -376,6 +387,9 @@ export const updateActivityService = async (
 
       const updateData: Prisma.ActivityUpdateInput = {
         ...(cleanScalarData as unknown as Prisma.ActivityUpdateInput),
+        ...(resolvedMethodId
+          ? { procurementMethod: { connect: { id: resolvedMethodId } } }
+          : {}),
         ...(user ? { updatedByUser: { connect: { id: user.id } } } : {}),
       };
 

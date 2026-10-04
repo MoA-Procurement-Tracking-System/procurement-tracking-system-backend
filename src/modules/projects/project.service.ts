@@ -9,6 +9,7 @@ import { prisma } from '../../config/database.js';
 import { logRevision } from '../../shared/audit/revision.service.js';
 import { createAuditLog } from '../../shared/audit/audit-logger.js';
 import { notifyOfficersOnEntityChange } from '../alerts/officer-notification.helper.js';
+import type { AuthenticatedUser } from '../../middleware/auth.js';
 
 export interface GetProjectsQueryOptions {
   page?: number | undefined;
@@ -19,13 +20,29 @@ export interface GetProjectsQueryOptions {
 
 export const getProjectsService = async (
   options: GetProjectsQueryOptions = {},
+  user?: AuthenticatedUser,
 ) => {
   const { page, pageSize, search, status } = options;
   const isPaginated = typeof page === 'number' || typeof pageSize === 'number';
 
+  const isOfficer =
+    user &&
+    (user.authRole === UserRole.OFFICER ||
+      user.role === 'OFFICER' ||
+      user.role === 'ProcurementOfficer');
+
   const where: Prisma.ProjectWhereInput = {
     isActive: true,
     ...(status ? { status: status as ProjectStatus } : {}),
+    ...(isOfficer
+      ? {
+          members: {
+            some: {
+              userId: user.id,
+            },
+          },
+        }
+      : {}),
     ...(search
       ? {
           OR: [
@@ -74,8 +91,17 @@ export const getProjectsService = async (
   return projects;
 };
 
-export const getProjectByIdService = async (id: string) => {
-  return prisma.project.findUnique({
+export const getProjectByIdService = async (
+  id: string,
+  user?: AuthenticatedUser,
+) => {
+  const isOfficer =
+    user &&
+    (user.authRole === UserRole.OFFICER ||
+      user.role === 'OFFICER' ||
+      user.role === 'ProcurementOfficer');
+
+  const project = await prisma.project.findUnique({
     where: { id },
     include: {
       fundingSource: true,
@@ -87,6 +113,16 @@ export const getProjectByIdService = async (id: string) => {
       },
     },
   });
+
+  if (!project) {
+    return null;
+  }
+
+  if (isOfficer && !project.members.some((m) => m.userId === user.id)) {
+    return null;
+  }
+
+  return project;
 };
 
 export const createProjectService = async (

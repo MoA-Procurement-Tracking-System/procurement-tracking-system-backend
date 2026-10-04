@@ -17,12 +17,15 @@ export const getProjects = async (
     const search = req.query.search ? String(req.query.search) : undefined;
     const status = req.query.status ? String(req.query.status) : undefined;
 
-    const projects = await projectService.getProjectsService({
-      page,
-      pageSize,
-      search,
-      status,
-    });
+    const projects = await projectService.getProjectsService(
+      {
+        page,
+        pageSize,
+        search,
+        status,
+      },
+      req.user,
+    );
     res.status(200).json(projects);
   } catch (error) {
     next(error);
@@ -37,6 +40,7 @@ export const getProjectById = async (
   try {
     const project = await projectService.getProjectByIdService(
       req.params.id as string,
+      req.user,
     );
     if (!project) {
       return next(ApiError.notFound('Project not found'));
