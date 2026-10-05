@@ -341,9 +341,7 @@ export async function bootstrapSystem(): Promise<void> {
         );
       }
     }
-
   } catch (err) {
     logger.warn({ err }, 'Warning during bootstrapSystem synchronization');
   }
 }
-
