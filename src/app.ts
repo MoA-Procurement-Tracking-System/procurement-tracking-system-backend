@@ -6,7 +6,7 @@ import { pinoHttp } from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
-import { swaggerSpec } from './config/swagger.js';
+import { swaggerSpec, getSwaggerSpec } from './config/swagger.js';
 import { ApiError } from './utils/errors.js';
 import {
   adminRouter,
@@ -88,14 +88,20 @@ if (env.NODE_ENV === 'production') {
   app.use('/api/auth/forgot-password', authLimiter);
 }
 
-// Swagger UI and OpenAPI JSON spec
-app.get(['/api-docs.json', '/api-docs/json', '/openapi.json'], (_req, res) => {
-  res.json(swaggerSpec);
+// Swagger UI & OpenAPI JSON specs
+app.get(['/api-docs.json', '/api/docs/swagger.json'], (_req, res) => {
+  res.json(getSwaggerSpec());
 });
-app.get(['/docs', '/swagger'], (_req, res) => {
-  res.redirect('/api-docs/');
-});
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+app.use(
+  '/api-docs',
+  (req: Request, _res: Response, next: NextFunction) => {
+    (req as Request & { swaggerDoc?: unknown }).swaggerDoc = getSwaggerSpec();
+    next();
+  },
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec),
+);
 
 // Health check routes
 app.get(['/', '/api/health'], (_req, res) => {
