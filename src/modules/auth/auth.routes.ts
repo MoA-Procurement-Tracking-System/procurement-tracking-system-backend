@@ -961,7 +961,7 @@ adminRouter.post('/users', async (req, res) => {
           where: { userId: existing.id },
         });
       } catch {
-        // Ignore if cleanup fails
+        // Ignore if tokens table is not found or already empty
       }
 
       try {

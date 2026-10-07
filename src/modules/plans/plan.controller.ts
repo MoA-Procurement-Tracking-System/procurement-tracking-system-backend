@@ -254,3 +254,66 @@ export const submitManagementDecision = async (
     next(error);
   }
 };
+
+export const requestPlanCancellation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user?.id) {
+      return next(ApiError.unauthorized('Authentication required'));
+    }
+    const { reason } = req.body;
+    const plan = await planService.requestPlanCancellationService(
+      req.params.id as string,
+      req.user.id,
+      reason,
+    );
+    res.status(200).json(plan);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const approvePlanCancellation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user?.id) {
+      return next(ApiError.unauthorized('Authentication required'));
+    }
+    const { comment } = req.body;
+    const plan = await planService.approvePlanCancellationService(
+      req.params.id as string,
+      req.user.id,
+      comment,
+    );
+    res.status(200).json(plan);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const rejectPlanCancellation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user?.id) {
+      return next(ApiError.unauthorized('Authentication required'));
+    }
+    const { comment } = req.body;
+    const plan = await planService.rejectPlanCancellationService(
+      req.params.id as string,
+      req.user.id,
+      comment,
+    );
+    res.status(200).json(plan);
+  } catch (error) {
+    next(error);
+  }
+};

@@ -1583,3 +1583,261 @@ export const submitManagementDecisionService = async (
 
   return plan;
 };
+
+export const requestPlanCancellationService = async (
+  id: string,
+  userId: string,
+  reason: string,
+) => {
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, creator: true, project: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, creator: true, project: true },
+        }));
+
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
+      }
+
+      const updatedPlan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: {
+          status: PlanStatus.CANCELLATION_REQUESTED,
+          cancellationReason: reason,
+          cancellationRequestedById: userId,
+          cancellationRequestedAt: new Date(),
+        },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (userId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.UPDATE,
+            oldPlan.id,
+            userId,
+            oldPlan,
+            updatedPlan,
+          );
+        }
+        await createAuditLog(
+          {
+            userId: userId ?? null,
+            action: 'PLAN_CANCELLATION_REQUESTED',
+            entityType: 'PLAN',
+            entityId: updatedPlan.id,
+            changes: {
+              title: updatedPlan.title,
+              reason,
+            },
+          },
+          tx,
+        );
+      } catch (auditErr) {
+        console.warn('logRevision cancellationRequest warning:', auditErr);
+      }
+
+      return updatedPlan;
+    },
+  );
+
+  createNotification({
+    targetRole: 'DIRECTOR',
+    title: `Cancellation Requested: ${plan.title}`,
+    message: `Procurement Officer has requested cancellation for plan "${plan.title}". Reason: ${reason}`,
+    type: 'DECISION',
+    severity: 'HIGH',
+    link: '/workspace/plan-for-review',
+  }).catch(() => {});
+
+  return plan;
+};
+
+export const approvePlanCancellationService = async (
+  id: string,
+  userId: string,
+  comment?: string,
+) => {
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, creator: true, project: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, creator: true, project: true },
+        }));
+
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
+      }
+
+      const updatedPlan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: {
+          status: PlanStatus.CANCELLED,
+          cancellationApprovedById: userId,
+          cancellationApprovedAt: new Date(),
+        },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      // Also set activities to CANCELLED if not COMPLETED
+      await tx.activity.updateMany({
+        where: {
+          planId: oldPlan.id,
+          status: { not: 'COMPLETED' },
+        },
+        data: {
+          status: 'CANCELLED',
+        },
+      });
+
+      try {
+        if (userId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.UPDATE,
+            oldPlan.id,
+            userId,
+            oldPlan,
+            updatedPlan,
+          );
+        }
+        await createAuditLog(
+          {
+            userId: userId ?? null,
+            action: 'PLAN_CANCELLED',
+            entityType: 'PLAN',
+            entityId: updatedPlan.id,
+            changes: {
+              title: updatedPlan.title,
+              directorComment: comment,
+            },
+          },
+          tx,
+        );
+      } catch (auditErr) {
+        console.warn('logRevision approveCancellation warning:', auditErr);
+      }
+
+      return updatedPlan;
+    },
+  );
+
+  if (plan.creator?.id) {
+    createNotification({
+      userId: plan.creator.id,
+      title: `Plan Cancelled: ${plan.title}`,
+      message: `The cancellation request for plan "${plan.title}" was approved by the Director. The plan is now marked as Cancelled.`,
+      type: 'DECISION',
+      severity: 'HIGH',
+      link: '/workspace/projects',
+    }).catch(() => {});
+  }
+
+  return plan;
+};
+
+export const rejectPlanCancellationService = async (
+  id: string,
+  userId: string,
+  comment?: string,
+) => {
+  const plan = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const oldPlan =
+        (await tx.plan.findUnique({
+          where: { id },
+          include: { activities: true, creator: true, project: true },
+        })) ||
+        (await tx.plan.findFirst({
+          where: { title: id },
+          include: { activities: true, creator: true, project: true },
+        }));
+
+      if (!oldPlan) {
+        throw new Error(`Plan not found with id: ${id}`);
+      }
+
+      const updatedPlan = await tx.plan.update({
+        where: { id: oldPlan.id },
+        data: {
+          status: PlanStatus.APPROVED,
+          directorRevisionComment: comment || null,
+        },
+        include: {
+          project: true,
+          creator: true,
+          activities: true,
+          committeeVotes: true,
+        },
+      });
+
+      try {
+        if (userId) {
+          await logRevision(
+            tx,
+            RevisionEntityType.PLAN,
+            RevisionChangeType.REJECT,
+            oldPlan.id,
+            userId,
+            oldPlan,
+            updatedPlan,
+          );
+        }
+        await createAuditLog(
+          {
+            userId: userId ?? null,
+            action: 'PLAN_CANCELLATION_REJECTED',
+            entityType: 'PLAN',
+            entityId: updatedPlan.id,
+            changes: {
+              title: updatedPlan.title,
+              directorComment: comment,
+            },
+          },
+          tx,
+        );
+      } catch (auditErr) {
+        console.warn('logRevision rejectCancellation warning:', auditErr);
+      }
+
+      return updatedPlan;
+    },
+  );
+
+  if (plan.creator?.id) {
+    createNotification({
+      userId: plan.creator.id,
+      title: `Cancellation Request Declined: ${plan.title}`,
+      message: `The Director has declined the cancellation request for plan "${plan.title}". The plan remains Approved.`,
+      type: 'DECISION',
+      severity: 'HIGH',
+      link: '/workspace/projects',
+    }).catch(() => {});
+  }
+
+  return plan;
+};

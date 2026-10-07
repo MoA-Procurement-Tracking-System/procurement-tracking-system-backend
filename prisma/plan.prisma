@@ -38,6 +38,11 @@ model Plan {
   managementByUser        User?     @relation("PlanManagementDecider", fields: [managementById], references: [id])
   managementAt            DateTime?
   directorRevisionComment String?
+  cancellationReason      String?
+  cancellationRequestedById String?
+  cancellationRequestedAt   DateTime?
+  cancellationApprovedById  String?
+  cancellationApprovedAt    DateTime?
 
   parentPlanId            String?
   parentPlan              Plan?               @relation("PlanHierarchy", fields: [parentPlanId], references: [id])

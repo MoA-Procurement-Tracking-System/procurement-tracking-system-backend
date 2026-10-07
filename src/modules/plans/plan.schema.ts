@@ -139,6 +139,34 @@ export const sendToCommitteeSchema = z.object({
     .openapi({ example: 48, description: 'Hours until voting deadline' }),
 });
 
+export const requestCancellationSchema = registry.register(
+  'RequestCancellation',
+  z.object({
+    reason: z
+      .string()
+      .trim()
+      .min(1, 'Cancellation reason is required')
+      .max(1000)
+      .openapi({
+        example: 'Activity cannot be implemented due to scope change',
+      }),
+  }),
+);
+
+export const approveCancellationSchema = registry.register(
+  'ApproveCancellation',
+  z.object({
+    comment: z.string().trim().max(1000).optional(),
+  }),
+);
+
+export const rejectCancellationSchema = registry.register(
+  'RejectCancellation',
+  z.object({
+    comment: z.string().trim().max(1000).optional(),
+  }),
+);
+
 // Register OpenAPI Paths for Plans
 registry.registerPath({
   method: 'get',

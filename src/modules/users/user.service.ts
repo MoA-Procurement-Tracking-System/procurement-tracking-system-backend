@@ -264,7 +264,7 @@ export async function deleteUser(
     try {
       await prisma.userInvitationToken.deleteMany({ where: { userId: id } });
     } catch {
-      // Ignore if cleanup fails
+      // Ignore if table or relation is not present
     }
     await prisma.user.update({
       where: { id },

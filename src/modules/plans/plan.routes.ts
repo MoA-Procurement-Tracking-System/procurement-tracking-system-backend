@@ -7,6 +7,9 @@ import {
   rejectPlanSchema,
   committeeVoteSchema,
   managementDecisionSchema,
+  requestCancellationSchema,
+  approveCancellationSchema,
+  rejectCancellationSchema,
 } from './plan.schema.js';
 import {
   getPlans,
@@ -21,6 +24,9 @@ import {
   returnToOfficer,
   submitCommitteeVote,
   submitManagementDecision,
+  requestPlanCancellation,
+  approvePlanCancellation,
+  rejectPlanCancellation,
 } from './plan.controller.js';
 
 const router = Router();
@@ -123,6 +129,27 @@ router.post(
   authorize('ManagementTeam', 'MANAGEMENT', 'Administrator', 'ADMIN'),
   validate(managementDecisionSchema),
   submitManagementDecision,
+);
+
+router.post(
+  '/:id/request-cancellation',
+  authorize('ProcurementOfficer', 'OFFICER', 'Administrator', 'ADMIN'),
+  validate(requestCancellationSchema),
+  requestPlanCancellation,
+);
+
+router.post(
+  '/:id/approve-cancellation',
+  authorize('ProcurementDirector', 'DIRECTOR', 'Administrator', 'ADMIN'),
+  validate(approveCancellationSchema),
+  approvePlanCancellation,
+);
+
+router.post(
+  '/:id/reject-cancellation',
+  authorize('ProcurementDirector', 'DIRECTOR', 'Administrator', 'ADMIN'),
+  validate(rejectCancellationSchema),
+  rejectPlanCancellation,
 );
 
 export default router;
